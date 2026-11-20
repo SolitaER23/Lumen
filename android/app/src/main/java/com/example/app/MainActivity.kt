@@ -383,6 +383,10 @@ private fun HomeScreen(
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         when {
+            // 重试期间优先显示进度，避免"点了没反应"
+            loading && albums.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
             error != null -> Column(
                 Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.Center,
@@ -395,9 +399,6 @@ private fun HomeScreen(
                     shape = RoundedCornerShape(percent = 50),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 ) { Text("重试") }
-            }
-            albums.isEmpty() && loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
             }
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
