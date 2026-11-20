@@ -1,4 +1,4 @@
-﻿//! Lumen —— Metro 版界面。
+//! Lumen —— Metro 版界面。
 //!
 //! 一屏到底，只有三页：
 //!   首页（整库平铺成瓷砖墙）→ 专辑页（封面 + 曲目）→ 播放页（大封面 + 一条细进度线）
@@ -847,13 +847,14 @@ impl App {
             // 滚动、翻页、进出专辑时位置不变，不会闪，也不会被页面内容盖住。
             // 播放页不画（那里已经有整套播控，画了会压歌词）。
             // 绘制不受转场影响（转场中也在原位），只有点击要等页面停稳。
-            if self.page != Page::Playing
-                && self.bar_visible() {
-                    if settled {
-                        self.bar_input(ui, screen);
-                    }
-                    self.draw_bar(&painter, screen, lay_bar(self, screen));
+            // 转场到播放页时底栏继续画到动画结束再消失：否则 page 一改就立刻不见，看起来在闪
+            let bar_shown = self.page != Page::Playing || self.nav.value() < 1.02;
+            if bar_shown && self.bar_visible() {
+                if settled && self.page != Page::Playing {
+                    self.bar_input(ui, screen);
                 }
+                self.draw_bar(&painter, screen, lay_bar(self, screen));
+            }
         }
 
         // 预测性返回：首页/覆盖层被拉动时压暗，读起来像应用正在被退出
@@ -1518,6 +1519,9 @@ impl App {
         let k = self.k;
         let off = vec2(dx, 0.0);
         let roles = self.roles();
+        // 页面内容裁到自己的矩形内：转场时文字/列表不会溢出到相邻页（右侧切割、文字盖住首页的根因）
+        let page_clip = p.with_clip_rect(screen.translate(off));
+        let p = &page_clip;
         // 背景横向多铺 16%：弹簧过冲时页面不会把黑底露出来
         p.rect_filled(
             screen.translate(off).expand2(vec2(screen.width() * 0.16, 0.0)),
@@ -1758,6 +1762,9 @@ impl App {
         let k = self.k;
         let off = vec2(dx, 0.0);
         let roles = self.roles();
+        // 页面内容裁到自己的矩形内：转场时文字/列表不会溢出到相邻页（右侧切割、文字盖住首页的根因）
+        let page_clip = p.with_clip_rect(screen.translate(off));
+        let p = &page_clip;
         // 背景横向多铺 16%：弹簧过冲时页面不会把黑底露出来
         p.rect_filled(
             screen.translate(off).expand2(vec2(screen.width() * 0.16, 0.0)),
@@ -2187,6 +2194,9 @@ impl App {
         let k = self.k;
         let off = vec2(dx, 0.0);
         let roles = self.roles();
+        // 页面内容裁到自己的矩形内：转场时文字/列表不会溢出到相邻页（右侧切割、文字盖住首页的根因）
+        let page_clip = p.with_clip_rect(screen.translate(off));
+        let p = &page_clip;
         // 背景横向多铺 16%：弹簧过冲时页面不会把黑底露出来
         p.rect_filled(
             screen.translate(off).expand2(vec2(screen.width() * 0.16, 0.0)),
