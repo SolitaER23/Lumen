@@ -145,10 +145,15 @@ private fun App() {
     }
 
     if (!cfg.complete) {
-        LoginScreen(cfg, loading, error) { c ->
-            loading = true
-            cfg = c
-            SettingsStore.save(ctx, c)
+        // 登录页也要套主题，否则用的是 M3 默认浅色 → 深色字压在黑底上看不清
+        MaterialTheme(colorScheme = FallbackScheme) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+                LoginScreen(cfg, loading, error) { c ->
+                    loading = true
+                    cfg = c
+                    SettingsStore.save(ctx, c)
+                }
+            }
         }
         return
     }
