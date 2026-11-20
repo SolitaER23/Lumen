@@ -61,6 +61,7 @@ fun PlayingScreen(
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onSeek: (Long) -> Unit,
+    coverModifier: Modifier = Modifier,
 ) {
     val duration = durationMs.coerceAtLeast(1L)
     val frac = (positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
@@ -81,7 +82,7 @@ fun PlayingScreen(
             model = coverUrl,
             contentDescription = track?.title,
             contentScale = ContentScale.Crop,
-            modifier = Modifier
+            modifier = coverModifier
                 .fillMaxWidth()
                 .padding(horizontal = 28.dp)
                 .height(330.dp)

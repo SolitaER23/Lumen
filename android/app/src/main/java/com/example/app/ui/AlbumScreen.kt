@@ -65,6 +65,7 @@ fun AlbumScreen(
     onPlay: (startIndex: Int) -> Unit,
     download: AlbumDownload?,
     onDownload: () -> Unit,
+    coverModifier: Modifier = Modifier,
 ) {
     val discKeys = remember(tracks) { discsOf(tracks) }
     var discIndex by remember(album.id) { mutableIntStateOf(0) }
@@ -93,7 +94,7 @@ fun AlbumScreen(
                     model = coverUrl,
                     contentDescription = album.name,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(150.dp).clip(RoundedCornerShape(24.dp)),
+                    modifier = coverModifier.size(150.dp).clip(RoundedCornerShape(24.dp)),
                 )
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {

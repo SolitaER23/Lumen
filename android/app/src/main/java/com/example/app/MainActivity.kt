@@ -153,6 +153,15 @@ private fun streamUrl(client: SubsonicClient, t: Track): String =
         client.streamUrl(t.id)
     }
 
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+@Composable
+private fun SharedScreenHost(
+    content: @Composable androidx.compose.animation.SharedTransitionScope.() -> Unit,
+) {
+    androidx.compose.animation.SharedTransitionLayout(Modifier.fillMaxSize()) { content() }
+}
+
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 private fun App() {
     val ctx = LocalContext.current
@@ -272,6 +281,7 @@ private fun App() {
                     alpha = 1f - 0.12f * backProgress
                 },
             ) {
+                SharedScreenHost {
                 AnimatedContent(
                     targetState = NavKey(screen, openAlbum?.id),
                     transitionSpec = {
@@ -297,6 +307,18 @@ private fun App() {
                     label = "screen",
                     modifier = Modifier.fillMaxSize(),
                 ) { key ->
+                val albumCoverModifier = key.albumId?.let { id ->
+                    Modifier.sharedElement(
+                        rememberSharedContentState(key = "cover-$id"),
+                        animatedVisibilityScope = this@AnimatedContent,
+                    )
+                } ?: Modifier
+                val playingCoverModifier = current?.albumId?.let { id ->
+                    Modifier.sharedElement(
+                        rememberSharedContentState(key = "cover-$id"),
+                        animatedVisibilityScope = this@AnimatedContent,
+                    )
+                } ?: Modifier
                 when {
                     key.screen == 6 -> SearchScreen(
                         client = client,
@@ -349,6 +371,7 @@ private fun App() {
                         },
                     )
                     key.screen == 2 -> PlayingScreen(
+                        coverModifier = playingCoverModifier,
                         track = current,
                         coverUrl = current?.let { client.coverUrl(it.albumId, 600) } ?: "",
                         positionMs = playback.positionMs,
@@ -391,6 +414,7 @@ private fun App() {
                         }
                         AlbumScreen(
                             album = album,
+                            coverModifier = albumCoverModifier,
                             tracks = tracks,
                             coverUrl = client.coverUrl(album.coverId),
                             currentTrackId = current?.id,
@@ -409,9 +433,11 @@ private fun App() {
                     }
                 }
                 }
+                }
 
                 // 每一页都有底栏（含播放页）
                     YoinBar(
+                        pulseKey = screen,
                         modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 6.dp),
                         title = current?.title ?: "",
                         artist = current?.artist ?: "",
@@ -838,6 +864,7 @@ private fun AlbumCard(
 @Composable
 private fun YoinBar(
     modifier: Modifier = Modifier,
+    pulseKey: Int = 0,
     title: String,
     artist: String,
     coverUrl: String,
@@ -847,8 +874,16 @@ private fun YoinBar(
     onOpenPlayer: () -> Unit,
     onToggle: () -> Unit,
 ) {
+    val pulse = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(pulseKey) {
+        pulse.snapTo(1.03f)
+        pulse.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 480f))
+    }
     Row(
-        modifier.fillMaxWidth().padding(horizontal = 12.dp).height(64.dp),
+        modifier.fillMaxWidth().graphicsLayer {
+            scaleX = pulse.value
+            scaleY = pulse.value
+        }.padding(horizontal = 12.dp).height(64.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
