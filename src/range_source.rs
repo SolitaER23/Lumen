@@ -225,7 +225,7 @@ impl Read for HttpRangeSource {
             let (m, cv) = &**live;
             let mut g = m
                 .lock()
-                .map_err(|_| io::Error::new(io::ErrorKind::Other, "live lock"))?;
+                .map_err(|_| io::Error::other("live lock"))?;
             loop {
                 let pos = self.pos as usize;
                 if pos < g.data.len() {
@@ -235,14 +235,14 @@ impl Read for HttpRangeSource {
                     return Ok(n);
                 }
                 if let Some(e) = &g.err {
-                    return Err(io::Error::new(io::ErrorKind::Other, e.clone()));
+                    return Err(io::Error::other(e.clone()));
                 }
                 if g.eof {
                     return Ok(0);
                 }
                 g = cv
                     .wait(g)
-                    .map_err(|_| io::Error::new(io::ErrorKind::Other, "live wait"))?;
+                    .map_err(|_| io::Error::other("live wait"))?;
             }
         }
         loop {
@@ -251,7 +251,7 @@ impl Read for HttpRangeSource {
             if !in_buf {
                 // 取下一块：正常情况下后台早就备好了，这里是纯内存拷贝
                 let next = self.rx.lock().map(|rx| rx.recv());
-                match next.unwrap_or_else(|_| Err(std::sync::mpsc::RecvError)) {
+                match next.unwrap_or(Err(std::sync::mpsc::RecvError)) {
                     Ok((start, data)) => {
                         // 丢掉 seek 之前发出的过期块
                         if start + data.len() as u64 <= self.pos {
@@ -307,5 +307,5 @@ impl Seek for HttpRangeSource {
 }
 
 fn io_err(e: impl std::fmt::Display) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, e.to_string())
+    io::Error::other(e.to_string())
 }

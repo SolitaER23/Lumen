@@ -4,6 +4,9 @@
 //! （用 GameActivity 而非 NativeActivity，是为了获得完整的 IME/软键盘支持）。
 //! 桌面端用同一份代码调试。
 
+// 传输层/JNI 的返回类型本来就长，类型别名反而更难读
+#![allow(clippy::type_complexity)]
+
 pub mod anim;
 pub mod audio;
 pub mod back;

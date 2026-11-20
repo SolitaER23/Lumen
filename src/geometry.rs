@@ -122,7 +122,7 @@ mod tests {
             step_inertia(&mut pos, &mut vel, 500.0, 1.0 / 60.0, false);
         }
         assert!(vel.abs() < 1.0, "滑行应衰减到接近停止");
-        assert!(pos >= 0.0 && pos <= 500.0);
+        assert!((0.0..=500.0).contains(&pos));
     }
 
     #[test]

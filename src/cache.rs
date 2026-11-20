@@ -157,7 +157,7 @@ fn trim_pool(dir: &Path, cap: u64, covers: bool, keep: &[String]) -> u64 {
                 .file_stem()
                 .map(|s| s.to_string_lossy().to_string())
                 .unwrap_or_default();
-            if keep.iter().any(|k| *k == stem) {
+            if keep.contains(&stem) {
                 continue;
             }
             let Ok(m) = std::fs::metadata(&p) else { continue };

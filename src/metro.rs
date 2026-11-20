@@ -235,6 +235,7 @@ pub fn marquee(
 ///
 /// 瓷砖标题要从底边往上排两行，原来先调 wrap_height 量高度、再调 text_wrap 画，
 /// 同一段文字排了两遍。这里排一遍、拿到高度再定位。
+#[allow(clippy::too_many_arguments)]
 pub fn text_wrap_bottom(
     p: &Painter,
     left: f32,
@@ -333,9 +334,12 @@ pub fn uv_cover(aspect_w: f32, aspect_h: f32) -> Rect {
 }
 
 /// 把纹理贴到（可能被透视变形的）四边形上
+#[allow(clippy::too_many_arguments)]
 pub fn tex_quad(p: &Painter, tex: TextureId, corners: [Pos2; 4], uv: Rect, tint: Color32) {
-    let mut mesh = egui::Mesh::default();
-    mesh.texture_id = tex;
+    let mut mesh = egui::Mesh {
+        texture_id: tex,
+        ..Default::default()
+    };
     let uv_pos = [
         pos2(uv.min.x, uv.min.y),
         pos2(uv.max.x, uv.min.y),

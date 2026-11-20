@@ -420,7 +420,7 @@ impl App {
         crate::eventlog::log(
             crate::eventlog::Level::Info,
             crate::eventlog::EventKind::AppStart,
-            &format!("version=dev screen=booting"),
+            "version=dev screen=booting",
         );
 
         theme::install_fonts(&cc.egui_ctx);
@@ -796,7 +796,7 @@ impl App {
         // Pixel 10a 支持 120/60/40/30/24/20；动画期间按 8ms 递帧，正好一帧一个 vsync。
         if !self.hz_ok && self.hz_tries < 8 {
             self.hz_frames += 1;
-            if self.hz_frames % 30 == 0 {
+            if self.hz_frames.is_multiple_of(30) {
                 self.hz_tries += 1;
                 self.hz_ok = crate::safe_area::set_frame_rate(TARGET_HZ);
             }
@@ -847,14 +847,13 @@ impl App {
             // 滚动、翻页、进出专辑时位置不变，不会闪，也不会被页面内容盖住。
             // 播放页不画（那里已经有整套播控，画了会压歌词）。
             // 绘制不受转场影响（转场中也在原位），只有点击要等页面停稳。
-            if self.page != Page::Playing {
-                if self.bar_visible() {
+            if self.page != Page::Playing
+                && self.bar_visible() {
                     if settled {
                         self.bar_input(ui, screen);
                     }
                     self.draw_bar(&painter, screen, lay_bar(self, screen));
                 }
-            }
         }
 
         // 预测性返回：首页/覆盖层被拉动时压暗，读起来像应用正在被退出
@@ -1149,10 +1148,9 @@ impl App {
         let mut tiles = Vec::with_capacity(n);
         for i in 0..n {
             let mut best = (0usize, f32::MAX);
-            for c in 0..cols {
-                let y = col_y[c];
-                if y < best.1 - 0.5 {
-                    best = (c, y);
+            for (c, y) in col_y.iter().enumerate() {
+                if *y < best.1 - 0.5 {
+                    best = (c, *y);
                 }
             }
             let (c, y) = best;
@@ -2302,7 +2300,7 @@ impl App {
             p,
             pos2(bar.max.x, bar.max.y + 10.0 * k),
             Align2::RIGHT_TOP,
-            &format!("-{}", fmt_time(remaining)),
+            format!("-{}", fmt_time(remaining)),
             m3::body(12.0 * k),
             roles.on_variant,
         );
@@ -2746,7 +2744,7 @@ impl App {
                 p,
                 pos2(cx, cy + 33.0 * k),
                 Align2::LEFT_TOP,
-                &format!("音频 {} MB · 封面 {} MB", u.audio >> 20, u.covers >> 20),
+                format!("音频 {} MB · 封面 {} MB", u.audio >> 20, u.covers >> 20),
                 m::regular(12.0 * k),
                 m::text_dim(),
             );
@@ -3082,7 +3080,7 @@ impl App {
             &p,
             pos2(panel.min.x + 24.0 * k, panel.min.y + 58.0 * k),
             Align2::LEFT_TOP,
-            &format!("当前登录：{}", self.settings.user),
+            format!("当前登录：{}", self.settings.user),
             m3::body(13.0 * k),
             roles.on_variant.gamma_multiply(e),
         );

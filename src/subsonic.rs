@@ -353,11 +353,10 @@ impl Client {
         let rd = std::fs::read_dir(&self.cache).ok()?;
         for e in rd.flatten() {
             let name = e.file_name();
-            if name.to_string_lossy().starts_with(&prefix) {
-                if e.metadata().map(|m| m.len() > 512).unwrap_or(false) {
+            if name.to_string_lossy().starts_with(&prefix)
+                && e.metadata().map(|m| m.len() > 512).unwrap_or(false) {
                     return Some(e.path());
                 }
-            }
         }
         None
     }
@@ -551,9 +550,9 @@ fn parse_lrc(text: &str) -> Option<crate::model::Lyrics> {
         while let Some(stripped) = rest.strip_prefix('[') {
             let Some(end) = stripped.find(']') else { break };
             let tag = &stripped[..end];
-            match parse_stamp(tag) {
-                Some(secs) => stamps.push(secs),
-                None => {} // [ti:] [ar:] [offset:] 之类，忽略
+            // 解析不出的标记（[ti:] [ar:] [offset:]…）直接忽略
+            if let Some(secs) = parse_stamp(tag) {
+                stamps.push(secs);
             }
             rest = &stripped[end + 1..];
         }
