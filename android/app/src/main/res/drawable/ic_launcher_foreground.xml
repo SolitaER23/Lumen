@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lumen 图标前景层：极简黑胶唱片，中心一颗 Cyan 光点。
+     图形放在 66dp 安全区内（唱片直径 60dp），避免被各种系统 mask 裁掉。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 唱片主体 -->
+    <path
+        android:pathData="M54,24 a30,30 0 1,1 0,60 a30,30 0 1,1 0,-60"
+        android:fillColor="#1A1A1A" />
+
+    <!-- 唱片外缘描边 -->
+    <path
+        android:pathData="M54,24 a30,30 0 1,1 0,60 a30,30 0 1,1 0,-60"
+        android:strokeColor="#3A3A3A"
+        android:strokeWidth="2"
+        android:fillColor="#00000000" />
+
+    <!-- 中心标签 -->
+    <path
+        android:pathData="M54,44 a10,10 0 1,1 0,20 a10,10 0 1,1 0,-20"
+        android:fillColor="#2A2A2A" />
+
+    <!-- 中心光点：Lumen（光） -->
+    <path
+        android:pathData="M54,50 a4,4 0 1,1 0,8 a4,4 0 1,1 0,-8"
+        android:fillColor="#1BA1E2" />
+</vector>

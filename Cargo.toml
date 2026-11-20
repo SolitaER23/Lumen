@@ -1,0 +1,76 @@
+﻿[package]
+name = "app"
+version = "0.6.4"
+edition = "2021"
+description = "Rust 编写的 Android 音乐播放器（egui + winit + GameActivity）"
+
+[lib]
+name = "app"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "app-desktop"
+path = "src/main.rs"
+
+[dependencies]
+log = "0.4"
+
+# ---- 音频：rodio(输出) + symphonia(解码) ----
+rodio = { version = "0.23", default-features = false, features = [
+    "playback",
+    "symphonia-flac",
+    "symphonia-mp3",
+    "symphonia-vorbis",
+    "symphonia-wav",
+    "symphonia-pcm",
+    "symphonia-isomp4",
+    "symphonia-aac",
+] }
+# ---- OpenSubsonic 客户端 ----
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 密码加密存储：AES-256-GCM + base64 + 系统熵源（纯 Rust，Android 交叉编译友好）
+aes-gcm = "0.10"
+base64 = "0.22"
+getrandom = "0.2"
+# 只开 gzip（纯 Rust 后端，交叉编译无 C 依赖）；不开 rustls/TLS——
+# 当前是纯 HTTP 局域网场景，rustls 会引入 ring 的 C 编译，给 Android 交叉编译添脆弱性。
+# 若以后要支持 https（反向代理），再加 features = ["rustls"] 即可。
+ureq = { version = "3", default-features = false, features = ["gzip"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+md5 = "0.7"
+
+# 关掉默认特性：默认会带上 accesskit，它与 android-game-activity 冲突
+# 用 game-activity（不是 native-activity）：NativeActivity 不支持 IME，
+# 候选词 commit/预编辑都拿不到；GameActivity 通过 GameTextInput 完整支持。
+eframe = { version = "0.37", default-features = false, features = [
+    "default_fonts",
+    "glow",
+    "android-game-activity",
+    "x11",
+    "wayland",
+] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+env_logger = "0.11"
+
+[target.'cfg(target_os = "android")'.dependencies]
+# 只是为了拿到 winit::platform::android::activity::AndroidApp 这个类型
+winit = { version = "0.30.13", default-features = false, features = ["android-game-activity"] }
+android_logger = "0.14"
+jni = "0.21"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.dev]
+opt-level = 1
+
+# 本地 patch：修复 android-activity game-activity 的 null 指针 panic（issue #153）
+# text_UTF8 为 null 时 from_raw_parts 崩溃，加了判空
+[patch.crates-io]
+android-activity = { path = "patches/android-activity" }
