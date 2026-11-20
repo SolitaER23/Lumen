@@ -105,21 +105,19 @@ class Playback(private val ctx: Context, private val transcoded: (Track) -> Stri
     }
 
     fun next() {
-        if (player.hasNextMediaItem()) {
-            player.seekToNextMediaItem()
+        val target = nextIndex(queue.size, player.currentMediaItemIndex)
+        if (target != player.currentMediaItemIndex) {
+            player.seekTo(target, 0L)
             player.play()
+            index = target
         }
     }
 
     fun prev() {
-        if (player.currentPosition > 3000L) {
-            player.seekTo(0)
-        } else if (player.hasPreviousMediaItem()) {
-            player.seekToPreviousMediaItem()
-            player.play()
-        } else {
-            player.seekTo(0)
-        }
+        val target = prevIndex(queue.size, player.currentMediaItemIndex, player.currentPosition)
+        player.seekTo(target, 0L)
+        player.play()
+        index = target
     }
 
     fun seekTo(ms: Long) {

@@ -41,6 +41,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.app.data.Album
+import com.example.app.data.absoluteStart
+import com.example.app.data.discsOf
+import com.example.app.data.tracksOfDisc
 import com.example.app.data.Track
 import com.gpo.yoin.symbols.YoinSymbols
 
@@ -59,14 +62,11 @@ fun AlbumScreen(
     onBack: () -> Unit,
     onPlay: (startIndex: Int) -> Unit,
 ) {
-    val discs = remember(tracks) { tracks.groupBy { it.disc }.toSortedMap() }
-    val discKeys = discs.keys.toList()
+    val discKeys = remember(tracks) { discsOf(tracks) }
     var discIndex by remember(album.id) { mutableIntStateOf(0) }
     val discKey = discKeys.getOrNull(discIndex.coerceIn(0, (discKeys.size - 1).coerceAtLeast(0))) ?: 1
-    val list = discs[discKey] ?: emptyList()
-    val absoluteStart = remember(tracks, discKey) {
-        tracks.indexOfFirst { it.disc == discKey }.coerceAtLeast(0)
-    }
+    val list = remember(tracks, discKey) { tracksOfDisc(tracks, discKey) }
+    val startIndex = remember(tracks, discKey) { absoluteStart(tracks, discKey) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().statusBarsPadding(),
@@ -113,7 +113,7 @@ fun AlbumScreen(
         }
         item {
             Button(
-                onClick = { onPlay(absoluteStart) },
+                onClick = { onPlay(startIndex) },
                 shape = RoundedCornerShape(percent = 50),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp).height(52.dp),
@@ -166,7 +166,7 @@ fun AlbumScreen(
                     .background(
                         if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                     )
-                    .clickable { onPlay(absoluteStart + i) }
+                    .clickable { onPlay(startIndex + i) }
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
