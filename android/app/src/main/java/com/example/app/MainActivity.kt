@@ -454,6 +454,7 @@ private fun HomeScreen(
     var artists by remember { mutableStateOf<List<Artist>>(emptyList()) }
     var newest by remember { mutableStateOf<List<Album>>(emptyList()) }
     var recent by remember { mutableStateOf<List<Album>>(emptyList()) }
+    var artistCovers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var tabLoading by remember { mutableStateOf(false) }
     var tabError by remember { mutableStateOf<String?>(null) }
 
@@ -461,6 +462,19 @@ private fun HomeScreen(
     LaunchedEffect(Unit) {
         if (artists.isEmpty()) {
             runCatching { artists = withContext(Dispatchers.IO) { client.artists() } }
+        }
+    }
+
+    // 艺人没有独立封面时，用其第一张专辑的封面，避免一片灰色占位图
+    LaunchedEffect(artists) {
+        if (artists.isEmpty()) return@LaunchedEffect
+        artistCovers = withContext(Dispatchers.IO) {
+            artists.mapNotNull { a ->
+                runCatching { client.artistDetail(a.id)?.second?.firstOrNull()?.coverId }
+                    .getOrNull()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { a.id to it }
+            }.toMap()
         }
     }
 
@@ -483,13 +497,13 @@ private fun HomeScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Box(Modifier.fillMaxSize().statusBarsPadding()) {
+        Column(Modifier.fillMaxSize()) {
         HomeHeader(
             selected = tab,
             albumCount = albums.size,
             artistCount = artists.size,
             onTab = { tab = it },
-            onSearch = onSearch,
             onSettings = onSettings,
         )
 
@@ -511,7 +525,7 @@ private fun HomeScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 ) { Text("重试") }
             }
-            tab == 1 -> ArtistGrid(artists, coverUrl, onOpenArtist)
+            tab == 1 -> ArtistGrid(artists, artistCovers, coverUrl, onOpenArtist)
             tab == 2 -> RecentList(
                 newest = newest,
                 recent = recent,
@@ -520,6 +534,27 @@ private fun HomeScreen(
                 loading = tabLoading && newest.isEmpty(),
             )
             else -> AlbumGrid(albums, coverUrl, onOpen)
+        }
+        }
+
+        // 搜索：悬浮在底栏右上方
+        Box(
+            Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 16.dp, bottom = 84.dp)
+                .size(56.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .clickable(onClick = onSearch),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                YoinSymbols.Search,
+                contentDescription = "搜索",
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(24.dp),
+            )
         }
     }
 }
@@ -530,7 +565,6 @@ private fun HomeHeader(
     albumCount: Int,
     artistCount: Int,
     onTab: (Int) -> Unit,
-    onSearch: () -> Unit,
     onSettings: () -> Unit,
 ) {
     Row(
@@ -543,21 +577,6 @@ private fun HomeHeader(
         Spacer(Modifier.width(20.dp))
         TabLabel("最近", null, 2, selected, onTab)
         Spacer(Modifier.weight(1f))
-        IconButton(
-            onClick = onSearch,
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(MaterialTheme.colorScheme.surfaceContainer),
-        ) {
-            Icon(
-                YoinSymbols.Search,
-                contentDescription = "搜索",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Spacer(Modifier.width(8.dp))
         IconButton(
             onClick = onSettings,
             modifier = Modifier
@@ -578,19 +597,21 @@ private fun HomeHeader(
 @Composable
 private fun TabLabel(title: String, count: Int?, index: Int, selected: Int, onTab: (Int) -> Unit) {
     val active = selected == index
-    Column(Modifier.clickable { onTab(index) }) {
+    Column(
+        Modifier.clickable { onTab(index) },
+        horizontalAlignment = Alignment.Start,
+    ) {
         Text(
             title,
             color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = if (active) 30.sp else 24.sp,
-            fontWeight = FontWeight.Light,
+            fontSize = 26.sp,
+            fontWeight = if (active) FontWeight.Normal else FontWeight.Light,
         )
-        if (count != null) {
-            Text(
-                "$count",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 11.sp,
-            )
+        // 固定高度占位，保证三个标签基线一致（没有数量的「最近」也不歪）
+        Box(Modifier.height(16.dp), contentAlignment = Alignment.TopStart) {
+            if (count != null) {
+                Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+            }
         }
     }
 }
@@ -611,7 +632,12 @@ private fun AlbumGrid(albums: List<Album>, coverUrl: (String) -> String, onOpen:
 }
 
 @Composable
-private fun ArtistGrid(artists: List<Artist>, coverUrl: (String) -> String, onOpen: (Artist) -> Unit) {
+private fun ArtistGrid(
+    artists: List<Artist>,
+    artistCovers: Map<String, String>,
+    coverUrl: (String) -> String,
+    onOpen: (Artist) -> Unit,
+) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
@@ -625,7 +651,7 @@ private fun ArtistGrid(artists: List<Artist>, coverUrl: (String) -> String, onOp
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 AsyncImage(
-                    model = coverUrl(artist.coverId),
+                    model = coverUrl(artistCovers[artist.id] ?: artist.coverId),
                     contentDescription = artist.name,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(percent = 50)),
@@ -634,7 +660,7 @@ private fun ArtistGrid(artists: List<Artist>, coverUrl: (String) -> String, onOp
                 Text(
                     artist.name,
                     color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 13.sp,
+                    fontSize = 15.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
@@ -642,7 +668,7 @@ private fun ArtistGrid(artists: List<Artist>, coverUrl: (String) -> String, onOp
                 Text(
                     "${artist.albumCount} 张专辑",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                 )
             }
         }
@@ -718,35 +744,42 @@ private fun AlbumCard(
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable(onClick = onClick),
     ) {
-        Row(Modifier.fillMaxWidth().height(170.dp)) {
-            AsyncImage(
-                model = url,
-                contentDescription = album.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-            )
-            // 封面右侧竖排艺人名
-            Box(
-                Modifier.width(20.dp).fillMaxHeight().padding(vertical = 6.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    album.artist.take(10).toCharArray().joinToString("\n"),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 9.sp,
-                    lineHeight = 10.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 10,
-                    overflow = TextOverflow.Clip,
+        // 封面保持正方形，右侧留一条竖排艺人名的窄列
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val strip = 26.dp
+            val cover = maxWidth - strip
+            Row {
+                AsyncImage(
+                    model = url,
+                    contentDescription = album.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(cover).clip(
+                        RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp),
+                    ),
                 )
+                Box(
+                    Modifier.width(strip).height(cover),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        album.artist.take(8).toCharArray().joinToString("\n"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        lineHeight = 12.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 8,
+                        overflow = TextOverflow.Clip,
+                    )
+                }
             }
         }
+        // 专辑名固定一行，保证所有卡片等高
         Text(
             album.name,
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
         )
