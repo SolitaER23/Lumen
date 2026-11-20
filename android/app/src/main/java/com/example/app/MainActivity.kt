@@ -33,6 +33,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -355,6 +357,7 @@ private fun LoginScreen(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun HomeScreen(
     albums: List<Album>,
@@ -365,42 +368,40 @@ private fun HomeScreen(
     onSettings: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "专辑",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.Light,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = onSettings) {
-                    Icon(
-                        YoinSymbols.Settings,
-                        contentDescription = "设置",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Text(
-                if (albums.isEmpty()) "正在加载…" else "${albums.size} 张专辑",
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp,
-            )
-        }
         when {
             error != null -> Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(20.dp))
             albums.isEmpty() && loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-            else -> LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 120.dp),
             ) {
-                items(albums, key = { it.id }) { album ->
-                    AlbumCard(album, coverUrl(album.coverId)) { onOpen(album) }
+                // 标题行吸顶：滚动时「专辑 + 设置」固定在上方
+                stickyHeader {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface),
+                    ) {
+                        HomeHeader(albums.size, onSettings)
+                    }
+                }
+                items(albums.chunked(2)) { pair ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        pair.forEach { album ->
+                            AlbumCard(
+                                album = album,
+                                url = coverUrl(album.coverId),
+                                modifier = Modifier.weight(1f),
+                            ) { onOpen(album) }
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(12.dp))
                 }
             }
         }
@@ -408,9 +409,47 @@ private fun HomeScreen(
 }
 
 @Composable
-private fun AlbumCard(album: Album, url: String, onClick: () -> Unit) {
+private fun HomeHeader(count: Int, onSettings: () -> Unit) {
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "专辑",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 36.sp,
+                fontWeight = FontWeight.Light,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                onClick = onSettings,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(MaterialTheme.colorScheme.surfaceContainer),
+            ) {
+                Icon(
+                    YoinSymbols.Settings,
+                    contentDescription = "设置",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        Text(
+            if (count == 0) "正在加载…" else "$count 张专辑",
+            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp,
+        )
+    }
+}
+
+@Composable
+private fun AlbumCard(
+    album: Album,
+    url: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
     Column(
-        Modifier
+        modifier
             .clip(RoundedCornerShape(24.dp))
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable(onClick = onClick),
