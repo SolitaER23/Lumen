@@ -101,6 +101,11 @@ class Playback(private val ctx: Context, private val transcoded: (Track) -> Stri
         albumId = album
         val items = tracks.map { MediaItem.fromUri(urlFor(it)) }
         fallbackTrackId = null
+        android.util.Log.i(
+            "Lumen",
+            "play album=$album start=$startIndex track=${tracks[startIndex].title} " +
+                "suffix=${tracks[startIndex].suffix} uri=${items[startIndex].localConfiguration?.uri}",
+        )
         player.setMediaItems(items, startIndex.coerceIn(0, items.lastIndex), 0L)
         player.prepare()
         player.play()

@@ -163,11 +163,13 @@ private fun App() {
         // m4a（ALAC）在部分设备上 ExoPlayer 能"播"但不出声：直接走 320k MP3 转码，
         // 其余格式用原始流（ExoPlayer 原生解码）。解码失败时 Playback 里还有一次兜底。
         Playback(ctx) { t ->
-            if (t.suffix.equals("m4a", ignoreCase = true)) {
+            val u = if (t.suffix.equals("m4a", ignoreCase = true)) {
                 client.streamUrl(t.id) + "&format=mp3&maxBitRate=320"
             } else {
                 client.streamUrl(t.id)
             }
+            android.util.Log.i("Lumen", "urlFor suffix=${t.suffix} mp3=${u.contains("format=mp3")} url=$u")
+            u
         }
     }
     DisposableEffect(Unit) { onDispose { playback.release() } }
@@ -271,7 +273,13 @@ private fun App() {
                             onBack = { screen = 0; openAlbum = null },
                             onPlay = { start ->
                                 if (tracks.isNotEmpty()) {
-                                    playback.play(tracks, start, album.id) { client.streamUrl(it.id) }
+                                    playback.play(tracks, start, album.id) { tr ->
+                                        if (tr.suffix.equals("m4a", ignoreCase = true)) {
+                                            client.streamUrl(tr.id) + "&format=mp3&maxBitRate=320"
+                                        } else {
+                                            client.streamUrl(tr.id)
+                                        }
+                                    }
                                     playback.tick()
                                 }
                             },
