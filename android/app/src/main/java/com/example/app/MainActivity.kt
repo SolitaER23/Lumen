@@ -14,6 +14,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -288,8 +289,7 @@ private fun App() {
                     }
                 }
 
-                // 播放页不画底栏（那里已有整套播控）
-                if (screen != 2) {
+                // 每一页都有底栏（含播放页）
                     YoinBar(
                         modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 6.dp),
                         title = current?.title ?: "",
@@ -304,7 +304,6 @@ private fun App() {
                             else if (albums.isNotEmpty()) openAlbum = albums.first()
                         },
                     )
-                }
             }
         }
     }
@@ -446,56 +445,43 @@ private fun YoinBar(
     onOpenPlayer: () -> Unit,
     onToggle: () -> Unit,
 ) {
-    val homeSrc = remember { MutableInteractionSource() }
-    val playSrc = remember { MutableInteractionSource() }
-    val homePressed by homeSrc.collectIsPressedAsState()
-    val playPressed by playSrc.collectIsPressedAsState()
-
-    val spec = spring<androidx.compose.ui.unit.Dp>(
-        dampingRatio = Spring.DampingRatioLowBouncy,
-        stiffness = Spring.StiffnessMediumLow,
-    )
-    val grow = 16.dp
-    val base = 56.dp
-    val leftW by animateDpAsState(if (homePressed) base + grow else base, spec, label = "left")
-    val rightW by animateDpAsState(if (playPressed) base + grow else base, spec, label = "right")
-
-    Box(modifier.fillMaxWidth().height(72.dp)) {
-        Canvas(Modifier.fillMaxSize()) {
-            val step = 7.dp.toPx()
-            val r = 1.25.dp.toPx()
-            var y = 0f
-            while (y < size.height) {
-                var x = 0f
-                while (x < size.width) {
-                    drawCircle(Color.White.copy(alpha = 0.10f), r, Offset(x, y))
-                    x += step
-                }
-                y += step
+    Row(
+        modifier.fillMaxWidth().padding(horizontal = 12.dp).height(64.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        // 首页：独立圆形按钮
+        Surface(
+            onClick = onHome,
+            shape = RoundedCornerShape(percent = 50),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            modifier = Modifier.size(56.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    YoinSymbols.Home,
+                    contentDescription = "首页",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(24.dp),
+                )
             }
         }
-        Row(
-            Modifier.fillMaxSize().padding(horizontal = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+
+        // 曲目胶囊：封面 + 歌名 + 播放键全在一个框里
+        Surface(
+            onClick = onOpenPlayer,
+            enabled = enabled,
+            shape = RoundedCornerShape(percent = 50),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 3.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+            modifier = Modifier.weight(1f).height(56.dp),
         ) {
-            Box(
-                Modifier.width(leftW).height(56.dp).clip(RoundedCornerShape(percent = 50))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
+            Row(
+                Modifier.fillMaxSize().padding(start = 6.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onHome, interactionSource = homeSrc) {
-                    Icon(YoinSymbols.Home, contentDescription = "首页", tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-            }
-            if (enabled) {
-                Row(
-                    Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(percent = 50))
-                        .background(MaterialTheme.colorScheme.surfaceContainer)
-                        .clickable(onClick = onOpenPlayer)
-                        .padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                if (enabled) {
                     AsyncImage(
                         model = coverUrl,
                         contentDescription = null,
@@ -503,7 +489,7 @@ private fun YoinBar(
                         modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)),
                     )
                     Spacer(Modifier.width(10.dp))
-                    // 换歌：旧名向左退场、新名从右边推入（空间弹簧）
+                    // 换歌：旧名向左退场、新名从右边推入
                     AnimatedContent(
                         targetState = title,
                         transitionSpec = {
@@ -511,8 +497,9 @@ private fun YoinBar(
                                 (slideOutHorizontally { -it } + fadeOut())
                         },
                         label = "track",
+                        modifier = Modifier.weight(1f),
                     ) { t ->
-                        Column {
+                        Column(Modifier.fillMaxWidth()) {
                             Text(
                                 t, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -524,21 +511,28 @@ private fun YoinBar(
                             )
                         }
                     }
+                } else {
+                    Text(
+                        "还没有播放",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        modifier = Modifier.weight(1f).padding(start = 12.dp),
+                    )
                 }
-            } else {
-                Spacer(Modifier.weight(1f))
-            }
-            Box(
-                Modifier.width(rightW).height(56.dp).clip(RoundedCornerShape(percent = 50)),
-                contentAlignment = Alignment.Center,
-            ) {
                 val painter = rememberPlayPauseSymbolPainter(playing)
-                IconButton(onClick = onToggle, interactionSource = playSrc) {
+                IconButton(
+                    onClick = onToggle,
+                    enabled = enabled,
+                    modifier = Modifier.size(44.dp),
+                ) {
                     Image(
                         painter = painter,
                         contentDescription = if (playing) "暂停" else "播放",
-                        modifier = Modifier.size(30.dp),
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.size(26.dp),
+                        colorFilter = ColorFilter.tint(
+                            if (enabled) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        ),
                     )
                 }
             }

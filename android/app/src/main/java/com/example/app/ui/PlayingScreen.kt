@@ -65,7 +65,7 @@ fun PlayingScreen(
     val duration = durationMs.coerceAtLeast(1L)
     val frac = (positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(bottom = 76.dp)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
