@@ -1,4 +1,4 @@
-pluginManagement {
+﻿pluginManagement {
     repositories {
         google {
             content {
@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "app"
 include(":app")
+include(":lumen")
