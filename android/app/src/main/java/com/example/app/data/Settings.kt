@@ -1,4 +1,4 @@
-package com.example.app.data
+﻿package com.example.app.data
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
@@ -59,6 +59,15 @@ object SettingsStore {
             .putString(PREF_PASSWORD_ENC, encrypt(ctx, cfg.password))
             .remove(PREF_PASSWORD_LEGACY)
             .apply()
+    }
+
+    /** 认证 salt：安装后固定，保证同一首曲目的 URL（= 缓存键）跨重启稳定。 */
+    fun salt(ctx: Context): String {
+        val p = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        p.getString("salt", null)?.let { return it }
+        val s = "%08x".format(java.util.Random(System.nanoTime()).nextInt())
+        p.edit().putString("salt", s).apply()
+        return s
     }
 
     fun clear(ctx: Context) {

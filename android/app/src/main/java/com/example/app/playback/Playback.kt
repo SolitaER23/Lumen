@@ -8,17 +8,10 @@ import androidx.compose.runtime.setValue
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.database.StandaloneDatabaseProvider
-import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
-import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.example.app.data.Track
-import java.io.File
 
 /**
  * 播放控制：ExoPlayer + 512MB 磁盘缓存 + 解码失败自动转码兜底。
@@ -41,22 +34,12 @@ class Playback(private val ctx: Context) {
 
     /** 强制转码地址（解码失败兜底用），默认退回 urlFor */
     var transcodeUrl: (Track) -> String = { urlFor(it) }
-    private val cache: SimpleCache by lazy {
-        SimpleCache(
-            File(ctx.cacheDir, "media"),
-            LeastRecentlyUsedCacheEvictor(512L * 1024 * 1024),
-            StandaloneDatabaseProvider(ctx),
-        )
-    }
+
 
     val player: ExoPlayer = run {
-        val upstream = DefaultHttpDataSource.Factory().setConnectTimeoutMs(10_000).setReadTimeoutMs(20_000)
-        val cacheFactory = CacheDataSource.Factory()
-            .setCache(cache)
-            .setUpstreamDataSourceFactory(DefaultDataSource.Factory(ctx, upstream))
-            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        // 与离线下载共用同一个 SimpleCache（MediaCache），下载完的内容播放直接命中
         ExoPlayer.Builder(ctx)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(cacheFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(MediaCache.cacheDataSourceFactory(ctx)))
             .build()
             .also { p ->
                 // 媒体用途 + 自动处理音频焦点（来电/其他应用播放时让路）
@@ -189,7 +172,6 @@ class Playback(private val ctx: Context) {
 
     fun release() {
         player.release()
-        runCatching { cache.release() }
     }
 
 }

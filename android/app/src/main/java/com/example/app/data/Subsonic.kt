@@ -108,12 +108,14 @@ internal fun parseRoot(body: String): JSONObject {
 }
 
 /** OpenSubsonic 客户端：token + salt 认证。 */
-class SubsonicClient(cfg: ServerConfig) {
+class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
     private val base = cfg.base.trimEnd('/')
     private val user = cfg.user
     private val password = cfg.password
-    private val salt = Integer.toHexString((System.nanoTime() and 0xFFFFFFFF).toInt())
+    // 注意：构造参数不能与属性同名，否则属性初始化时会被参数（null）遮蔽，token 会算成 md5(pw + "null")
+    private val salt = saltOverride ?: Integer.toHexString((System.nanoTime() and 0xFFFFFFFF).toInt())
     private val token = md5Hex(password + salt)
+
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)

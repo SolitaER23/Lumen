@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,6 +46,7 @@ import com.example.app.data.absoluteStart
 import com.example.app.data.discsOf
 import com.example.app.data.tracksOfDisc
 import com.example.app.data.Track
+import com.example.app.playback.AlbumDownload
 import com.gpo.yoin.symbols.YoinSymbols
 
 /**
@@ -61,6 +63,8 @@ fun AlbumScreen(
     currentTrackId: String?,
     onBack: () -> Unit,
     onPlay: (startIndex: Int) -> Unit,
+    download: AlbumDownload?,
+    onDownload: () -> Unit,
 ) {
     val discKeys = remember(tracks) { discsOf(tracks) }
     var discIndex by remember(album.id) { mutableIntStateOf(0) }
@@ -121,6 +125,27 @@ fun AlbumScreen(
                 Icon(YoinSymbols.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                 Spacer(Modifier.width(8.dp))
                 Text("播放全部", fontSize = 15.sp)
+            }
+        }
+        item {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val finished = download != null && download.total > 0 && download.done == download.total
+                Text(
+                    when {
+                        download == null -> "未下载"
+                        download.total == 0 -> "未下载"
+                        else -> "已下载 ${download.done}/${download.total}"
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onDownload, enabled = !finished) {
+                    Text(if (finished) "已下载" else "下载整张")
+                }
             }
         }
         if (discKeys.size > 1) {

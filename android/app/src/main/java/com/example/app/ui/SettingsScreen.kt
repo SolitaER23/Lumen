@@ -43,6 +43,10 @@ fun SettingsScreen(
     cacheDir: File,
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    downloadCount: Int,
+    downloadBytes: Long,
+    onManageDownloads: () -> Unit,
+    onClearCache: () -> Unit,
 ) {
     var cacheBytes by remember { mutableStateOf(0L) }
     var freed by remember { mutableStateOf(false) }
@@ -76,7 +80,7 @@ fun SettingsScreen(
                 .clip(RoundedCornerShape(16.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainer)
                 .clickable {
-                    cacheDir.deleteRecursively()
+                    onClearCache()
                     freed = !freed
                 }
                 .padding(horizontal = 14.dp, vertical = 14.dp),
@@ -88,6 +92,26 @@ fun SettingsScreen(
                 modifier = Modifier.weight(1f),
             )
             Icon(YoinSymbols.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Section("离线下载")
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .clickable(onClick = onManageDownloads)
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "$downloadCount 首 · ${"%.1f".format(downloadBytes / 1048576.0)} MB",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Text("管理", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
         }
 
         Spacer(Modifier.height(16.dp))

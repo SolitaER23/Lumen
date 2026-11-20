@@ -81,11 +81,14 @@ import com.example.app.data.SettingsStore
 import com.example.app.data.SubsonicClient
 import com.example.app.data.Track
 import com.example.app.playback.Playback
+import com.example.app.playback.AlbumDownload
+import com.example.app.playback.Downloads
 import com.example.app.playback.PlaybackEngine
 import com.example.app.playback.PlaybackService
 import com.example.app.ui.AlbumScreen
 import com.example.app.ui.FallbackScheme
 import com.example.app.ui.PlayingScreen
+import com.example.app.ui.DownloadsScreen
 import com.example.app.ui.SettingsScreen
 import com.example.app.ui.schemeFromCover
 import com.gpo.yoin.symbols.YoinSymbols
@@ -141,6 +144,7 @@ private fun App() {
     // 0 = 首页, 1 = 专辑页, 2 = 播放页
     var screen by remember { mutableStateOf(0) }
     var scheme by remember { mutableStateOf(FallbackScheme) }
+    var downloads by remember { mutableStateOf<List<AlbumDownload>>(emptyList()) }
 
 
     suspend fun loadAlbums(c: ServerConfig) {
@@ -203,6 +207,16 @@ private fun App() {
     }
     val current = playback.current
 
+    // 下载状态轮询：只在相关页面刷新，避免全局定时器
+    LaunchedEffect(screen, openAlbum?.id) {
+        if (screen == 1 || screen == 3 || screen == 4) {
+            while (true) {
+                downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
+                delay(1000)
+            }
+        }
+    }
+
     // 封面取色：主色跟着正在播的专辑走
     LaunchedEffect(current?.albumId) {
         current?.let { t ->
@@ -237,9 +251,30 @@ private fun App() {
                 },
             ) {
                 when {
+                    screen == 4 -> DownloadsScreen(
+                        summaries = downloads,
+                        onBack = { screen = 3 },
+                        onDelete = { id ->
+                            Downloads.delete(ctx, id)
+                            downloads = Downloads.summaries(ctx)
+                        },
+                        onClearAll = {
+                            downloads.forEach { Downloads.delete(ctx, it.albumId) }
+                            downloads = emptyList()
+                        },
+                    )
                     screen == 3 -> SettingsScreen(
                         cfg = cfg,
                         cacheDir = java.io.File(ctx.cacheDir, "media"),
+                        downloadCount = downloads.sumOf { it.total },
+                        downloadBytes = downloads.sumOf { it.bytes },
+                        onManageDownloads = { screen = 4 },
+                        onClearCache = {
+                            // 缓存与下载共用 SimpleCache：清缓存要把下载记录一起删掉，否则管理页会显示"已下载"但文件没了
+                            downloads.forEach { Downloads.delete(ctx, it.albumId) }
+                            java.io.File(ctx.cacheDir, "media").deleteRecursively()
+                            downloads = emptyList()
+                        },
                         onBack = { screen = 0 },
                         onLogout = {
                             ctx.getSharedPreferences("lumen_settings", android.content.Context.MODE_PRIVATE)
@@ -294,6 +329,10 @@ private fun App() {
                             coverUrl = client.coverUrl(album.coverId),
                             currentTrackId = current?.id,
                             onBack = { screen = 0; openAlbum = null },
+                            download = downloads.firstOrNull { it.albumId == album.id },
+                            onDownload = {
+                                Downloads.enqueue(ctx, album, tracks) { tr -> streamUrl(client, tr) }
+                            },
                             onPlay = { start ->
                                 if (tracks.isNotEmpty()) {
                                     playback.play(tracks, start, album.id)
