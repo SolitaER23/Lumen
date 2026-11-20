@@ -1,4 +1,4 @@
-package com.example.app.ui
+﻿package com.example.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -78,18 +78,10 @@ fun ArtistScreen(
             }
         }
         item {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                AsyncImage(
-                    model = coverUrl(artist.coverId),
-                    contentDescription = artist.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(96.dp).clip(RoundedCornerShape(percent = 50)),
-                )
-                Spacer(Modifier.width(16.dp))
-                Column {
-                    Text(artist.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 26.sp, fontWeight = FontWeight.Light)
-                    Text("${artist.albumCount} 张专辑", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                }
+            // 不显示艺人头像，只留名字与张数
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                Text(artist.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 28.sp, fontWeight = FontWeight.Light)
+                Text("${artist.albumCount} 张专辑", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
             Spacer(Modifier.height(16.dp))
         }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -541,14 +542,15 @@ private fun HomeScreen(
                 .padding(end = 16.dp, bottom = 84.dp)
                 .size(60.dp)
                 .clip(RoundedCornerShape(percent = 50))
-                .background(MaterialTheme.colorScheme.primary)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(percent = 50))
                 .clickable(onClick = onSearch),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 YoinSymbols.Search,
                 contentDescription = "搜索",
-                tint = MaterialTheme.colorScheme.onPrimary,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(26.dp),
             )
         }
@@ -573,14 +575,21 @@ private fun HomeHeader(
         Spacer(Modifier.width(20.dp))
         TabLabel("最近", null, 2, selected, onTab)
         Spacer(Modifier.weight(1f))
-        // 与标题行居中对齐（不是与底部数量行对齐）
+        // 与标题行居中对齐；描边圆钮，与实心首页键形成对比
         Box(Modifier.height(38.dp), contentAlignment = Alignment.Center) {
-            IconButton(onClick = onSettings, modifier = Modifier.size(44.dp)) {
+            Box(
+                Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(percent = 50))
+                    .clickable(onClick = onSettings),
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
                     YoinSymbols.Settings,
                     contentDescription = "设置",
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(22.dp),
                 )
             }
         }
@@ -668,30 +677,33 @@ private fun RecentList(
         contentPadding = PaddingValues(bottom = 120.dp),
     ) {
         item { SectionTitle("最近添加") }
-        items(newest.chunked(2)) { pair ->
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                pair.forEach { album ->
-                    AlbumCard(album, coverUrl(album.coverId), Modifier.weight(1f)) { onOpen(album) }
-                }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(12.dp))
+        items(rowsOf(newest)) { row ->
+            HorizontalAlbumRow(row, coverUrl, onOpen)
         }
         item { SectionTitle("最近播放") }
-        items(recent.chunked(2)) { pair ->
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                pair.forEach { album ->
-                    AlbumCard(album, coverUrl(album.coverId), Modifier.weight(1f)) { onOpen(album) }
-                }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(12.dp))
+        items(rowsOf(recent)) { row ->
+            HorizontalAlbumRow(row, coverUrl, onOpen)
+        }
+    }
+}
+
+/** 把列表切成两行（每行左右滑动），第一行拿前半、第二行拿后半 */
+private fun rowsOf(albums: List<Album>): List<List<Album>> {
+    if (albums.isEmpty()) return emptyList()
+    if (albums.size == 1) return listOf(albums)
+    val half = (albums.size + 1) / 2
+    return listOf(albums.take(half), albums.drop(half)).filter { it.isNotEmpty() }
+}
+
+@Composable
+private fun HorizontalAlbumRow(row: List<Album>, coverUrl: (String) -> String, onOpen: (Album) -> Unit) {
+    androidx.compose.foundation.lazy.LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+    ) {
+        items(row, key = { it.id }) { album ->
+            AlbumCard(album, coverUrl(album.coverId), Modifier.width(148.dp)) { onOpen(album) }
         }
     }
 }
@@ -812,7 +824,7 @@ private fun YoinBar(
         // 首页：独立圆形按钮
         Surface(
             onClick = onHome,
-            shape = RoundedCornerShape(percent = 50),
+            shape = RoundedCornerShape(22.dp),
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(60.dp),
         ) {
