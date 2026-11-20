@@ -61,8 +61,8 @@ class Playback(private val ctx: Context, private val transcoded: (Track) -> Stri
         private set
     var durationMs by mutableStateOf(0L)
         private set
-    /** 是否已经为当前曲目做过一次转码兜底，避免无限重试 */
-    private var fallbackUsed = false
+    /** 已经为哪一首做过转码兜底（按曲目 id 记，换曲才重置，避免 setMediaItem 触发 transition 后无限重试） */
+    private var fallbackTrackId: String? = null
 
     val current: Track? get() = queue.getOrNull(index)
 
@@ -74,16 +74,21 @@ class Playback(private val ctx: Context, private val transcoded: (Track) -> Stri
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 index = player.currentMediaItemIndex
-                fallbackUsed = false
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 val t = current ?: return
-                if (fallbackUsed) return
-                fallbackUsed = true
+                if (fallbackTrackId == t.id) {
+                    android.util.Log.w("Lumen", "playback error again for ${t.id}: ${error.errorCodeName}")
+                    return
+                }
+                fallbackTrackId = t.id
+                android.util.Log.w(
+                    "Lumen",
+                    "decode failed (${error.errorCodeName}) for ${t.title} [${t.suffix}] -> transcode fallback",
+                )
                 val pos = player.currentPosition.coerceAtLeast(0L)
-                val item = MediaItem.fromUri(transcoded(t))
-                player.setMediaItem(item, pos)
+                player.setMediaItem(MediaItem.fromUri(transcoded(t)), pos)
                 player.prepare()
                 player.play()
             }
@@ -95,7 +100,7 @@ class Playback(private val ctx: Context, private val transcoded: (Track) -> Stri
         queue = tracks
         albumId = album
         val items = tracks.map { MediaItem.fromUri(urlFor(it)) }
-        fallbackUsed = false
+        fallbackTrackId = null
         player.setMediaItems(items, startIndex.coerceIn(0, items.lastIndex), 0L)
         player.prepare()
         player.play()
@@ -131,6 +136,11 @@ class Playback(private val ctx: Context, private val transcoded: (Track) -> Stri
         positionMs = player.currentPosition.coerceAtLeast(0L)
         durationMs = player.duration.coerceAtLeast(0L)
         index = player.currentMediaItemIndex
+        android.util.Log.d(
+            "Lumen",
+            "tick state=${player.playbackState} playing=${player.isPlaying} pos=$positionMs dur=$durationMs " +
+                "buf=${player.bufferedPercentage} err=${player.playerError?.errorCodeName}",
+        )
     }
 
     fun release() {

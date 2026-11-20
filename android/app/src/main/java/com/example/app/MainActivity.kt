@@ -160,7 +160,15 @@ private fun App() {
 
     val client = remember(cfg) { SubsonicClient(cfg) }
     val playback = remember(client) {
-        Playback(ctx) { t -> client.streamUrl(t.id) + "&format=mp3&maxBitRate=320" }
+        // m4a（ALAC）在部分设备上 ExoPlayer 能"播"但不出声：直接走 320k MP3 转码，
+        // 其余格式用原始流（ExoPlayer 原生解码）。解码失败时 Playback 里还有一次兜底。
+        Playback(ctx) { t ->
+            if (t.suffix.equals("m4a", ignoreCase = true)) {
+                client.streamUrl(t.id) + "&format=mp3&maxBitRate=320"
+            } else {
+                client.streamUrl(t.id)
+            }
+        }
     }
     DisposableEffect(Unit) { onDispose { playback.release() } }
     LaunchedEffect(playback.playing) {
