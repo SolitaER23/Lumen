@@ -367,13 +367,21 @@ private fun HomeScreen(
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Lumen", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text(
+                    "专辑",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Light,
+                    modifier = Modifier.weight(1f),
+                )
                 IconButton(onClick = onSettings) {
-                    Icon(YoinSymbols.Settings, contentDescription = "设置", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(
+                        YoinSymbols.Settings,
+                        contentDescription = "设置",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
-            Spacer(Modifier.height(10.dp))
-            Text("专辑", color = MaterialTheme.colorScheme.onSurface, fontSize = 36.sp, fontWeight = FontWeight.Light)
             Text(
                 if (albums.isEmpty()) "正在加载…" else "${albums.size} 张专辑",
                 color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp,
