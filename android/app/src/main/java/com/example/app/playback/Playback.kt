@@ -29,7 +29,10 @@ import java.io.File
  *   `stream?format=mp3&maxBitRate=320` 转码流重试一次。
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-class Playback(private val ctx: Context, private val transcoded: (Track) -> String) {
+class Playback(private val ctx: Context) {
+    /** 播放地址提供者：Activity 登录后注入（要区分 m4a 转码） */
+    var urlFor: (Track) -> String = { "" }
+        set(value) { field = value }
     private val cache: SimpleCache by lazy {
         SimpleCache(
             File(ctx.cacheDir, "media"),
@@ -88,18 +91,39 @@ class Playback(private val ctx: Context, private val transcoded: (Track) -> Stri
                     "decode failed (${error.errorCodeName}) for ${t.title} [${t.suffix}] -> transcode fallback",
                 )
                 val pos = player.currentPosition.coerceAtLeast(0L)
-                player.setMediaItem(MediaItem.fromUri(transcoded(t)), pos)
+                player.setMediaItem(
+                    MediaItem.Builder()
+                        .setUri(urlFor(t) + "&format=mp3&maxBitRate=320")
+                        .setMediaMetadata(
+                            androidx.media3.common.MediaMetadata.Builder()
+                                .setTitle(t.title)
+                                .setArtist(t.artist)
+                                .build(),
+                        )
+                        .build(),
+                    pos,
+                )
                 player.prepare()
                 player.play()
             }
         })
     }
 
-    fun play(tracks: List<Track>, startIndex: Int, album: String, urlFor: (Track) -> String) {
+    fun play(tracks: List<Track>, startIndex: Int, album: String) {
         if (tracks.isEmpty()) return
         queue = tracks
         albumId = album
-        val items = tracks.map { MediaItem.fromUri(urlFor(it)) }
+        val items = tracks.map { tr ->
+            MediaItem.Builder()
+                .setUri(urlFor(tr))
+                .setMediaMetadata(
+                    androidx.media3.common.MediaMetadata.Builder()
+                        .setTitle(tr.title)
+                        .setArtist(tr.artist)
+                        .build(),
+                )
+                .build()
+        }
         fallbackTrackId = null
         android.util.Log.i(
             "Lumen",

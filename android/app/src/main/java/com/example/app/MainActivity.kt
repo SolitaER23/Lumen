@@ -77,6 +77,8 @@ import com.example.app.data.SettingsStore
 import com.example.app.data.SubsonicClient
 import com.example.app.data.Track
 import com.example.app.playback.Playback
+import com.example.app.playback.PlaybackEngine
+import com.example.app.playback.PlaybackService
 import com.example.app.ui.AlbumScreen
 import com.example.app.ui.FallbackScheme
 import com.example.app.ui.PlayingScreen
@@ -159,17 +161,22 @@ private fun App() {
     }
 
     val client = remember(cfg) { SubsonicClient(cfg) }
+    // 全进程唯一播放器：Activity 与前台服务（通知/锁屏）共用
     val playback = remember(client) {
-        // m4a（ALAC）在部分设备上 ExoPlayer 能"播"但不出声：直接走 320k MP3 转码，
-        // 其余格式用原始流（ExoPlayer 原生解码）。解码失败时 Playback 里还有一次兜底。
-        Playback(ctx) { t ->
-            val u = if (t.suffix.equals("m4a", ignoreCase = true)) {
-                client.streamUrl(t.id) + "&format=mp3&maxBitRate=320"
-            } else {
-                client.streamUrl(t.id)
+        PlaybackEngine.get(ctx).also { p ->
+            p.urlFor = { t ->
+                if (t.suffix.equals("m4a", ignoreCase = true)) {
+                    client.streamUrl(t.id) + "&format=mp3&maxBitRate=320"
+                } else {
+                    client.streamUrl(t.id)
+                }
             }
-            android.util.Log.i("Lumen", "urlFor suffix=${t.suffix} mp3=${u.contains("format=mp3")} url=$u")
-            u
+        }
+    }
+    // 登录后就常驻媒体会话服务：这样它能在"开始播放"这一刻收到事件并挂出通知/前台服务
+    LaunchedEffect(cfg.complete) {
+        if (cfg.complete) {
+            runCatching { ctx.startService(android.content.Intent(ctx, PlaybackService::class.java)) }
         }
     }
     DisposableEffect(Unit) { onDispose { playback.release() } }
@@ -273,13 +280,7 @@ private fun App() {
                             onBack = { screen = 0; openAlbum = null },
                             onPlay = { start ->
                                 if (tracks.isNotEmpty()) {
-                                    playback.play(tracks, start, album.id) { tr ->
-                                        if (tr.suffix.equals("m4a", ignoreCase = true)) {
-                                            client.streamUrl(tr.id) + "&format=mp3&maxBitRate=320"
-                                        } else {
-                                            client.streamUrl(tr.id)
-                                        }
-                                    }
+                                    playback.play(tracks, start, album.id)
                                     playback.tick()
                                 }
                             },
