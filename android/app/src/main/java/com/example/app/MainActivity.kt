@@ -57,6 +57,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,6 +93,7 @@ import com.gpo.yoin.symbols.rememberPlayPauseSymbolPainter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val LumenColors = darkColorScheme(
@@ -119,6 +121,14 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** m4a（ALAC）在 Pixel 上能"播"但无声，统一走 320k MP3 转码 */
+private fun streamUrl(client: SubsonicClient, t: Track): String =
+    if (t.suffix.equals("m4a", ignoreCase = true)) {
+        client.streamUrl(t.id) + "&format=mp3&maxBitRate=320"
+    } else {
+        client.streamUrl(t.id)
+    }
+
 @Composable
 private fun App() {
     val ctx = LocalContext.current
@@ -136,13 +146,19 @@ private fun App() {
     suspend fun loadAlbums(c: ServerConfig) {
         loading = true
         error = null
-        try {
-            albums = withContext(Dispatchers.IO) { SubsonicClient(c).albums() }
-        } catch (e: Exception) {
-            error = e.message ?: "加载失败"
-        } finally {
-            loading = false
+        var attempt = 0
+        while (attempt < 3) {
+            try {
+                albums = withContext(Dispatchers.IO) { SubsonicClient(c).albums() }
+                error = null
+                break
+            } catch (e: Exception) {
+                error = e.message ?: "加载失败"
+                attempt++
+                if (attempt < 3) delay(800L * attempt) // 退避后重试
+            }
         }
+        loading = false
     }
 
     LaunchedEffect(cfg.complete) {
@@ -164,16 +180,12 @@ private fun App() {
     }
 
     val client = remember(cfg) { SubsonicClient(cfg) }
+    val scope = rememberCoroutineScope()
     // 全进程唯一播放器：Activity 与前台服务（通知/锁屏）共用
     val playback = remember(client) {
         PlaybackEngine.get(ctx).also { p ->
-            p.urlFor = { t ->
-                if (t.suffix.equals("m4a", ignoreCase = true)) {
-                    client.streamUrl(t.id) + "&format=mp3&maxBitRate=320"
-                } else {
-                    client.streamUrl(t.id)
-                }
-            }
+            p.urlFor = { t -> streamUrl(client, t) }
+            p.transcodeUrl = { t -> client.streamUrl(t.id) + "&format=mp3&maxBitRate=320" }
         }
     }
     // 登录后就常驻媒体会话服务：这样它能在"开始播放"这一刻收到事件并挂出通知/前台服务
@@ -194,7 +206,7 @@ private fun App() {
     // 封面取色：主色跟着正在播的专辑走
     LaunchedEffect(current?.albumId) {
         current?.let { t ->
-            schemeFromCover(client.coverUrl(t.albumId, 300))?.let { scheme = it }
+            schemeFromCover(client.coverUrl(t.albumId, 200))?.let { scheme = it }
         }
     }
 
@@ -262,6 +274,7 @@ private fun App() {
                                 screen = 1
                             },
                             onSettings = { screen = 3 },
+                            onRetry = { scope.launch { loadAlbums(cfg) } },
                         )
                     } else {
                         val album = openAlbum!!
@@ -366,10 +379,23 @@ private fun HomeScreen(
     coverUrl: (String) -> String,
     onOpen: (Album) -> Unit,
     onSettings: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         when {
-            error != null -> Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(20.dp))
+            error != null -> Column(
+                Modifier.fillMaxSize().padding(24.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(error, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = onRetry,
+                    shape = RoundedCornerShape(percent = 50),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                ) { Text("重试") }
+            }
             albums.isEmpty() && loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }

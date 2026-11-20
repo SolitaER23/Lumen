@@ -27,7 +27,12 @@ val FallbackScheme: ColorScheme = darkColorScheme(
     outlineVariant = Color(0xFF3A3B40),
 )
 
-private val http = OkHttpClient()
+private val http = OkHttpClient.Builder()
+    .cache(okhttp3.Cache(java.io.File(System.getProperty("java.io.tmpdir"), "lumen_palette"), 8L * 1024 * 1024))
+    .build()
+
+/** 按封面 URL 缓存取色结果，避免同一张封面重复下载 + 解码。 */
+private val schemeCache = object : android.util.LruCache<String, ColorScheme>(8) {}
 
 /**
  * 从封面取主色，生成一套 M3 深色配色（对应旧版的 `Roles::from_tint`）。
@@ -36,6 +41,7 @@ private val http = OkHttpClient()
  */
 suspend fun schemeFromCover(url: String): ColorScheme? = withContext(Dispatchers.IO) {
     if (url.isBlank()) return@withContext null
+    schemeCache.get(url)?.let { return@withContext it }
     val bmp: Bitmap = try {
         val req = Request.Builder().url(url).build()
         http.newCall(req).execute().use { r ->
@@ -58,14 +64,19 @@ suspend fun schemeFromCover(url: String): ColorScheme? = withContext(Dispatchers
     val onPrimaryContainer = Color.hsl(h, 0.35f, 0.90f)
     val surface = Color.hsl(h, 0.10f, 0.055f)
     val surfaceContainer = Color.hsl(h, 0.10f, 0.095f)
-    val surfaceHigh = Color.hsl(h, 0.09f, 0.14f)
-    FallbackScheme.copy(
+
+    val scheme = darkColorScheme(
         primary = primary,
-        onPrimary = if (primary.luminance() > 0.5f) Color(0xFF140F10) else Color.White,
+        onPrimary = Color.hsl(h, 0.6f, 0.10f),
         primaryContainer = primaryContainer,
         onPrimaryContainer = onPrimaryContainer,
         surface = surface,
         surfaceContainer = surfaceContainer,
-        surfaceContainerHigh = surfaceHigh,
+        surfaceContainerHigh = Color.hsl(h, 0.10f, 0.14f),
+        onSurface = Color.hsl(h, 0.06f, 0.93f),
+        onSurfaceVariant = Color.hsl(h, 0.06f, 0.68f),
+        outlineVariant = Color.hsl(h, 0.08f, 0.24f),
     )
+    schemeCache.put(url, scheme)
+    scheme
 }
