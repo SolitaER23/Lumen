@@ -6,6 +6,8 @@ import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -140,6 +142,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** 页面栈的动画键：屏幕 + 当前专辑，用来判断方向与触发转场 */
+private data class NavKey(val screen: Int, val albumId: String?)
+
 /** m4a（ALAC）在 Pixel 上能"播"但无声，统一走 320k MP3 转码 */
 private fun streamUrl(client: SubsonicClient, t: Track): String =
     if (t.suffix.equals("m4a", ignoreCase = true)) {
@@ -267,15 +272,40 @@ private fun App() {
                     alpha = 1f - 0.12f * backProgress
                 },
             ) {
+                AnimatedContent(
+                    targetState = NavKey(screen, openAlbum?.id),
+                    transitionSpec = {
+                        // M3 Expressive 的层级切换：新页从 92% 放大淡入，旧页放大到 104% 淡出
+                        val forward = targetState.screen >= initialState.screen
+                        if (com.example.app.BuildConfig.DEBUG) {
+                            android.util.Log.d("Lumen", "transition ${initialState.screen}->${targetState.screen} forward=$forward")
+                        }
+                        val spec = spring<Float>(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow,
+                        )
+                        val enter = scaleIn(
+                            initialScale = if (forward) 0.92f else 1.04f,
+                            animationSpec = spec,
+                        ) + fadeIn(tween(240))
+                        val exit = scaleOut(
+                            targetScale = if (forward) 1.04f else 0.92f,
+                            animationSpec = spec,
+                        ) + fadeOut(tween(180))
+                        (enter togetherWith exit).using(androidx.compose.animation.SizeTransform(clip = false))
+                    },
+                    label = "screen",
+                    modifier = Modifier.fillMaxSize(),
+                ) { key ->
                 when {
-                    screen == 6 -> SearchScreen(
+                    key.screen == 6 -> SearchScreen(
                         client = client,
                         coverUrl = { client.coverUrl(it) },
                         onBack = { screen = 0 },
                         onOpenAlbum = { al -> openAlbum = al; tracks = emptyList(); screen = 1 },
                         onOpenArtist = { a -> selectedArtist = a; screen = 5 },
                     )
-                    screen == 5 -> selectedArtist?.let { a ->
+                    key.screen == 5 -> selectedArtist?.let { a ->
                         ArtistScreen(
                             client = client,
                             artist = a,
@@ -284,7 +314,7 @@ private fun App() {
                             onOpenAlbum = { al -> openAlbum = al; tracks = emptyList(); screen = 1 },
                         )
                     }
-                    screen == 4 -> DownloadsScreen(
+                    key.screen == 4 -> DownloadsScreen(
                         summaries = downloads,
                         onBack = { screen = 3 },
                         onDelete = { id ->
@@ -296,7 +326,7 @@ private fun App() {
                             downloads = emptyList()
                         },
                     )
-                    screen == 3 -> SettingsScreen(
+                    key.screen == 3 -> SettingsScreen(
                         cfg = cfg,
                         cacheDir = java.io.File(ctx.cacheDir, "media"),
                         downloadCount = downloads.sumOf { it.total },
@@ -318,7 +348,7 @@ private fun App() {
                             cfg = ServerConfig("", "", "")
                         },
                     )
-                    screen == 2 -> PlayingScreen(
+                    key.screen == 2 -> PlayingScreen(
                         track = current,
                         coverUrl = current?.let { client.coverUrl(it.albumId, 600) } ?: "",
                         positionMs = playback.positionMs,
@@ -330,7 +360,7 @@ private fun App() {
                         onNext = { playback.next() },
                         onSeek = { playback.seekTo(it) },
                     )
-                    else -> if (openAlbum == null) {
+                    else -> if (key.albumId == null) {
                         HomeScreen(
                             client = client,
                             albums = albums,
@@ -377,6 +407,7 @@ private fun App() {
                             },
                         )
                     }
+                }
                 }
 
                 // 每一页都有底栏（含播放页）
