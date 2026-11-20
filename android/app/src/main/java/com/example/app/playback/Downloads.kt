@@ -23,6 +23,7 @@ data class AlbumDownload(
  * `DownloadRequest.data` 存专辑 id（UTF-8 字节），用来把曲目归到专辑下；
  * 专辑名存在 prefs 里，这样离线时设置页也能显示名字。
  */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 object Downloads {
     private const val PREFS = "lumen_downloads"
 

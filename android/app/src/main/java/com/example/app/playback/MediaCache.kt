@@ -17,6 +17,7 @@ import java.util.concurrent.Executors
  * 播放与离线下载必须用**同一个** [SimpleCache] 实例（同一目录二次打开会抛
  * "SimpleCache is locked"），因此这里统一持有。下载完的内容会被播放直接命中。
  */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 object MediaCache {
     @Volatile
     private var cache: SimpleCache? = null

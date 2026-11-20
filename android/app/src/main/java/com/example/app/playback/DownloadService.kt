@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.scheduler.Scheduler
 /**
  * 离线下载服务：前台服务 + 系统下载通知，由 [MediaCache.downloadManager] 驱动。
  */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class DownloadService : Media3DownloadService(FOREGROUND_ID) {
 
     private val helper: DownloadNotificationHelper by lazy {
