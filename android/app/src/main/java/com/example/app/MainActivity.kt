@@ -462,7 +462,7 @@ private fun HomeScreen(
     var artists by remember { mutableStateOf<List<Artist>>(emptyList()) }
     var newest by remember { mutableStateOf<List<Album>>(emptyList()) }
     var recent by remember { mutableStateOf<List<Album>>(emptyList()) }
-    var artistCovers by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+
     var tabLoading by remember { mutableStateOf(false) }
     var tabError by remember { mutableStateOf<String?>(null) }
 
@@ -473,18 +473,6 @@ private fun HomeScreen(
         }
     }
 
-    // 艺人没有独立封面时，用其第一张专辑的封面，避免一片灰色占位图
-    LaunchedEffect(artists) {
-        if (artists.isEmpty()) return@LaunchedEffect
-        artistCovers = withContext(Dispatchers.IO) {
-            artists.mapNotNull { a ->
-                runCatching { client.artistDetail(a.id)?.second?.firstOrNull()?.coverId }
-                    .getOrNull()
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { a.id to it }
-            }.toMap()
-        }
-    }
 
     LaunchedEffect(tab) {
         if (tab == 0) return@LaunchedEffect
@@ -533,7 +521,7 @@ private fun HomeScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 ) { Text("重试") }
             }
-            tab == 1 -> ArtistGrid(artists, artistCovers, coverUrl, onOpenArtist)
+            tab == 1 -> ArtistGrid(artists, onOpenArtist)
             tab == 2 -> RecentList(
                 newest = newest,
                 recent = recent,
@@ -577,7 +565,7 @@ private fun HomeHeader(
 ) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         TabLabel("专辑", albumCount, 0, selected, onTab)
         Spacer(Modifier.width(20.dp))
@@ -585,13 +573,16 @@ private fun HomeHeader(
         Spacer(Modifier.width(20.dp))
         TabLabel("最近", null, 2, selected, onTab)
         Spacer(Modifier.weight(1f))
-        IconButton(onClick = onSettings) {
-            Icon(
-                YoinSymbols.Settings,
-                contentDescription = "设置",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp),
-            )
+        // 与标题行居中对齐（不是与底部数量行对齐）
+        Box(Modifier.height(38.dp), contentAlignment = Alignment.Center) {
+            IconButton(onClick = onSettings, modifier = Modifier.size(44.dp)) {
+                Icon(
+                    YoinSymbols.Settings,
+                    contentDescription = "设置",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
         }
     }
 }
@@ -634,45 +625,28 @@ private fun AlbumGrid(albums: List<Album>, coverUrl: (String) -> String, onOpen:
 }
 
 @Composable
+/** 艺人：只显示名字，不显示头像。 */
 private fun ArtistGrid(
     artists: List<Artist>,
-    artistCovers: Map<String, String>,
-    coverUrl: (String) -> String,
     onOpen: (Artist) -> Unit,
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    LazyColumn(
         modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
     ) {
         items(artists, key = { it.id }) { artist ->
-            Column(
-                Modifier.clickable { onOpen(artist) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                AsyncImage(
-                    model = coverUrl(artistCovers[artist.id] ?: artist.coverId),
-                    contentDescription = artist.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(percent = 50)),
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    artist.name,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 15.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    "${artist.albumCount} 张专辑",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                )
-            }
+            Text(
+                artist.name,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Light,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpen(artist) }
+                    .padding(vertical = 14.dp),
+            )
         }
     }
 }
