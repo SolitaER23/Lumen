@@ -18,6 +18,7 @@ import androidx.media3.session.MediaSessionService
  * 播放器是 [PlaybackEngine] 里的同一份实例，所以 UI 上的操作与通知按钮完全同步。
  * 通知用平台 `Notification.MediaStyle` 自己拼，避免依赖 Media3 的默认通知实现。
  */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var listener: Player.Listener? = null
@@ -38,6 +39,7 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         val p = PlaybackEngine.peek()
         when (intent?.action) {
             ACTION_PREV -> p?.prev()
