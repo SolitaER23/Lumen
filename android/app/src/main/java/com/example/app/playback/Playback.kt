@@ -15,6 +15,7 @@ import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.example.app.data.Track
 import java.io.File
@@ -27,6 +28,7 @@ import java.io.File
  * - 有些格式 ExoPlayer 解不了（旧版是 ALAC 触发），此时把当前曲目换成 Subsonic 的
  *   `stream?format=mp3&maxBitRate=320` 转码流重试一次。
  */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class Playback(private val ctx: Context, private val transcoded: (Track) -> String) {
     private val cache: SimpleCache by lazy {
         SimpleCache(
