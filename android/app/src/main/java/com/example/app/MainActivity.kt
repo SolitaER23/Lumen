@@ -178,7 +178,8 @@ private fun App() {
         try {
             progress.collect { backProgress = it.progress }
             when {
-                screen == 2 -> screen = 1
+                // 从底栏直接进播放页时没有专辑上下文，返回应回首页
+                screen == 2 -> screen = if (openAlbum != null) 1 else 0
                 else -> { screen = 0; openAlbum = null }
             }
         } catch (_: CancellationException) {

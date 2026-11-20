@@ -18,6 +18,14 @@
 
 ---
 
+## [0.7.0] - 2026-11-21
+
+### 重写 · 纯 Kotlin + Jetpack Compose
+- 用 Kotlin/Compose 重写全部界面与数据层：Media3 ExoPlayer 播放（512MB 缓存 + 解码失败自动转码）、
+  OkHttp 接 OpenSubsonic、Coil 加载封面、Palette 从封面取色驱动 M3 主题。
+- 图标换成 `yoin-symbols`（播放键是形变动画），底栏仍是 Yoin 式三槽位（宽度守恒 + 半调网点 + 换歌滑入）。
+- 预测性返回、长标题滚动、多碟分页、播放页 M3 滑块与圆形传输键全部对齐旧版。
+- **删除全部 Rust/egui 代码**（`src/`、`patches/`、`Cargo.*`、`build.ps1` 等），旧实现保留在 git 历史（`baee628`）。
 ## [0.6.4] - 2026-11-20
 
 ### 设置页 · 输入框改为 M3 outlined
