@@ -12,11 +12,16 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -65,11 +70,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -543,17 +551,17 @@ private fun HomeScreen(
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
                 .padding(end = 16.dp, bottom = 84.dp)
-                .size(56.dp)
+                .size(60.dp)
                 .clip(RoundedCornerShape(percent = 50))
-                .background(MaterialTheme.colorScheme.primaryContainer)
+                .background(MaterialTheme.colorScheme.primary)
                 .clickable(onClick = onSearch),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 YoinSymbols.Search,
                 contentDescription = "搜索",
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(26.dp),
             )
         }
     }
@@ -577,18 +585,12 @@ private fun HomeHeader(
         Spacer(Modifier.width(20.dp))
         TabLabel("最近", null, 2, selected, onTab)
         Spacer(Modifier.weight(1f))
-        IconButton(
-            onClick = onSettings,
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(MaterialTheme.colorScheme.surfaceContainer),
-        ) {
+        IconButton(onClick = onSettings) {
             Icon(
                 YoinSymbols.Settings,
                 contentDescription = "设置",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
             )
         }
     }
@@ -731,6 +733,47 @@ private fun SectionTitle(text: String) {
     )
 }
 
+/** 竖排艺人名：内容比卡片高时自动上下往复滚动。 */
+@Composable
+private fun VerticalArtistName(text: String, modifier: Modifier = Modifier) {
+    val chars = text.take(12).toCharArray().joinToString("\n")
+    var boxHeight by remember { mutableIntStateOf(0) }
+    var textHeight by remember { mutableIntStateOf(0) }
+    val overflow = (textHeight - boxHeight).coerceAtLeast(0)
+
+    val transition = rememberInfiniteTransition(label = "artist")
+    val offset by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = -overflow.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = (overflow * 45).coerceAtLeast(1200),
+                easing = androidx.compose.animation.core.LinearEasing,
+            ),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "artistScroll",
+    )
+
+    Box(
+        modifier.onSizeChanged { boxHeight = it.height }.clipToBounds(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            chars,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            lineHeight = 13.sp,
+            textAlign = TextAlign.Center,
+            // 不受父级高度限制地测量，才能算出真实溢出量
+            modifier = Modifier
+                .wrapContentHeight(align = Alignment.Top, unbounded = true)
+                .onSizeChanged { textHeight = it.height }
+                .graphicsLayer { translationY = if (overflow > 0) offset else 0f },
+        )
+    }
+}
+
 @Composable
 private fun AlbumCard(
     album: Album,
@@ -754,34 +797,24 @@ private fun AlbumCard(
                     contentDescription = album.name,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.size(cover).clip(
-                        RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp),
+                        // 只圆左上角，其余保持直角
+                        RoundedCornerShape(topStart = 20.dp),
                     ),
                 )
-                Box(
-                    Modifier.width(strip).height(cover),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        album.artist.take(8).toCharArray().joinToString("\n"),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                        lineHeight = 12.sp,
-                        textAlign = TextAlign.Center,
-                        maxLines = 8,
-                        overflow = TextOverflow.Clip,
-                    )
-                }
+                VerticalArtistName(
+                    text = album.artist,
+                    modifier = Modifier.width(strip).height(cover),
+                )
             }
         }
-        // 专辑名固定一行，保证所有卡片等高
+        // 专辑名固定一行；过长时自动横向滚动
         Text(
             album.name,
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).basicMarquee(),
         )
     }
 }
@@ -806,15 +839,15 @@ private fun YoinBar(
         Surface(
             onClick = onHome,
             shape = RoundedCornerShape(percent = 50),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(56.dp),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(60.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     YoinSymbols.Home,
                     contentDescription = "首页",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(26.dp),
                 )
             }
         }
@@ -824,9 +857,7 @@ private fun YoinBar(
             onClick = onOpenPlayer,
             enabled = enabled,
             shape = RoundedCornerShape(percent = 50),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 3.dp,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+            color = MaterialTheme.colorScheme.primaryContainer,
             modifier = Modifier.weight(1f).height(56.dp),
         ) {
             Row(
@@ -854,11 +885,11 @@ private fun YoinBar(
                         Column(Modifier.fillMaxWidth()) {
                             Text(
                                 t, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                artist, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                artist, fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
                         }
@@ -866,7 +897,7 @@ private fun YoinBar(
                 } else {
                     Text(
                         "还没有播放",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontSize = 13.sp,
                         modifier = Modifier.weight(1f).padding(start = 12.dp),
                     )
@@ -882,8 +913,8 @@ private fun YoinBar(
                         contentDescription = if (playing) "暂停" else "播放",
                         modifier = Modifier.size(26.dp),
                         colorFilter = ColorFilter.tint(
-                            if (enabled) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            if (enabled) MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.4f),
                         ),
                     )
                 }
