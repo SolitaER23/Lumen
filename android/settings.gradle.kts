@@ -22,4 +22,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "app"
 include(":app")
-include(":lumen")

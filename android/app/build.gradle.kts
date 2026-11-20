@@ -1,69 +1,62 @@
 ﻿plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "com.example.app"
-    compileSdk = 35
-    buildToolsVersion = "35.0.1"
-    ndkVersion = "27.2.12479018"
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.app"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 28
-        versionName = "0.6.4"
-
-        ndk {
-            // 唯一目标机是 Pixel 10a（arm64-v8a）：只打这一个 ABI，
-            // 不再为模拟器编 x86_64（APK 少一半，构建也快）。
-            abiFilters += listOf("arm64-v8a")
-        }
+        targetSdk = 36
+        versionCode = 1
+        versionName = "0.7.0-alpha1"
+        ndk { abiFilters += listOf("arm64-v8a") }
     }
+
+    buildFeatures { compose = true }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
     buildTypes {
-        debug {
-            isMinifyEnabled = false
-        }
         release {
             isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
-    sourceSets.getByName("main") {
-        // cargo ndk 会把编译好的 .so 输出到这里
-        jniLibs.srcDir("src/main/jniLibs")
-    }
-
-    packaging {
-        jniLibs {
-            useLegacyPackaging = false
-        }
-    }
+    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
 dependencies {
-    // GameActivity：NativeActivity 不支持 IME（候选词 commit/预编辑拿不到），
-    // GameActivity 通过 GameTextInput 完整支持软键盘输入。
-    // GameActivity 继承 AppCompatActivity，需要显式加 appcompat（传递依赖没自动打包）。
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.games:games-activity:4.4.0")
-    // 统一 kotlin-stdlib 版本（appcompat 和 games-activity 拉的版本冲突）
-    constraints {
-        implementation("org.jetbrains.kotlin:kotlin-stdlib:1.8.22") {
-            because("统一版本避免 Duplicate class")
-        }
-        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22") {
-            because("统一版本避免 Duplicate class")
-        }
-        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22") {
-            because("统一版本避免 Duplicate class")
-        }
-    }
+    val composeBom = platform("androidx.compose:compose-bom:2024.10.01")
+    implementation(composeBom)
+
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+
+    implementation("androidx.media3:media3-exoplayer:1.5.0")
+    implementation("androidx.media3:media3-session:1.5.0")
+    implementation("androidx.media3:media3-datasource:1.5.0")
+    implementation("androidx.media3:media3-database:1.5.0")
+
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("androidx.palette:palette-ktx:1.0.0")
+
+    implementation("io.github.p2o51:yoin-symbols:0.2.0")
 }

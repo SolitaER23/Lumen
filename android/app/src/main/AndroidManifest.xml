@@ -1,45 +1,28 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- GameActivity（不是 NativeActivity）：NativeActivity 不支持 IME，
-         候选词 commit/预编辑拿不到；GameActivity 通过 GameTextInput 完整支持软键盘 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!--
-      usesCleartextTraffic=true：这是有意为之——服务器是用户自建的局域网 Navidrome
-      （典型如 http://192.168.x.x:4533），地址由用户动态输入，无法预先枚举白名单。
-      风险：Subsonic 认证 token 走明文 HTTP，同网段可被嗅探。
-      缓解：这是用户自己网络内的自托管服务；若将来服务器支持 HTTPS，在客户端
-      地址里填 https:// 即可（需同时给 ureq 开启 rustls 特性）。
-    -->
-    <application android:usesCleartextTraffic="true"
+    <application
         android:label="Lumen"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:hasCode="true"
         android:allowBackup="false"
-        android:theme="@style/Theme.AppCompat.NoActionBar">
+        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.Lumen">
 
         <activity
-            android:name="com.google.androidgamesdk.GameActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:screenOrientation="fullSensor"
-            android:enableOnBackInvokedCallback="true"
-            android:configChanges="orientation|keyboard|keyboardHidden|navigation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|layoutDirection"
-            android:theme="@style/Theme.AppCompat.NoActionBar">
-
-            <!-- .so 名字去掉 lib 前缀 -->
-            <meta-data
-                android:name="android.app.lib_name"
-                android:value="app" />
-
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
     </application>
-
 </manifest>
