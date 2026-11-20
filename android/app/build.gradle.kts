@@ -59,4 +59,7 @@ dependencies {
     implementation("androidx.palette:palette-ktx:1.0.0")
 
     implementation("io.github.p2o51:yoin-symbols:0.2.0")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }
