@@ -1,4 +1,4 @@
-﻿package com.example.app.ui
+package com.example.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -115,18 +115,6 @@ private fun Ready(state: Neodb.UiState.Ready, myRating10: Float, modifier: Modif
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(bottom = 8.dp),
-            )
-        }
-
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            SourceCard("NeoDB", state.item.rating10 / 2f, Modifier.weight(1f))
-            SourceCard(
-                "我的评分",
-                if (myRating10 > 0f) myRating10 / 2f else null,
-                Modifier.weight(1f),
             )
         }
 
