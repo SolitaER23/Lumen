@@ -178,20 +178,89 @@ fun PlayingScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 28.dp),
             )
-            Spacer(Modifier.height(6.dp))
-            // 歌手名 + 上一首 / 下一首
+            Spacer(Modifier.height(3.dp))
+            Text(
+                track?.artist ?: "",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 28.dp),
+            )
+
+            Spacer(Modifier.height(10.dp))
+            // 第一行：播放/暂停（左） + 波浪进度（右，时间在两侧）
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 28.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    track?.artist ?: "",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable(onClick = onToggle),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
+                        contentDescription = if (playing) "暂停" else "播放",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(26.dp),
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(fmt(positionMs), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(8.dp))
+                    WavyProgress(
+                        progress = progress,
+                        active = playing,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        activeColor = MaterialTheme.colorScheme.primary,
+                        inactiveColor = MaterialTheme.colorScheme.outlineVariant,
+                        onSeek = { f -> if (known) onSeek((f * durationMs).toLong()) },
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (known) "-" + fmt(durationMs - positionMs) else "--:--",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            // 第二行：歌词 + 上一首 + 下一首（靠左，不贴右）
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(
+                            if (showLyrics) MaterialTheme.colorScheme.inversePrimary
+                            else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        )
+                        .border(
+                            1.5.dp,
+                            if (showLyrics) MaterialTheme.colorScheme.inversePrimary
+                            else MaterialTheme.colorScheme.inversePrimary.copy(alpha = 0.55f),
+                            RoundedCornerShape(18.dp),
+                        )
+                        .clickable(onClick = onToggleLyrics),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        YoinSymbols.Lyrics,
+                        contentDescription = "歌词",
+                        tint = if (showLyrics) MaterialTheme.colorScheme.surface
+                        else MaterialTheme.colorScheme.inversePrimary,
+                        modifier = Modifier.size(26.dp),
+                    )
+                }
+                Spacer(Modifier.width(16.dp))
                 Box(
                     Modifier
                         .size(56.dp)
@@ -221,83 +290,6 @@ fun PlayingScreen(
                         contentDescription = "下一首",
                         tint = MaterialTheme.colorScheme.onTertiaryContainer,
                         modifier = Modifier.size(30.dp),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-            // 控制行：播放/暂停 → 歌词 → 波浪进度
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // 左列：播放/暂停（上） + 歌词（下）
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Box(
-                        Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                            .clickable(onClick = onToggle),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
-                            contentDescription = if (playing) "暂停" else "播放",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(26.dp),
-                        )
-                    }
-                    Box(
-                        Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(
-                                if (showLyrics) MaterialTheme.colorScheme.inversePrimary
-                                else MaterialTheme.colorScheme.surfaceContainerHigh,
-                            )
-                            .border(
-                                1.5.dp,
-                                if (showLyrics) MaterialTheme.colorScheme.inversePrimary
-                                else MaterialTheme.colorScheme.inversePrimary.copy(alpha = 0.55f),
-                                RoundedCornerShape(18.dp),
-                            )
-                            .clickable(onClick = onToggleLyrics),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            YoinSymbols.Lyrics,
-                            contentDescription = "歌词",
-                            tint = if (showLyrics) MaterialTheme.colorScheme.surface
-                            else MaterialTheme.colorScheme.inversePrimary,
-                            modifier = Modifier.size(26.dp),
-                        )
-                    }
-                }
-                Spacer(Modifier.width(14.dp))
-                // 右侧：当前时间 — 波浪进度 — 剩余时间
-                Row(
-                    Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(fmt(positionMs), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(8.dp))
-                    WavyProgress(
-                        progress = progress,
-                        active = playing,
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        activeColor = MaterialTheme.colorScheme.primary,
-                        inactiveColor = MaterialTheme.colorScheme.outlineVariant,
-                        onSeek = { f -> if (known) onSeek((f * durationMs).toLong()) },
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (known) "-" + fmt(durationMs - positionMs) else "--:--",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
