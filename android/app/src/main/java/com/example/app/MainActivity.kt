@@ -72,6 +72,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -500,6 +501,10 @@ private fun App() {
                             onTabChange = { homeTab = it },
                             ratingOf = { id -> Ratings.get(ctx, id) },
                             downloads = downloads,
+                            onPlayTrack = { tr ->
+                                playback.play(listOf(tr), 0, tr.album)
+                                playback.tick()
+                            },
                             onPlayStarred = { index ->
                                 if (starred.isNotEmpty()) {
                                     playback.play(starred, index, "starred")
@@ -643,6 +648,7 @@ private fun HomeScreen(
     onTabChange: (Int) -> Unit = {},
     ratingOf: (String) -> Float = { 0f },
     downloads: List<AlbumDownload> = emptyList(),
+    onPlayTrack: (Track) -> Unit = {},
     coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
     var sortIndex by remember(tab) { mutableIntStateOf(0) }
@@ -741,10 +747,12 @@ private fun HomeScreen(
                     2 -> RecentList(
                         newest = sortedNewest,
                         recent = sortedRecent,
+                        client = client,
                         downloads = downloads,
                         albums = albums,
                         coverUrl = coverUrl,
                         onOpen = onOpen,
+                        onPlayTrack = onPlayTrack,
                         loading = tabLoading && newest.isEmpty(),
                     )
                     else -> AlbumGrid(sortedAlbums, coverUrl, onOpen, coverShared)
@@ -1028,14 +1036,34 @@ private fun ArtistGrid(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecentList(
+    client: SubsonicClient,
     newest: List<Album>,
     recent: List<Album>,
     downloads: List<AlbumDownload>,
     albums: List<Album>,
     coverUrl: (String) -> String,
     onOpen: (Album) -> Unit,
+    onPlayTrack: (Track) -> Unit,
     loading: Boolean,
 ) {
+    // 单曲下载：按 trackId 拉一次元数据（封面/标题/艺人），供卡片显示与播放
+    val singleTracks = remember { mutableStateMapOf<String, Track>() }
+    val singles = downloads.filter { it.isSingle }
+    LaunchedEffect(downloads) {
+        singles.forEach { d ->
+            val id = d.key.removePrefix("track:")
+            if (id.isNotBlank() && id !in singleTracks) {
+                val remote = runCatching { withContext(Dispatchers.IO) { client.song(id) } }.getOrNull()
+                singleTracks[id] = remote ?: Track(
+                    id = id,
+                    title = d.name.substringBefore(" · "),
+                    artist = d.artist,
+                    albumId = d.albumId,
+                    album = d.albumName,
+                )
+            }
+        }
+    }
     if (loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         return
@@ -1120,7 +1148,7 @@ private fun RecentList(
                             }
                         } else {
                             items(rowsOfDownloads(downloads), key = { "d${it.firstOrNull()?.key}" }) { row ->
-                                HorizontalDownloadRow(row, albums, coverUrl, onOpen)
+                                HorizontalDownloadRow(row, albums, singleTracks, coverUrl, onOpen, onPlayTrack)
                             }
                         }
                     }
@@ -1250,8 +1278,10 @@ private fun SectionHeader(title: String, count: Int, collapsed: Boolean, onToggl
 private fun HorizontalDownloadRow(
     row: List<AlbumDownload>,
     albums: List<Album>,
+    tracks: Map<String, Track>,
     coverUrl: (String) -> String,
     onOpen: (Album) -> Unit,
+    onPlayTrack: (Track) -> Unit,
 ) {
     androidx.compose.foundation.lazy.LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
@@ -1263,35 +1293,74 @@ private fun HorizontalDownloadRow(
             if (album != null) {
                 AlbumCard(album, coverUrl(album.coverId), Modifier.width(148.dp)) { onOpen(album) }
             } else {
-                // 单曲下载：没有专辑对象，用音符卡片展示
-                Column(Modifier.width(148.dp)) {
+                val track = tracks[item.key.removePrefix("track:")]
+                val title = track?.title?.takeIf { it.isNotBlank() } ?: item.name.substringBefore(" · ")
+                val subtitle = listOfNotNull(
+                    track?.artist?.takeIf { it.isNotBlank() },
+                    track?.album?.takeIf { it.isNotBlank() },
+                ).joinToString(" · ").ifBlank { "单曲" }
+                Column(
+                    Modifier
+                        .width(148.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable(enabled = track != null) { track?.let(onPlayTrack) },
+                ) {
                     Box(
                         Modifier
                             .width(148.dp)
                             .height(148.dp)
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(18.dp))
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            YoinSymbols.DownloadDone,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(34.dp),
-                        )
+                        if (track != null && track.albumId.isNotBlank()) {
+                            AsyncImage(
+                                model = coverUrl(track.albumId),
+                                contentDescription = title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            Icon(
+                                YoinSymbols.DownloadDone,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(34.dp),
+                            )
+                        }
+                        // 右下角小徽标：单曲下载
+                        Box(
+                            Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(8.dp)
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                YoinSymbols.DownloadDone,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        item.name,
+                        title,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.basicMarquee(),
                     )
                     Text(
-                        if (item.isSingle) "单曲" else "专辑",
+                        subtitle,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

@@ -246,6 +246,24 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
     fun albums(pageSize: Int = 500): List<Album> =
         parseAlbumList(get("getAlbumList2.view", mapOf("type" to "alphabeticalByName", "size" to "$pageSize")))
 
+    /** 单曲元数据（下载记录补封面/播放用） */
+    fun song(trackId: String): Track? {
+        val root = runCatching { get("getSong.view", mapOf("id" to trackId)) }.getOrNull() ?: return null
+        val s = root.optJSONObject("song") ?: return null
+        return Track(
+            id = s.optString("id"),
+            title = s.optString("title"),
+            artist = s.optString("artist"),
+            albumId = s.optString("albumId"),
+            album = s.optString("album"),
+            disc = s.optInt("discNumber", 1).coerceAtLeast(1),
+            track = s.optInt("track"),
+            seconds = s.optInt("duration"),
+            suffix = s.optString("suffix"),
+            starred = s.optString("starred").isNotBlank(),
+        )
+    }
+
     fun tracks(albumId: String): List<Track> =
         parseAlbumDetail(get("getAlbum.view", mapOf("id" to albumId)), albumId)
 

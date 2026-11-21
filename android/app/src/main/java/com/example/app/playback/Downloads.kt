@@ -1,4 +1,4 @@
-package com.example.app.playback
+﻿package com.example.app.playback
 
 import android.content.Context
 import androidx.media3.exoplayer.offline.Download
@@ -20,6 +20,9 @@ data class AlbumDownload(
     val bytes: Long,
     val failed: Boolean,
     val isSingle: Boolean = false,
+    val albumId: String = "",
+    val artist: String = "",
+    val albumName: String = "",
 )
 
 /**
@@ -59,6 +62,12 @@ object Downloads {
     fun enqueueTrack(ctx: Context, track: Track, urlFor: (Track) -> String) {
         val key = PREFIX_TRACK + track.id
         saveName(ctx, key, if (track.artist.isBlank()) track.title else "${track.title} · ${track.artist}")
+        // 记下专辑/艺人，管理页与「已下载」卡片可直接显示封面并播放
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString("album_$key", track.albumId)
+            .putString("artist_$key", track.artist)
+            .putString("albumname_$key", track.album)
+            .apply()
         Media3DownloadService.sendAddDownload(
             ctx,
             DownloadService::class.java,
@@ -99,6 +108,9 @@ object Downloads {
                     },
                     failed = list.any { it.state == Download.STATE_FAILED },
                     isSingle = key.startsWith(PREFIX_TRACK),
+                    albumId = prefs.getString("album_$key", null).orEmpty(),
+                    artist = prefs.getString("artist_$key", null).orEmpty(),
+                    albumName = prefs.getString("albumname_$key", null).orEmpty(),
                 )
             }
             .sortedWith(compareByDescending<AlbumDownload> { !it.isSingle }.thenByDescending { it.name })
