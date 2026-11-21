@@ -1,4 +1,4 @@
-﻿package com.example.app.ui
+package com.example.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
@@ -272,7 +272,13 @@ fun SettingsScreen(
                             com.example.app.data.Neodb.Config(neodbInstance, neodbClientId, neodbSecret),
                         )
                         val url = com.example.app.data.Neodb.authorizeUrl(ctx)
-                        if (url != null) {
+                        if (url == null) {
+                            android.widget.Toast.makeText(
+                                ctx,
+                                "请先填写 Client ID（在 NeoDB 注册 OAuth 应用后获得）",
+                                android.widget.Toast.LENGTH_LONG,
+                            ).show()
+                        } else {
                             runCatching {
                                 ctx.startActivity(
                                     android.content.Intent(
