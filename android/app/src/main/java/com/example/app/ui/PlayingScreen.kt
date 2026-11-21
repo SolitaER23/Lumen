@@ -315,7 +315,7 @@ fun PlayingScreen(
                         modifier = Modifier.size(30.dp),
                     )
                 }
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(8.dp))
                 RatingControl(
                     value = rating,
                     onChange = onRating,
@@ -581,26 +581,15 @@ private fun RatingControl(value: Float, onChange: (Float) -> Unit, modifier: Mod
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(trackH / 2f),
                 )
             }
-            // 圆形把手（无刻度分隔线）
-            val hx = (size.width * (shown / 10f)).coerceIn(11.dp.toPx(), size.width - 11.dp.toPx())
-            drawCircle(
-                color = surface,
-                radius = 11.dp.toPx(),
-                center = Offset(hx, cy),
-            )
-            drawCircle(
-                color = primary,
-                radius = 8.dp.toPx(),
-                center = Offset(hx, cy),
-            )
+            // 无刻度、无把手：只用填充长度表达数值
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(6.dp))
         Text(
             "%.1f".format(shown),
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.End,
-            modifier = Modifier.width(38.dp),
+            modifier = Modifier.width(30.dp),
         )
     }
 }
