@@ -158,7 +158,7 @@ fun PlayingScreen(
             Spacer(Modifier.height(6.dp))
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                verticalAlignment = Alignment.Top,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 AsyncImage(
                     model = coverUrl,
@@ -166,36 +166,42 @@ fun PlayingScreen(
                     contentScale = ContentScale.Crop,
                     modifier = coverModifier.size(232.dp).clip(RoundedCornerShape(24.dp)),
                 )
-                Spacer(Modifier.weight(1f))
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(top = 8.dp, end = 2.dp),
+                Box(
+                    Modifier.weight(1f).height(232.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    PlayerAction(
-                        icon = if (trackDownloaded) YoinSymbols.DownloadDone else YoinSymbols.Download,
-                        container = if (trackDownloaded) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        content = if (trackDownloaded) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurface,
-                        onClick = { if (!trackDownloaded) onDownloadTrack() },
-                    )
-                    PlayerAction(
-                        icon = if (starred) YoinSymbols.StarFilled else YoinSymbols.Star,
-                        container = if (starred) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        content = if (starred) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurface,
-                        onClick = onToggleStar,
-                    )
-                    PlayerAction(
-                        text = "N",
-                        container = if (showNeodb) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        content = if (showNeodb) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurface,
-                        onClick = onShowNeodb,
-                    )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        PlayerAction(
+                            icon = if (trackDownloaded) YoinSymbols.DownloadDone else YoinSymbols.Download,
+                            shape = RoundedCornerShape(22.dp),
+                            container = if (trackDownloaded) MaterialTheme.colorScheme.surfaceContainerHighest
+                            else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            content = if (trackDownloaded) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface,
+                            onClick = { if (!trackDownloaded) onDownloadTrack() },
+                        )
+                        PlayerAction(
+                            icon = if (starred) YoinSymbols.StarFilled else YoinSymbols.Star,
+                            shape = CircleShape,
+                            container = if (starred) MaterialTheme.colorScheme.surfaceContainerHighest
+                            else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            content = if (starred) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface,
+                            onClick = onToggleStar,
+                        )
+                        PlayerAction(
+                            text = "N",
+                            shape = RoundedCornerShape(percent = 50),
+                            container = if (showNeodb) MaterialTheme.colorScheme.surfaceContainerHighest
+                            else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            content = if (showNeodb) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface,
+                            onClick = onShowNeodb,
+                        )
+                    }
                 }
             }
 
@@ -656,6 +662,7 @@ private fun NeodbAction(active: Boolean, onClick: () -> Unit) {
 private fun PlayerAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     text: String? = null,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(20.dp),
     container: Color,
     content: Color,
     onClick: () -> Unit,
@@ -663,7 +670,7 @@ private fun PlayerAction(
     Box(
         Modifier
             .size(56.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(shape)
             .background(container)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
