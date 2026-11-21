@@ -35,11 +35,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,10 +86,11 @@ fun AlbumScreen(
     LaunchedEffect(coverUrl) { albumScheme = schemeFromCover(coverUrl) }
     val s = albumScheme ?: MaterialTheme.colorScheme
 
-    var showList by remember(album.id) { mutableStateOf(false) }
+    // 重进专辑页时直接恢复（否则曲目表先消失一帧会把滚动位置夹回 0）
+    var showList by rememberSaveable(album.id) { mutableStateOf(false) }
     LaunchedEffect(album.id) { withFrameNanos { }; showList = true }
     val discKeys = remember(tracks) { discsOf(tracks) }
-    var discIndex by remember(album.id) { mutableIntStateOf(0) }
+    var discIndex by rememberSaveable(album.id) { mutableIntStateOf(0) }
     val discKey = discKeys.getOrNull(discIndex.coerceIn(0, (discKeys.size - 1).coerceAtLeast(0))) ?: 1
     val list = remember(tracks, discKey) { tracksOfDisc(tracks, discKey) }
     val startIndex = remember(tracks, discKey) { absoluteStart(tracks, discKey) }

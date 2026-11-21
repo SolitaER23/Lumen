@@ -73,6 +73,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -182,6 +183,20 @@ private fun App() {
     var starredIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var downloadedTrackIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var homeTab by remember { mutableIntStateOf(0) }
+    val homeCache = remember { HomeCache() }
+    val albumTracksCache = remember { mutableStateMapOf<String, List<Track>>() }
+    val saveableStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+
+    fun stateKeyOf(k: NavKey): String = when (k.screen) {
+        0 -> "home"
+        1 -> "album:${k.album?.id ?: ""}"
+        2 -> "player"
+        3 -> "settings"
+        4 -> "downloads"
+        5 -> "artist:${selectedArtist?.id ?: ""}"
+        6 -> "search"
+        else -> "s${k.screen}"
+    }
     var lyrics by remember { mutableStateOf<List<LyricLine>?>(null) }
     var lyricsTrackId by remember { mutableStateOf<String?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
@@ -356,7 +371,7 @@ private fun App() {
     }
 
     val onOpenAlbum: (Album) -> Unit = remember {
-        { al -> tracks = emptyList(); navigate(NavKey(1, al)) }
+        { al -> navigate(NavKey(1, al)) }
     }
     val onGoHome: () -> Unit = remember { { navStack.clear(); screen = 0; openAlbum = null } }
     val onOpenSettings: () -> Unit = remember { { navigate(NavKey(3, null)) } }
@@ -393,12 +408,13 @@ private fun App() {
                     label = "screen",
                     modifier = Modifier.fillMaxSize(),
                 ) { key ->
+                saveableStates.SaveableStateProvider(stateKeyOf(key)) {
                 when {
                     key.screen == 6 -> SearchScreen(
                         client = client,
                         coverUrl = { client.coverUrl(it) },
                         onBack = { goBack() },
-                        onOpenAlbum = { al -> tracks = emptyList(); navigate(NavKey(1, al)) },
+                        onOpenAlbum = { al -> navigate(NavKey(1, al)) },
                         onOpenArtist = onOpenArtistFromSearch,
                     )
                     key.screen == 5 -> selectedArtist?.let { a ->
@@ -407,7 +423,7 @@ private fun App() {
                             artist = a,
                             coverUrl = { client.coverUrl(it) },
                             onBack = { goBack() },
-                            onOpenAlbum = { al -> tracks = emptyList(); navigate(NavKey(1, al)) },
+                            onOpenAlbum = { al -> navigate(NavKey(1, al)) },
                         )
                     }
                     key.screen == 4 -> DownloadsScreen(
@@ -501,6 +517,7 @@ private fun App() {
                             onTabChange = { homeTab = it },
                             ratingOf = { id -> Ratings.get(ctx, id) },
                             downloads = downloads,
+                            cache = homeCache,
                             onPlayTrack = { tr ->
                                 playback.play(listOf(tr), 0, tr.album)
                                 playback.tick()
@@ -517,9 +534,10 @@ private fun App() {
                         )
                     } else {
                         val album = key.album
-                        if (tracks.isEmpty()) {
+                        val albumTracks = albumTracksCache[album.id]
+                        if (albumTracks == null) {
                             LaunchedEffect(album.id) {
-                                tracks = try {
+                                albumTracksCache[album.id] = try {
                                     withContext(Dispatchers.IO) { client.tracks(album.id) }
                                 } catch (e: Exception) {
                                     error = e.message
@@ -530,32 +548,35 @@ private fun App() {
                         AlbumScreen(
                             album = album,
                             coverModifier = Modifier,
-                            tracks = tracks,
+                            tracks = albumTracksCache[album.id].orEmpty(),
                             coverUrl = client.coverUrl(album.coverId),
                             currentTrackId = current?.id,
                             onBack = { goBack() },
                             download = downloads.firstOrNull { it.key == "album:${album.id}" },
                             onDownload = {
-                                Downloads.enqueue(ctx, album, tracks) { tr -> streamUrl(client, tr) }
+                                Downloads.enqueue(ctx, album, albumTracksCache[album.id].orEmpty()) { tr -> streamUrl(client, tr) }
                                 scope.launch {
                                     delay(600)
                                     downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
                                 }
                             },
                             onShuffle = {
-                                if (tracks.isNotEmpty()) {
-                                    playback.playShuffled(tracks, album.id)
+                                val list = albumTracksCache[album.id].orEmpty()
+                                if (list.isNotEmpty()) {
+                                    playback.playShuffled(list, album.id)
                                     playback.tick()
                                 }
                             },
                             onPlay = { start ->
-                                if (tracks.isNotEmpty()) {
-                                    playback.play(tracks, start, album.id)
+                                val list = albumTracksCache[album.id].orEmpty()
+                                if (list.isNotEmpty()) {
+                                    playback.play(list, start, album.id)
                                     playback.tick()
                                 }
                             },
                         )
                     }
+                }
                 }
                 }
                 }
@@ -629,6 +650,12 @@ private fun LoginScreen(
     }
 }
 
+class HomeCache {
+    var artists by androidx.compose.runtime.mutableStateOf<List<Artist>>(emptyList())
+    var newest by androidx.compose.runtime.mutableStateOf<List<Album>>(emptyList())
+    var recent by androidx.compose.runtime.mutableStateOf<List<Album>>(emptyList())
+}
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeScreen(
@@ -649,14 +676,15 @@ private fun HomeScreen(
     ratingOf: (String) -> Float = { 0f },
     downloads: List<AlbumDownload> = emptyList(),
     onPlayTrack: (Track) -> Unit = {},
+    cache: HomeCache = remember { HomeCache() },
     coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
     var sortIndex by remember(tab) { mutableIntStateOf(0) }
     var showSort by remember { mutableStateOf(false) }
     // tab 由上层持有，返回首页时能保持原来的标签
-    var artists by remember { mutableStateOf<List<Artist>>(emptyList()) }
-    var newest by remember { mutableStateOf<List<Album>>(emptyList()) }
-    var recent by remember { mutableStateOf<List<Album>>(emptyList()) }
+    val artists = cache.artists
+    val newest = cache.newest
+    val recent = cache.recent
 
     var tabLoading by remember { mutableStateOf(false) }
     var tabError by remember { mutableStateOf<String?>(null) }
@@ -664,7 +692,7 @@ private fun HomeScreen(
     // 启动就拉一次艺人，让标签上的数量一开始就是对的
     LaunchedEffect(Unit) {
         if (artists.isEmpty()) {
-            runCatching { artists = withContext(Dispatchers.IO) { client.artists() } }
+            runCatching { cache.artists = withContext(Dispatchers.IO) { client.artists() } }
         }
     }
 
@@ -675,10 +703,10 @@ private fun HomeScreen(
         tabError = null
         try {
             when (tab) {
-                1 -> if (artists.isEmpty()) artists = withContext(Dispatchers.IO) { client.artists() }
+                1 -> if (artists.isEmpty()) cache.artists = withContext(Dispatchers.IO) { client.artists() }
                 2 -> {
-                    if (newest.isEmpty()) newest = withContext(Dispatchers.IO) { client.newestAlbums() }
-                    if (recent.isEmpty()) recent = withContext(Dispatchers.IO) { client.recentAlbums() }
+                    if (newest.isEmpty()) cache.newest = withContext(Dispatchers.IO) { client.newestAlbums() }
+                    if (recent.isEmpty()) cache.recent = withContext(Dispatchers.IO) { client.recentAlbums() }
                 }
             }
         } catch (e: Exception) {
@@ -1070,7 +1098,7 @@ private fun RecentList(
     }
     val ctx = LocalContext.current
     var order by remember { mutableStateOf(loadRecentOrder(ctx)) }
-    var collapsed by remember { mutableStateOf(emptySet<Int>()) }
+    var collapsed by rememberSaveable { mutableStateOf(emptyList<Int>()) }
     var showOrderSheet by remember { mutableStateOf(false) }
 
     fun persist(newOrder: List<Int>) {
