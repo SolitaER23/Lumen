@@ -511,6 +511,7 @@ private fun App() {
                         onSeek = { playback.seekTo(it) },
                     )
                     else -> if (key.album == null) {
+                        MaterialTheme(colorScheme = HomeScheme, typography = lumenTypography()) {
                         HomeScreen(
                             client = client,
                             albums = albums,
@@ -523,6 +524,12 @@ private fun App() {
                             onSearch = onOpenSearch,
                             onOpenArtist = onOpenArtist,
                             starred = starred,
+                            current = current,
+                            playing = playback.playing,
+                            positionMs = playback.positionMs,
+                            durationMs = playback.durationMs,
+                            onToggle = { if (current != null) playback.toggle() },
+                            onOpenPlayer = { navigate(NavKey(2, null)) },
                             tab = homeTab,
                             onTabChange = { homeTab = it },
                             ratingOf = { id -> Ratings.get(ctx, id) },
@@ -542,6 +549,7 @@ private fun App() {
                             },
 
                         )
+                        }
                     } else {
                         val album = key.album
                         val albumTracks = albumTracksCache[album.id]
@@ -607,6 +615,7 @@ private fun App() {
                             if (current != null) playback.toggle()
                             else if (albums.isNotEmpty()) openAlbum = albums.first()
                         },
+                        onPrev = { playback.prev() },
                     )
                 }
             }
@@ -716,6 +725,12 @@ private fun HomeScreen(
     ratingOf: (String) -> Float = { 0f },
     downloads: List<AlbumDownload> = emptyList(),
     onPlayTrack: (Track) -> Unit = {},
+    current: Track? = null,
+    playing: Boolean = false,
+    positionMs: Long = 0,
+    durationMs: Long = 0,
+    onToggle: () -> Unit = {},
+    onOpenPlayer: () -> Unit = {},
     cache: HomeCache = remember { HomeCache() },
     coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
@@ -773,12 +788,22 @@ private fun HomeScreen(
         Column(Modifier.fillMaxSize()) {
         HomeHeader(
             selected = tab,
-            albumCount = albums.size,
-            artistCount = artists.size,
-            starredCount = starred.size,
+            title = when (tab) {
+                1 -> "艺人"
+                2 -> "最近"
+                3 -> "收藏"
+                else -> "专辑"
+            },
+            subtitle = when (tab) {
+                1 -> "${artists.size} 位艺人 · ${sortOptions.getOrElse(sortIndex) { "名称" }}"
+                2 -> "最近添加 ${newest.size} · 最近播放 ${recent.size}"
+                3 -> "${starred.size} 首单曲 · ${sortOptions.getOrElse(sortIndex) { "收藏顺序" }}"
+                else -> "${albums.size} 张专辑 · ${sortOptions.getOrElse(sortIndex) { "字母顺序" }}"
+            },
             onTab = onTabChange,
             onSettings = onSettings,
             onSort = { showSort = true },
+            onSearch = onSearch,
         )
 
         val activeError = if (tab == 0) error else tabError
@@ -829,7 +854,33 @@ private fun HomeScreen(
                             onPlayTrack = onPlayTrack,
                             loading = tabLoading && newest.isEmpty(),
                         )
-                        else -> AlbumGrid(sortedAlbums, coverUrl, onOpen, coverShared)
+                        else -> Column(Modifier.fillMaxSize()) {
+                            if (current != null) {
+                                ContinueCard(
+                                    track = current,
+                                    albumLabel = current.album,
+                                    coverUrl = coverUrl(current.albumId),
+                                    playing = playing,
+                                    onToggle = onToggle,
+                                    onOpen = onOpenPlayer,
+                                )
+                                Spacer(Modifier.height(10.dp))
+                            }
+                            SectionRow("全部专辑", "共 ${albums.size} 张")
+                            Box(Modifier.weight(1f)) {
+                                AlbumGrid(
+                                    albums = sortedAlbums,
+                                    coverUrl = coverUrl,
+                                    onOpen = onOpen,
+                                    coverShared = coverShared,
+                                    progressOf = { al ->
+                                        if (current?.albumId == al.id && durationMs > 0L) {
+                                            (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                                        } else null
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -890,26 +941,6 @@ private fun HomeScreen(
             }
         }
 
-        // 搜索：悬浮在底栏右上方
-        Box(
-            Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-                .padding(end = 16.dp, bottom = 84.dp)
-                .size(60.dp)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(percent = 50))
-                .clickable(onClick = onSearch),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                YoinSymbols.Search,
-                contentDescription = "搜索",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(26.dp),
-            )
-        }
     }
 }
 
@@ -984,36 +1015,26 @@ private fun StarredList(tracks: List<Track>, onPlay: (Int) -> Unit) {
 @Composable
 private fun HomeHeader(
     selected: Int,
-    albumCount: Int,
-    artistCount: Int,
-    starredCount: Int,
+    title: String,
+    subtitle: String,
     onTab: (Int) -> Unit,
     onSettings: () -> Unit,
     onSort: () -> Unit,
+    onSearch: () -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        TabLabel("专辑", 0, selected, onTab, MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.width(16.dp))
-        TabLabel("艺人", 1, selected, onTab, MaterialTheme.colorScheme.secondary)
-        Spacer(Modifier.width(16.dp))
-        TabLabel("最近", 2, selected, onTab, MaterialTheme.colorScheme.tertiary)
-        Spacer(Modifier.width(16.dp))
-        TabLabel("收藏", 3, selected, onTab, MaterialTheme.colorScheme.inversePrimary)
-        Spacer(Modifier.weight(1f))
-        // 排序：收藏与设置之间，描边圆钮 + 自绘排序图标
-        Box(Modifier.height(38.dp), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .border(1.5.dp, MaterialTheme.colorScheme.secondary, CircleShape)
-                    .clickable(onClick = onSort),
-                contentAlignment = Alignment.Center,
-            ) {
-                val sortColor = MaterialTheme.colorScheme.secondary
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, color = HomeText, fontSize = 34.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                Text(subtitle, color = HomeSub, fontSize = 12.sp)
+            }
+            HomeCircleButton(onClick = onSearch) {
+                Icon(YoinSymbols.Search, contentDescription = "搜索", tint = HomeText, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            HomeCircleButton(onClick = onSort) {
+                val sortColor = HomeText
                 Canvas(Modifier.size(20.dp)) {
                     val stroke = 2.dp.toPx()
                     val w = size.width
@@ -1024,42 +1045,157 @@ private fun HomeHeader(
                     drawLine(start = androidx.compose.ui.geometry.Offset(0f, third * 3), end = androidx.compose.ui.geometry.Offset(w * 0.42f, third * 3), color = sortColor, strokeWidth = stroke, cap = cap)
                 }
             }
+            Spacer(Modifier.width(10.dp))
+            HomeCircleButton(onClick = onSettings) {
+                Icon(YoinSymbols.Settings, contentDescription = "设置", tint = HomeText, modifier = Modifier.size(21.dp))
+            }
         }
-        Spacer(Modifier.width(10.dp))
-        // 与标题行居中对齐；描边圆钮，与实心首页键形成对比
-        Box(Modifier.height(38.dp), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(percent = 50))
-                    .border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(percent = 50))
-                    .clickable(onClick = onSettings),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    YoinSymbols.Settings,
-                    contentDescription = "设置",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp),
-                )
+        Spacer(Modifier.height(16.dp))
+        // 胶囊分段标签：选中项白底黑字，其余灰字
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(HomeCard)
+                .padding(4.dp),
+        ) {
+            listOf("专辑", "艺人", "最近", "收藏").forEachIndexed { i, label ->
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(if (i == selected) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Transparent)
+                        .clickable { onTab(i) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        color = if (i == selected) androidx.compose.ui.graphics.Color(0xFF0B0B0D) else HomeSub,
+                        fontSize = 13.sp,
+                        fontWeight = if (i == selected) FontWeight.Medium else FontWeight.Normal,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun TabLabel(title: String, index: Int, selected: Int, onTab: (Int) -> Unit, accent: androidx.compose.ui.graphics.Color) {
-    val active = selected == index
-    Column(Modifier.clickable { onTab(index) }) {
-        Text(
-            title,
-            // 选中的标签用自己的强调色，未选中用低对比灰
-            color = if (active) accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
-            fontSize = 26.sp,
-            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Light,
+private fun HomeCircleButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(HomeCard)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { content() }
+}
+
+@Composable
+private fun ContinueCard(
+    track: Track,
+    albumLabel: String,
+    coverUrl: String,
+    playing: Boolean,
+    onToggle: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(HomeCard)
+            .clickable(onClick = onOpen)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = coverUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(58.dp).clip(RoundedCornerShape(12.dp)),
         )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text("继续播放", color = HomeAccent, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(4.dp))
+            Text(track.title, color = HomeText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(3.dp))
+            Text(
+                listOfNotNull(track.artist.ifBlank { null }, albumLabel.ifBlank { null }).joinToString(" · "),
+                color = HomeSub,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Box(
+            Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(androidx.compose.ui.graphics.Color.White)
+                .clickable(onClick = onToggle),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
+                contentDescription = if (playing) "暂停" else "播放",
+                tint = androidx.compose.ui.graphics.Color(0xFF0B0B0D),
+                modifier = Modifier.size(22.dp),
+            )
+        }
     }
 }
+
+@Composable
+private fun SectionRow(title: String, trailing: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, color = HomeText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.weight(1f))
+        Text(trailing, color = HomeSub, fontSize = 11.sp)
+    }
+}
+
+
+
+
+// 首页中性色板（设计稿）：颜色交给封面，界面只用灰阶 + 一种强调色
+private val HomeCard = androidx.compose.ui.graphics.Color(0xFF17171C)
+private val HomeText = androidx.compose.ui.graphics.Color(0xFFF5F5F7)
+private val HomeSub = androidx.compose.ui.graphics.Color(0xFF8B8B94)
+private val HomeAccent = androidx.compose.ui.graphics.Color(0xFFE5484D)
+private val HomeBg = androidx.compose.ui.graphics.Color(0xFF0B0B0D)
+
+/** 首页专用的中性灰阶配色：颜色交给封面，界面只用灰阶 + 一种强调色。 */
+private val HomeScheme = androidx.compose.material3.darkColorScheme(
+    primary = HomeAccent,
+    onPrimary = androidx.compose.ui.graphics.Color.White,
+    primaryContainer = HomeCard,
+    onPrimaryContainer = HomeText,
+    secondary = HomeSub,
+    onSecondary = HomeBg,
+    tertiary = HomeSub,
+    background = HomeBg,
+    onBackground = HomeText,
+    surface = HomeBg,
+    onSurface = HomeText,
+    surfaceVariant = HomeCard,
+    onSurfaceVariant = HomeSub,
+    surfaceContainer = HomeCard,
+    surfaceContainerHigh = HomeCard,
+    surfaceContainerHighest = HomeCard,
+    surfaceContainerLow = HomeCard,
+    outline = HomeSub,
+    outlineVariant = androidx.compose.ui.graphics.Color(0xFF2A2A30),
+)
 
 @Composable
 private fun AlbumGrid(
@@ -1067,16 +1203,23 @@ private fun AlbumGrid(
     coverUrl: (String) -> String,
     onOpen: (Album) -> Unit,
     coverShared: @Composable (String) -> Modifier,
+    progressOf: (Album) -> Float? = { null },
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 120.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 130.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        verticalArrangement = Arrangement.spacedBy(22.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
         items(albums, key = { it.id }) { album ->
-            AlbumCard(album, coverUrl(album.coverId), coverModifier = coverShared(album.id)) { onOpen(album) }
+            AlbumCard(
+                album = album,
+                url = coverUrl(album.coverId),
+                coverModifier = coverShared(album.id),
+                progress = progressOf(album),
+                onClick = { onOpen(album) },
+            )
         }
     }
 }
@@ -1528,35 +1671,50 @@ private fun AlbumCard(
     url: String,
     modifier: Modifier = Modifier,
     coverModifier: Modifier = Modifier,
+    progress: Float? = null,
     onClick: () -> Unit,
 ) {
-    Column(
-        modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .clickable(onClick = onClick),
-    ) {
-        // 封面：正方形区域（右侧 26dp 留给竖排艺人名），避免每张卡都做一次子组合
-        Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+    Column(modifier.clickable(onClick = onClick)) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(HomeCard),
+        ) {
             AsyncImage(
                 model = url,
                 contentDescription = album.name,
                 contentScale = ContentScale.Crop,
-                modifier = coverModifier.fillMaxSize().padding(end = 26.dp).clip(RoundedCornerShape(topStart = 20.dp)),
+                modifier = coverModifier.fillMaxSize(),
             )
-            VerticalArtistName(
-                text = album.artist,
-                modifier = Modifier.align(Alignment.CenterEnd).width(26.dp).fillMaxHeight(),
-            )
+            // 播放中的专辑：封面下沿 3dp 进度线（不叠加任何角标/描边）
+            if (progress != null) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth(progress.coerceIn(0f, 1f))
+                        .height(3.dp)
+                        .background(HomeAccent),
+                )
+            }
         }
-        // 专辑名固定一行；过长时自动横向滚动
+        Spacer(Modifier.height(8.dp))
         Text(
             album.name,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
+            color = HomeText,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).basicMarquee(),
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(3.dp))
+        Text(
+            album.artist,
+            color = HomeSub,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -1572,103 +1730,103 @@ private fun YoinBar(
     onHome: () -> Unit,
     onOpenPlayer: () -> Unit,
     onToggle: () -> Unit,
+    onPrev: () -> Unit = {},
 ) {
     val pulse = remember { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(pulseKey) {
-        pulse.snapTo(1.03f)
-        pulse.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 480f))
+        pulse.snapTo(1.02f)
+        pulse.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 480f))
     }
     Row(
         modifier.fillMaxWidth().graphicsLayer {
             scaleX = pulse.value
             scaleY = pulse.value
-        }.padding(horizontal = 12.dp).height(64.dp),
+        }.padding(horizontal = 12.dp).height(68.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // 首页：独立圆形按钮
-        Surface(
-            onClick = onHome,
-            shape = RoundedCornerShape(22.dp),
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(60.dp),
+        // 首页：小号灰底圆钮（不再用强调色）
+        Box(
+            Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(HomeCard)
+                .clickable(onClick = onHome),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    YoinSymbols.Home,
-                    contentDescription = "首页",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(26.dp),
-                )
-            }
+            Icon(YoinSymbols.Home, contentDescription = "首页", tint = HomeText, modifier = Modifier.size(22.dp))
         }
 
-        // 曲目胶囊：封面 + 歌名 + 播放键全在一个框里
-        Surface(
-            onClick = onOpenPlayer,
-            enabled = enabled,
-            shape = RoundedCornerShape(percent = 50),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.weight(1f).height(56.dp),
+        // 迷你播放条：独立浮层，深灰底、白字、白色圆形播放键
+        Row(
+            Modifier
+                .weight(1f)
+                .height(62.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(HomeCard)
+                .clickable(enabled = enabled, onClick = onOpenPlayer)
+                .padding(start = 8.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                Modifier.fillMaxSize().padding(start = 6.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (enabled) {
-                    AsyncImage(
-                        model = coverUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    // 换歌：旧名向左退场、新名从右边推入
-                    AnimatedContent(
-                        targetState = title,
-                        transitionSpec = {
-                            (slideInHorizontally { it } + fadeIn()) togetherWith
-                                (slideOutHorizontally { -it } + fadeOut())
-                        },
-                        label = "track",
-                        modifier = Modifier.weight(1f),
-                    ) { t ->
-                        Column(Modifier.fillMaxWidth()) {
-                            Text(
-                                t, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                artist, fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+            if (enabled) {
+                AsyncImage(
+                    model = coverUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)),
+                )
+                Spacer(Modifier.width(10.dp))
+                AnimatedContent(
+                    targetState = title,
+                    transitionSpec = {
+                        (slideInHorizontally { it } + fadeIn()) togetherWith
+                            (slideOutHorizontally { -it } + fadeOut())
+                    },
+                    label = "track",
+                    modifier = Modifier.weight(1f),
+                ) { t ->
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(
+                            t, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            color = HomeText,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            artist, fontSize = 11.sp, color = HomeSub,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
                     }
-                } else {
-                    Text(
-                        "还没有播放",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontSize = 13.sp,
-                        modifier = Modifier.weight(1f).padding(start = 12.dp),
-                    )
                 }
-                val painter = rememberPlayPauseSymbolPainter(playing)
-                IconButton(
-                    onClick = onToggle,
-                    enabled = enabled,
-                    modifier = Modifier.size(44.dp),
-                ) {
-                    Image(
-                        painter = painter,
-                        contentDescription = if (playing) "暂停" else "播放",
-                        modifier = Modifier.size(26.dp),
-                        colorFilter = ColorFilter.tint(
-                            if (enabled) MaterialTheme.colorScheme.onPrimaryContainer
-                            else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.4f),
-                        ),
-                    )
-                }
+            } else {
+                Text(
+                    "还没有播放",
+                    color = HomeSub,
+                    fontSize = 13.sp,
+                    modifier = Modifier.weight(1f).padding(start = 12.dp),
+                )
+            }
+            IconButton(onClick = onPrev, enabled = enabled, modifier = Modifier.size(38.dp)) {
+                Icon(
+                    YoinSymbols.SkipPrevious,
+                    contentDescription = "上一首",
+                    tint = if (enabled) HomeSub else HomeSub.copy(alpha = 0.4f),
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Box(
+                Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(androidx.compose.ui.graphics.Color.White)
+                    .clickable(enabled = enabled, onClick = onToggle),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
+                    contentDescription = if (playing) "暂停" else "播放",
+                    tint = androidx.compose.ui.graphics.Color(0xFF0B0B0D),
+                    modifier = Modifier.size(22.dp),
+                )
             }
         }
     }
