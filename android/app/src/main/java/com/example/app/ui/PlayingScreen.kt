@@ -108,6 +108,7 @@ fun PlayingScreen(
     lyricsLoading: Boolean = false,
     showLyrics: Boolean = false,
     onToggleLyrics: () -> Unit = {},
+    onSeekPlay: (Long) -> Unit = {},
     rating: Float = 0f,
     onRating: (Float) -> Unit = {},
     coverModifier: Modifier = Modifier,
@@ -323,8 +324,7 @@ fun PlayingScreen(
                     lines = lyrics,
                     loading = lyricsLoading,
                     positionMs = positionMs,
-                    durationMs = durationMs,
-                    onSeek = onSeek,
+                    onSeekPlay = onSeekPlay,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
             }
@@ -424,15 +424,10 @@ private fun LyricsArea(
     lines: List<LyricLine>?,
     loading: Boolean,
     positionMs: Long,
-    durationMs: Long,
-    onSeek: (Long) -> Unit,
+    onSeekPlay: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // 横向拖动歌词 = 拖动播放进度（拖动整行宽度约等于整首歌）
-    val latestPosition by rememberUpdatedState(positionMs)
-    var scrubStartMs by remember { mutableLongStateOf(0L) }
-    var scrubStartX by remember { mutableFloatStateOf(0f) }
-    var lastSeekAt by remember { mutableLongStateOf(0L) }
+
     val listState = rememberLazyListState()
     val hasTimeline = lines?.any { it.startMs > 0L } == true
     val currentIndex = if (lines.isNullOrEmpty() || !hasTimeline) -1
@@ -451,35 +446,7 @@ private fun LyricsArea(
         }
     }
 
-    Box(
-        modifier
-            .pointerInput(durationMs) {
-                val slop = 24.dp.toPx()
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val startX = down.position.x
-                    val startMs = latestPosition
-                    var scrubbing = false
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.first()
-                        if (!change.pressed) break
-                        val dx = change.position.x - startX
-                        if (!scrubbing && kotlin.math.abs(dx) > slop) scrubbing = true
-                        if (scrubbing && durationMs > 0L) {
-                            val delta = dx / size.width.toFloat()
-                            val target = (startMs + (delta * durationMs).toLong()).coerceIn(0L, durationMs)
-                            val now = System.currentTimeMillis()
-                            if (now - lastSeekAt > 100L) {
-                                lastSeekAt = now
-                                onSeek(target)
-                            }
-                            change.consume()
-                        }
-                    }
-                }
-            },
-    ) {
+    Box(modifier) {
         when {
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -511,6 +478,9 @@ private fun LyricsArea(
                         lineHeight = 24.sp,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clickable(enabled = hasTimeline && line.startMs > 0L) {
+                                onSeekPlay(line.startMs)
+                            }
                             .padding(horizontal = 28.dp, vertical = 5.dp)
                             .graphicsLayer { this.alpha = alpha },
                     )

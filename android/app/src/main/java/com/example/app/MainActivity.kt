@@ -441,6 +441,10 @@ private fun App() {
                         lyricsLoading = lyricsLoading,
                         showLyrics = showLyrics,
                         onToggleLyrics = { showLyrics = !showLyrics },
+                        onSeekPlay = { ms ->
+                            playback.seekTo(ms)
+                            if (!playback.playing) playback.toggle()
+                        },
                         rating = rating,
                         onRating = { v ->
                             rating = v
