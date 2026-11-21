@@ -1,4 +1,4 @@
-package com.example.app.ui
+﻿package com.example.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -141,19 +141,14 @@ fun SearchScreen(
                             .padding(horizontal = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        AsyncImage(
-                            model = coverUrl(artist.coverId),
-                            contentDescription = artist.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(percent = 50)),
-                        )
-                        Spacer(Modifier.width(12.dp))
+                        // 艺人结果不显示头像，只显示名字（与艺人页保持一致）
                         Text(
                             artist.name,
                             color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 14.sp,
+                            fontSize = 16.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = 6.dp),
                         )
                     }
                     Spacer(Modifier.height(8.dp))
