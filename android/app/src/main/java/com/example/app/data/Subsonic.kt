@@ -277,6 +277,28 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
         get("unstar.view", mapOf("id" to trackId))
     }
 
+    /** 歌词：优先 OpenSubsonic 的 getLyricsBySongId，退回旧的 getLyrics */
+    fun lyrics(trackId: String, title: String, artist: String): String? {
+        val byId = runCatching { get("getLyricsBySongId.view", mapOf("id" to trackId)) }.getOrNull()
+        byId?.optJSONObject("lyricsList")?.optJSONArray("structuredLyrics")?.let { arr ->
+            for (i in 0 until arr.length()) {
+                val lines = arr.getJSONObject(i).optJSONArray("line") ?: continue
+                val sb = StringBuilder()
+                for (j in 0 until lines.length()) {
+                    val v = lines.getJSONObject(j).optString("value")
+                    if (v.isNotBlank()) sb.append(v).append('\n')
+                }
+                if (sb.isNotBlank()) return sb.toString().trim()
+            }
+        }
+        val legacy = runCatching {
+            get("getLyrics.view", mapOf("artist" to artist, "title" to title))
+        }.getOrNull() ?: return null
+        val l = legacy.optJSONObject("lyrics")
+        val value = l?.optString("value").orEmpty()
+        return value.takeIf { it.isNotBlank() }
+    }
+
     fun coverUrl(id: String, size: Int = 400): String =
         restUrl(base, "getCoverArt.view", user, token, salt, extra = mapOf("id" to id, "size" to "$size")).toString()
 }

@@ -173,6 +173,10 @@ private fun App() {
     var starredIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var downloadedTrackIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var homeTab by remember { mutableIntStateOf(0) }
+    var lyrics by remember { mutableStateOf<String?>(null) }
+    var lyricsTrackId by remember { mutableStateOf<String?>(null) }
+    var lyricsLoading by remember { mutableStateOf(false) }
+    var showLyrics by remember { mutableStateOf(false) }
     val navStack = remember { androidx.compose.runtime.mutableStateListOf<NavKey>() }
 
     /** 去下一页，并把"来处"压栈 */
@@ -261,6 +265,14 @@ private fun App() {
                 starred = list
                 starredIds = list.map { it.id }.toSet()
             }
+        }
+    }
+
+    LaunchedEffect(playback.current?.id) {
+        if (lyricsTrackId != playback.current?.id) {
+            lyrics = null
+            lyricsTrackId = playback.current?.id
+            showLyrics = false
         }
     }
 
@@ -413,6 +425,24 @@ private fun App() {
                         albumName = current?.album?.takeIf { it.isNotBlank() } ?: (key.album?.name ?: ""),
                         starred = current?.let { starredIds.contains(it.id) } ?: false,
                         trackDownloaded = current?.let { downloadedTrackIds.contains(it.id) } ?: false,
+                        lyrics = lyrics,
+                        lyricsLoading = lyricsLoading,
+                        showLyrics = showLyrics,
+                        onToggleLyrics = {
+                            showLyrics = !showLyrics
+                            val tr = current
+                            if (showLyrics && tr != null && lyricsTrackId != tr.id) {
+                                lyricsTrackId = tr.id
+                                lyrics = null
+                                lyricsLoading = true
+                                scope.launch {
+                                    lyrics = runCatching {
+                                        withContext(Dispatchers.IO) { client.lyrics(tr.id, tr.title, tr.artist) }
+                                    }.getOrNull()
+                                    lyricsLoading = false
+                                }
+                            }
+                        },
                         onToggleStar = { current?.let { toggleStar(it) } },
                         onDownloadTrack = {
                             current?.let { tr ->
