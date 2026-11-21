@@ -19,6 +19,20 @@
 
 ---
 
+## [0.19.0] - 2026-11-21
+
+### 新增：之前未使用的开源项目全部接入
+- **Google Sans Flex（OFL 1.1）**：从 Google Fonts 引入 400/500/600 三个字重（拉丁子集，每个约 130KB），`res/font/` + `assets/licenses/OFL-GoogleSansFlex.txt`；通过自定义 `Typography` 应用到全局，拉丁/数字用 Google Sans Flex，中文自动回退系统思源黑体。
+- **Retrofit 2.11 + Gson 2.11**：`SubsonicClient` 的网络层从手写 OkHttp 请求改为 `Retrofit`（`@GET("rest/{method}")` + `@QueryMap`）返回 `Call<JsonObject>`，由 Gson 转换器解析，再交给现有 `parseRoot` 解析器；补充了 R8 的 Retrofit/Gson keep 规则（否则混淆后 `Unable to create call adapter`）。
+- **kotlinx.serialization 1.9.0**（含 `kotlin.plugin.serialization`）：`Album` 标记 `@Serializable`，新增 `AlbumCache` 把专辑列表缓存为 `files/albums.json`；冷启动先显示缓存内容再刷新网络，`loading` 只在没有缓存时显示。
+- **Material Color Utilities 未引入**（按要求跳过）。
+
+### 影响
+- release APK 由约 2.72MB 增至 3.17MB（字体约 400KB + Retrofit/Gson）。
+- 播放（流 URL 仍走 `restUrl`）、下载、歌词、评分等功能验证正常。
+
+### 版本
+- `versionName 0.19.0` / `versionCode 49`。
 ## [0.18.0] - 2026-11-21
 
 ### 首页左右滑动切换标签

@@ -103,6 +103,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.app.data.Album
+import com.example.app.data.AlbumCache
 import com.example.app.data.LyricLine
 import com.example.app.data.Ratings
 import com.example.app.data.Artist
@@ -224,13 +225,18 @@ private fun App() {
 
 
     suspend fun loadAlbums(c: ServerConfig) {
-        loading = true
+        if (albums.isEmpty()) {
+            val cached = withContext(Dispatchers.IO) { AlbumCache.load(ctx) }
+            if (cached.isNotEmpty()) albums = cached
+        }
+        loading = albums.isEmpty()
         error = null
         var attempt = 0
         while (attempt < 3) {
             try {
                 albums = withContext(Dispatchers.IO) { SubsonicClient(c).albums() }
                 error = null
+                withContext(Dispatchers.IO) { AlbumCache.save(ctx, albums) }
                 break
             } catch (e: Exception) {
                 error = e.message ?: "加载失败"
@@ -383,7 +389,7 @@ private fun App() {
     val onOpenArtist: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
     val onOpenArtistFromSearch: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
 
-    MaterialTheme(colorScheme = scheme) {
+    MaterialTheme(colorScheme = scheme, typography = lumenTypography()) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             Box(
                 Modifier.fillMaxSize().graphicsLayer {
@@ -652,6 +658,36 @@ private fun LoginScreen(
             else Text("连接并同步", fontSize = 15.sp)
         }
     }
+}
+
+/** Google Sans Flex（OFL 1.1）：拉丁与数字用自定义字体，中文自动回退系统思源黑体。 */
+private val LumenFontFamily = androidx.compose.ui.text.font.FontFamily(
+    androidx.compose.ui.text.font.Font(R.font.google_sans_flex_regular, androidx.compose.ui.text.font.FontWeight.Normal),
+    androidx.compose.ui.text.font.Font(R.font.google_sans_flex_medium, androidx.compose.ui.text.font.FontWeight.Medium),
+    androidx.compose.ui.text.font.Font(R.font.google_sans_flex_semibold, androidx.compose.ui.text.font.FontWeight.SemiBold),
+)
+
+/** 把默认 Typography 的每个层级都换成 Google Sans Flex。 */
+private fun lumenTypography(): androidx.compose.material3.Typography {
+    val base = androidx.compose.material3.Typography()
+    fun androidx.compose.ui.text.TextStyle.gsf() = copy(fontFamily = LumenFontFamily)
+    return androidx.compose.material3.Typography(
+        displayLarge = base.displayLarge.gsf(),
+        displayMedium = base.displayMedium.gsf(),
+        displaySmall = base.displaySmall.gsf(),
+        headlineLarge = base.headlineLarge.gsf(),
+        headlineMedium = base.headlineMedium.gsf(),
+        headlineSmall = base.headlineSmall.gsf(),
+        titleLarge = base.titleLarge.gsf(),
+        titleMedium = base.titleMedium.gsf(),
+        titleSmall = base.titleSmall.gsf(),
+        bodyLarge = base.bodyLarge.gsf(),
+        bodyMedium = base.bodyMedium.gsf(),
+        bodySmall = base.bodySmall.gsf(),
+        labelLarge = base.labelLarge.gsf(),
+        labelMedium = base.labelMedium.gsf(),
+        labelSmall = base.labelSmall.gsf(),
+    )
 }
 
 class HomeCache {

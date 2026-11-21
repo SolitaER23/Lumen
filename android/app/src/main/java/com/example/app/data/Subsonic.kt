@@ -4,10 +4,15 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import com.google.gson.JsonObject
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.HttpException
 import org.json.JSONObject
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
+@kotlinx.serialization.Serializable
 data class Album(
     val id: String,
     val name: String,
@@ -217,6 +222,15 @@ internal fun parseRoot(body: String): JSONObject {
     return root
 }
 
+/** Retrofit 接口：所有 Subsonic 方法都是 `rest/<method>` + query 参数。 */
+private interface SubsonicApi {
+    @retrofit2.http.GET("rest/{method}")
+    fun call(
+        @retrofit2.http.Path("method") method: String,
+        @retrofit2.http.QueryMap params: Map<String, String>,
+    ): retrofit2.Call<JsonObject>
+}
+
 /** OpenSubsonic 客户端：token + salt 认证。 */
 class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
     private val base = cfg.base.trimEnd('/')
@@ -232,13 +246,32 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    // Retrofit + Gson 负责请求/解析，Gson 的 JsonObject 再转成 org.json 供现有解析器复用
+    private val api: SubsonicApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("$base/")
+            .client(http)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(SubsonicApi::class.java)
+    }
+
     private fun get(path: String, extra: Map<String, String> = emptyMap()): JSONObject {
-        val req = Request.Builder().url(restUrl(base, path, user, token, salt, extra = extra)).build()
-        http.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) error("HTTP ${resp.code}")
-            val body = resp.body?.string() ?: error("empty body")
-            return parseRoot(body)
+        val params = HashMap<String, String>(extra)
+        params["u"] = user
+        params["t"] = token
+        params["s"] = salt
+        params["v"] = "1.16.1"
+        params["c"] = "Lumen"
+        params["f"] = "json"
+        val response = try {
+            api.call(path, params).execute()
+        } catch (e: Exception) {
+            error(e.message ?: "网络错误")
         }
+        if (!response.isSuccessful) error("HTTP ${response.code()}")
+        val json = response.body() ?: error("empty body")
+        return parseRoot(json.toString())
     }
 
     fun ping(): Boolean = get("ping.view").optString("status") == "ok"
