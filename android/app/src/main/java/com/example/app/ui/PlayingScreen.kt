@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -433,26 +434,26 @@ private fun LyricsArea(
     onSeekPlay: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-
     val listState = rememberLazyListState()
+    val density = androidx.compose.ui.platform.LocalDensity.current
     val hasTimeline = lines?.any { it.startMs > 0L } == true
     val currentIndex = if (lines.isNullOrEmpty() || !hasTimeline) -1
     else lines.indexOfLast { it.startMs <= positionMs }.coerceAtLeast(0)
 
-    LaunchedEffect(currentIndex) {
-        if (currentIndex >= 0) {
-            runCatching { listState.animateScrollToItem((currentIndex - 1).coerceAtLeast(0)) }
-        }
-    }
     val appear = remember { Animatable(0f) }
     LaunchedEffect(lines) {
         if (!lines.isNullOrEmpty()) {
             appear.snapTo(0f)
-            appear.animateTo(1f, tween(400))
+            appear.animateTo(
+                1f,
+                tween(520, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            )
         }
     }
 
-    Box(modifier) {
+    BoxWithConstraints(modifier) {
+        val fadeRange = maxHeight * 0.42f
+        val fadePx = with(density) { fadeRange.toPx() }
         when {
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -460,62 +461,63 @@ private fun LyricsArea(
             lines.isNullOrEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("暂无歌词", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
-            else -> LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = appear.value },
-                contentPadding = PaddingValues(vertical = 10.dp),
-            ) {
-                itemsIndexed(lines) { i, line ->
-                    val isCurrent = i == currentIndex
-                    val distance = if (currentIndex >= 0) kotlin.math.abs(i - currentIndex) else 0
-                    val alpha = when {
-                        isCurrent -> 1f
-                        distance == 1 -> 0.6f
-                        distance == 2 -> 0.38f
-                        else -> 0.22f
+            else -> {
+                // 当前行始终停在视觉中心：滚动目标 = 该行中心对齐视口中心
+                LaunchedEffect(currentIndex) {
+                    if (currentIndex >= 0) {
+                        val info = listState.layoutInfo
+                        val itemH = info.visibleItemsInfo
+                            .firstOrNull { it.index == currentIndex + 1 }?.size
+                            ?: with(density) { 48.dp.toPx() }.toInt()
+                        val center = (info.viewportStartOffset + info.viewportEndOffset) / 2
+                        runCatching {
+                            listState.animateScrollToItem(currentIndex + 1, center - itemH / 2)
+                        }
                     }
-                    Text(
-                        line.text,
-                        color = if (isCurrent) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurface,
-                        fontSize = if (isCurrent) 18.sp else 15.sp,
-                        fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 24.sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = hasTimeline && line.startMs > 0L) {
-                                onSeekPlay(line.startMs)
-                            }
-                            .padding(horizontal = 28.dp, vertical = 5.dp)
-                            .graphicsLayer { this.alpha = alpha },
-                    )
+                }
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = appear.value },
+                    contentPadding = PaddingValues(horizontal = 24.dp),
+                ) {
+                    item { Spacer(Modifier.height(fadeRange)) }
+                    itemsIndexed(lines) { i, line ->
+                        val info = listState.layoutInfo
+                        val item = info.visibleItemsInfo.firstOrNull { it.index == i + 1 }
+                        val center = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+                        val dist = item?.let {
+                            kotlin.math.abs(it.offset + it.size / 2f - center)
+                        } ?: Float.MAX_VALUE
+                        val t = (1f - dist / fadePx.coerceAtLeast(1f)).coerceIn(0f, 1f)
+                        val smooth = t * t * (3f - 2f * t)
+                        val alpha = 0.13f + 0.87f * smooth
+                        val scale = 0.945f + 0.055f * smooth
+                        val isCurrent = i == currentIndex
+                        Text(
+                            line.text,
+                            color = if (isCurrent) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface,
+                            fontSize = 17.sp,
+                            fontWeight = if (smooth > 0.72f) FontWeight.SemiBold else FontWeight.Normal,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 26.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = hasTimeline && line.startMs > 0L) {
+                                    onSeekPlay(line.startMs)
+                                }
+                                .padding(vertical = 9.dp)
+                                .graphicsLayer {
+                                    this.alpha = alpha
+                                    scaleX = scale
+                                    scaleY = scale
+                                },
+                        )
+                    }
+                    item { Spacer(Modifier.height(fadeRange)) }
                 }
             }
         }
-        // 上下渐隐：滚动到按钮下方时优雅淡出
-        Box(
-            Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(56.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Transparent),
-                    ),
-                ),
-        )
-        Box(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(40.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Transparent),
-                    ),
-                ),
-        )
     }
 }
 
