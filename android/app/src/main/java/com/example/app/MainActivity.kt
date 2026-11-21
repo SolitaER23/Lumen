@@ -188,6 +188,7 @@ private fun App() {
     // 0 = 首页, 1 = 专辑页, 2 = 播放页
     var screen by remember { mutableStateOf(0) }
     var scheme by remember { mutableStateOf(FallbackScheme) }
+    var contrast by remember { mutableFloatStateOf(com.example.app.data.Appearance.contrast(ctx)) }
     var downloads by remember { mutableStateOf<List<AlbumDownload>>(emptyList()) }
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
     var starred by remember { mutableStateOf<List<Track>>(emptyList()) }
@@ -366,7 +367,7 @@ private fun App() {
     // 封面取色：主色跟着正在播的专辑走
     LaunchedEffect(current?.albumId) {
         current?.let { t ->
-            schemeFromCover(client.coverUrl(t.albumId, 200))?.let { scheme = it }
+            schemeFromCover(client.coverUrl(t.albumId, 200), contrast)?.let { scheme = it }
         }
     }
 
@@ -460,6 +461,11 @@ private fun App() {
                         downloadCount = downloads.sumOf { it.total },
                         downloadBytes = downloads.sumOf { it.bytes },
                         onManageDownloads = { navigate(NavKey(4, null)) },
+                        contrast = contrast,
+                        onContrast = { v ->
+                            contrast = v
+                            com.example.app.data.Appearance.setContrast(ctx, v)
+                        },
                         onClearCache = {
                             // 缓存与下载共用 SimpleCache：清缓存要把下载记录一起删掉，否则管理页会显示"已下载"但文件没了
                             downloads.forEach { Downloads.delete(ctx, it.key) }
@@ -577,6 +583,7 @@ private fun App() {
                             currentTrackId = current?.id,
                             onBack = { goBack() },
                             download = downloads.firstOrNull { it.key == "album:${album.id}" },
+                            contrast = contrast,
                             onDownload = {
                                 Downloads.enqueue(ctx, album, albumTracksCache[album.id].orEmpty()) { tr -> streamUrl(client, tr) }
                                 scope.launch {

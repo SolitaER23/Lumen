@@ -1,13 +1,16 @@
 ﻿package com.example.app.ui
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
-import androidx.palette.graphics.Palette
+import com.google.android.material.color.utilities.DynamicColor
+import com.google.android.material.color.utilities.Hct
+import com.google.android.material.color.utilities.MaterialDynamicColors
+import com.google.android.material.color.utilities.QuantizerCelebi
+import com.google.android.material.color.utilities.SchemeTonalSpot
+import com.google.android.material.color.utilities.Score
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -40,18 +43,25 @@ private val http = OkHttpClient.Builder()
     .cache(okhttp3.Cache(java.io.File(System.getProperty("java.io.tmpdir"), "lumen_palette"), 8L * 1024 * 1024))
     .build()
 
-/** 按封面 URL 缓存取色结果，避免同一张封面重复下载 + 解码。 */
+/** 按「封面 URL + 对比度」缓存取色结果，避免同一张封面重复下载 + 量化。 */
 private val schemeCache = object : android.util.LruCache<String, ColorScheme>(8) {}
 
+private fun Int.asColor(): Color = Color(this)
+
 /**
- * 从封面取主色，生成一套 M3 深色配色（对应旧版的 `Roles::from_tint`）。
+ * 用 Material Color Utilities 从封面生成一套 M3 深色配色。
  *
- * 取 `dominantSwatch` 的 HSL：主色提亮到可读的明度，容器色压暗，背景带一点色相。
+ * 流程：封面解码 → 缩到 96×96 → Celebi 量化 → Score 选种子色
+ * → SchemeTonalSpot(seed, dark=true, contrastLevel) → 映射成 Compose ColorScheme。
+ *
+ * @param contrast 0f = 标准，0.5f = 中，1f = 高
  */
-suspend fun schemeFromCover(url: String): ColorScheme? = withContext(Dispatchers.IO) {
+suspend fun schemeFromCover(url: String, contrast: Float = 0f): ColorScheme? = withContext(Dispatchers.IO) {
     if (url.isBlank()) return@withContext null
-    schemeCache.get(url)?.let { return@withContext it }
-    val bmp: Bitmap = try {
+    val key = "$url|$contrast"
+    schemeCache.get(key)?.let { return@withContext it }
+
+    val bitmap: Bitmap = try {
         val req = Request.Builder().url(url).build()
         http.newCall(req).execute().use { r ->
             val bytes = r.body?.bytes() ?: return@withContext null
@@ -60,44 +70,52 @@ suspend fun schemeFromCover(url: String): ColorScheme? = withContext(Dispatchers
     } catch (e: Exception) {
         return@withContext null
     }
-    val palette = Palette.from(bmp).generate()
-    val swatch = palette.dominantSwatch
-        ?: palette.vibrantSwatch
-        ?: palette.mutedSwatch
-        ?: return@withContext null
-    val hsl = FloatArray(3)
-    androidx.core.graphics.ColorUtils.colorToHSL(swatch.rgb, hsl)
-    val h = hsl[0]
-    val primary = Color.hsl(h, 0.62f, 0.58f)
-    val primaryContainer = Color.hsl(h, 0.45f, 0.18f)
-    val onPrimaryContainer = Color.hsl(h, 0.35f, 0.90f)
-    val surface = Color.hsl(h, 0.10f, 0.055f)
-    val surfaceContainer = Color.hsl(h, 0.10f, 0.095f)
 
-    // 由封面主色再转出两个相邻但明显不同的色相，供「随机 / 下载」等按钮使用
-    val h2 = (h + 40f) % 360f
-    val h3 = (h + 320f) % 360f
-    val scheme = darkColorScheme(
-        primary = primary,
-        secondary = Color.hsl(h2, 0.55f, 0.66f),
-        onSecondary = Color.hsl(h2, 0.60f, 0.12f),
-        secondaryContainer = Color.hsl(h2, 0.45f, 0.22f),
-        onSecondaryContainer = Color.hsl(h2, 0.40f, 0.90f),
-        tertiary = Color.hsl(h3, 0.60f, 0.62f),
-        onTertiary = Color.hsl(h3, 0.60f, 0.12f),
-        tertiaryContainer = Color.hsl(h3, 0.50f, 0.20f),
-        onTertiaryContainer = Color.hsl(h3, 0.40f, 0.90f),
-        inversePrimary = Color.hsl((h + 90f) % 360f, 0.65f, 0.66f),
-        onPrimary = Color.hsl(h, 0.6f, 0.10f),
-        primaryContainer = primaryContainer,
-        onPrimaryContainer = onPrimaryContainer,
-        surface = surface,
-        surfaceContainer = surfaceContainer,
-        surfaceContainerHigh = Color.hsl(h, 0.10f, 0.14f),
-        onSurface = Color.hsl(h, 0.06f, 0.93f),
-        onSurfaceVariant = Color.hsl(h, 0.06f, 0.68f),
-        outlineVariant = Color.hsl(h, 0.08f, 0.24f),
+    val small = if (bitmap.width > 96 || bitmap.height > 96) {
+        Bitmap.createScaledBitmap(bitmap, 96, 96, true)
+    } else bitmap
+    val pixels = IntArray(small.width * small.height)
+    small.getPixels(pixels, 0, small.width, 0, 0, small.width, small.height)
+
+    val quantized = QuantizerCelebi.quantize(pixels, 128)
+    val seed = Score.score(quantized).firstOrNull() ?: return@withContext null
+    val scheme = SchemeTonalSpot(Hct.fromInt(seed), true, contrast.toDouble())
+    // material 1.12 内置的 MCU 版本用 MaterialDynamicColors 计算各角色
+    val mdc = MaterialDynamicColors()
+    fun argb(role: DynamicColor): Color = role.getArgb(scheme).asColor()
+
+    val cs = darkColorScheme(
+        primary = argb(mdc.primary()),
+        onPrimary = argb(mdc.onPrimary()),
+        primaryContainer = argb(mdc.primaryContainer()),
+        onPrimaryContainer = argb(mdc.onPrimaryContainer()),
+        inversePrimary = argb(mdc.inversePrimary()),
+        secondary = argb(mdc.secondary()),
+        onSecondary = argb(mdc.onSecondary()),
+        secondaryContainer = argb(mdc.secondaryContainer()),
+        onSecondaryContainer = argb(mdc.onSecondaryContainer()),
+        tertiary = argb(mdc.tertiary()),
+        onTertiary = argb(mdc.onTertiary()),
+        tertiaryContainer = argb(mdc.tertiaryContainer()),
+        onTertiaryContainer = argb(mdc.onTertiaryContainer()),
+        error = argb(mdc.error()),
+        onError = argb(mdc.onError()),
+        errorContainer = argb(mdc.errorContainer()),
+        onErrorContainer = argb(mdc.onErrorContainer()),
+        surface = argb(mdc.surface()),
+        onSurface = argb(mdc.onSurface()),
+        surfaceVariant = argb(mdc.surfaceVariant()),
+        onSurfaceVariant = argb(mdc.onSurfaceVariant()),
+        surfaceContainerLowest = argb(mdc.surfaceContainerLowest()),
+        surfaceContainerLow = argb(mdc.surfaceContainerLow()),
+        surfaceContainer = argb(mdc.surfaceContainer()),
+        surfaceContainerHigh = argb(mdc.surfaceContainerHigh()),
+        surfaceContainerHighest = argb(mdc.surfaceContainerHighest()),
+        outline = argb(mdc.outline()),
+        outlineVariant = argb(mdc.outlineVariant()),
+        inverseSurface = argb(mdc.inverseSurface()),
+        inverseOnSurface = argb(mdc.inverseOnSurface()),
     )
-    schemeCache.put(url, scheme)
-    scheme
+    schemeCache.put(key, cs)
+    cs
 }

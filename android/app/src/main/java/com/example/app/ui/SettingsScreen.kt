@@ -3,6 +3,7 @@
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -47,6 +48,8 @@ fun SettingsScreen(
     downloadBytes: Long,
     onManageDownloads: () -> Unit,
     onClearCache: () -> Unit,
+    contrast: Float = 0f,
+    onContrast: (Float) -> Unit = {},
 ) {
     var cacheBytes by remember { mutableStateOf(0L) }
     var freed by remember { mutableStateOf(false) }
@@ -73,6 +76,41 @@ fun SettingsScreen(
         InfoRow("用户名", cfg.user)
 
         Spacer(Modifier.height(16.dp))
+        Section("外观")
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            listOf(0f to "标准", 0.5f to "中", 1f to "高").forEach { (value, label) ->
+                val selected = kotlin.math.abs(contrast - value) < 0.01f
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(
+                            if (selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        )
+                        .clickable { onContrast(value) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        color = if (selected) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+        }
+        Text(
+            "对比度越高，文字与容器越清晰（Material Color Utilities 动态取色）",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+        )
+
         Section("缓存")
         Row(
             Modifier

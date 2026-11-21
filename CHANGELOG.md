@@ -19,6 +19,22 @@
 
 ---
 
+## [0.21.0] - 2026-11-21
+
+### 动态取色改用 Material Color Utilities（方案 A）
+- `Palette.kt` 的取色实现从「androidx.palette 主色 + HSL 色相偏移」换成 **MCU**：
+  - 封面缩到 96×96 → `QuantizerCelebi.quantize` → `Score.score` 选出种子色 → `SchemeTonalSpot(Hct, dark=true, contrastLevel)`；
+  - 用 `MaterialDynamicColors` 把 primary / container / secondary / tertiary / surface / surfaceContainer* / outline / error 等角色映射成 Compose `ColorScheme`；
+  - 缓存键改为 `封面URL + 对比度`，同一封面不同对比度各自缓存。
+- 设置页新增 **外观 → 对比度**（标准 / 中 / 高），持久化在 `lumen_settings`，切换后专辑页、播放页、搜索、设置即时重算配色。
+- 依赖：为拿到 MCU 类引入 `com.google.android.material:material:1.12.0`（其中的 `color.utilities` 包）；`androidx.palette` 仍保留但不再参与取色。
+- 效果：颜色更收敛、层次由 tonal palette 统一生成；三颗操作按钮仍保持可区分（primary / secondary / tertiaryContainer）。
+
+### 代价
+- release APK 3.17MB → **4.93MB**（material AAR 较大）；后续若要瘦身，可把 MCU 源码（Apache 2.0）内联进项目替代该依赖。
+
+### 版本
+- `versionName 0.21.0` / `versionCode 54`。
 ## [0.20.3] - 2026-11-21
 
 ### 调整

@@ -19,6 +19,20 @@ data class ServerConfig(
     val complete: Boolean get() = base.startsWith("http") && user.isNotBlank() && password.isNotBlank()
 }
 
+/** 外观偏好：MCU 对比度（0=标准，0.5=中，1=高）。 */
+object Appearance {
+    private const val FILE = "lumen_settings"
+    private const val KEY_CONTRAST = "mcu_contrast"
+
+    fun contrast(ctx: Context): Float =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getFloat(KEY_CONTRAST, 0f)
+
+    fun setContrast(ctx: Context, value: Float) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .putFloat(KEY_CONTRAST, value.coerceIn(0f, 1f)).apply()
+    }
+}
+
 object SettingsStore {
     private const val FILE = "lumen_settings"
     private const val KEY_ALIAS = "lumen_settings_key"

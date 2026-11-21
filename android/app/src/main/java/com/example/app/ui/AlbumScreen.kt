@@ -78,12 +78,13 @@ fun AlbumScreen(
     onShuffle: () -> Unit,
     download: AlbumDownload?,
     onDownload: () -> Unit,
+    contrast: Float = 0f,
     coverModifier: Modifier = Modifier,
 ) {
     // 首帧只画头部，曲目表推到下一帧，避免一次组合太多导致掉帧
     // 用当前专辑封面取色（Palette 有缓存），失败时回退到全局主题
     var albumScheme by remember(coverUrl) { mutableStateOf<ColorScheme?>(null) }
-    LaunchedEffect(coverUrl) { albumScheme = schemeFromCover(coverUrl) }
+    LaunchedEffect(coverUrl, contrast) { albumScheme = schemeFromCover(coverUrl, contrast) }
     val s = albumScheme ?: MaterialTheme.colorScheme
 
     // 重进专辑页时直接恢复（否则曲目表先消失一帧会把滚动位置夹回 0）
