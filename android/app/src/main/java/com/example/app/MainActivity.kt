@@ -1,4 +1,4 @@
-﻿package com.example.app
+package com.example.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -624,12 +624,20 @@ private fun App() {
                         val albumTracks = albumTracksCache[album.id]
                         if (albumTracks == null) {
                             LaunchedEffect(album.id) {
-                                albumTracksCache[album.id] = try {
-                                    withContext(Dispatchers.IO) { client.tracks(album.id) }
+                                val fetched = try {
+                                    withContext(Dispatchers.IO) { client.tracks(album.id) }.also {
+                                        android.util.Log.i(
+                                            "LumenAlbum",
+                                            "album=${album.id} tracks=${it.size} discs=${it.map { t -> t.disc }.distinct()}",
+                                        )
+                                    }
                                 } catch (e: Exception) {
+                                    android.util.Log.e("LumenAlbum", "album=${album.id} fetch failed", e)
                                     error = e.message
                                     emptyList()
                                 }
+                                // 不要把空结果缓存下来：否则一次网络抖动会让这张专辑一直空白
+                                if (fetched.isNotEmpty()) albumTracksCache[album.id] = fetched
                             }
                         }
                         // 进入专辑即静默分析缺失曲目（无 UI、无提示）
