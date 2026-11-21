@@ -50,6 +50,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -57,6 +58,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.Canvas
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -486,6 +490,7 @@ private fun App() {
                             starred = starred,
                             tab = homeTab,
                             onTabChange = { homeTab = it },
+                            ratingOf = { id -> Ratings.get(ctx, id) },
                             onPlayStarred = { index ->
                                 if (starred.isNotEmpty()) {
                                     playback.play(starred, index, "starred")
@@ -610,7 +615,7 @@ private fun LoginScreen(
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeScreen(
     client: SubsonicClient,
@@ -627,8 +632,11 @@ private fun HomeScreen(
     onPlayStarred: (Int) -> Unit = {},
     tab: Int = 0,
     onTabChange: (Int) -> Unit = {},
+    ratingOf: (String) -> Float = { 0f },
     coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
+    var sortIndex by remember(tab) { mutableIntStateOf(0) }
+    var showSort by remember { mutableStateOf(false) }
     // tab 由上层持有，返回首页时能保持原来的标签
     var artists by remember { mutableStateOf<List<Artist>>(emptyList()) }
     var newest by remember { mutableStateOf<List<Album>>(emptyList()) }
@@ -664,6 +672,19 @@ private fun HomeScreen(
         }
     }
 
+    LaunchedEffect(tab) { showSort = false }
+    val sortOptions = when (tab) {
+        1 -> listOf("名称", "专辑数量")
+        2 -> listOf("最近添加", "名称", "发行年份")
+        3 -> listOf("收藏顺序", "名称", "艺人", "我的评分")
+        else -> listOf("字母顺序", "发行年份", "歌曲数量", "艺人")
+    }
+    val sortedAlbums = sortAlbums(albums, sortIndex)
+    val sortedArtists = sortArtists(artists, sortIndex)
+    val sortedNewest = sortAlbums(newest, sortIndex)
+    val sortedRecent = sortAlbums(recent, sortIndex)
+    val sortedStarred = sortStarred(starred, sortIndex, ratingOf)
+
     Box(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.fillMaxSize()) {
         HomeHeader(
@@ -673,6 +694,7 @@ private fun HomeScreen(
             starredCount = starred.size,
             onTab = onTabChange,
             onSettings = onSettings,
+            onSort = { showSort = true },
         )
 
         val activeError = if (tab == 0) error else tabError
@@ -704,19 +726,73 @@ private fun HomeScreen(
                 modifier = Modifier.fillMaxSize(),
             ) { t ->
                 when (t) {
-                    3 -> StarredList(starred, onPlayStarred)
-                    1 -> ArtistGrid(artists, onOpenArtist)
+                    3 -> StarredList(sortedStarred, onPlayStarred)
+                    1 -> ArtistGrid(sortedArtists, onOpenArtist)
                     2 -> RecentList(
-                        newest = newest,
-                        recent = recent,
+                        newest = sortedNewest,
+                        recent = sortedRecent,
                         coverUrl = coverUrl,
                         onOpen = onOpen,
                         loading = tabLoading && newest.isEmpty(),
                     )
-                    else -> AlbumGrid(albums, coverUrl, onOpen, coverShared)
+                    else -> AlbumGrid(sortedAlbums, coverUrl, onOpen, coverShared)
                 }
             }
         }
+        }
+
+        if (showSort) {
+            ModalBottomSheet(
+                onDismissRequest = { showSort = false },
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ) {
+                Text(
+                    when (tab) {
+                        1 -> "艺人排序"
+                        2 -> "最近排序"
+                        3 -> "收藏排序"
+                        else -> "专辑排序"
+                    },
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                )
+                Spacer(Modifier.height(4.dp))
+                sortOptions.forEachIndexed { i, label ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                sortIndex = i
+                                showSort = false
+                            }
+                            .padding(horizontal = 24.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .border(
+                                    if (i == sortIndex) 6.dp else 2.dp,
+                                    if (i == sortIndex) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.outline,
+                                    CircleShape,
+                                ),
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        Text(
+                            label,
+                            color = if (i == sortIndex) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp,
+                            fontWeight = if (i == sortIndex) FontWeight.Medium else FontWeight.Normal,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+            }
         }
 
         // 搜索：悬浮在底栏右上方
@@ -740,6 +816,23 @@ private fun HomeScreen(
             )
         }
     }
+}
+
+private fun sortAlbums(list: List<Album>, mode: Int): List<Album> = when (mode) {
+    1 -> list.sortedWith(compareByDescending<Album> { it.year }.thenBy { it.name.lowercase() })
+    2 -> list.sortedByDescending { it.songCount }
+    3 -> list.sortedBy { it.artist.lowercase() + "|" + it.name.lowercase() }
+    else -> list.sortedBy { it.name.lowercase() }
+}
+
+private fun sortArtists(list: List<Artist>, mode: Int): List<Artist> =
+    if (mode == 1) list.sortedByDescending { it.albumCount } else list.sortedBy { it.name.lowercase() }
+
+private fun sortStarred(list: List<Track>, mode: Int, ratingOf: (String) -> Float): List<Track> = when (mode) {
+    1 -> list.sortedBy { it.title.lowercase() }
+    2 -> list.sortedBy { it.artist.lowercase() + "|" + it.title.lowercase() }
+    3 -> list.sortedByDescending { ratingOf(it.id) }
+    else -> list
 }
 
 @Composable
@@ -801,6 +894,7 @@ private fun HomeHeader(
     starredCount: Int,
     onTab: (Int) -> Unit,
     onSettings: () -> Unit,
+    onSort: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
@@ -814,6 +908,29 @@ private fun HomeHeader(
         Spacer(Modifier.width(16.dp))
         TabLabel("收藏", 3, selected, onTab, MaterialTheme.colorScheme.inversePrimary)
         Spacer(Modifier.weight(1f))
+        // 排序：收藏与设置之间，描边圆钮 + 自绘排序图标
+        Box(Modifier.height(38.dp), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .border(1.5.dp, MaterialTheme.colorScheme.secondary, CircleShape)
+                    .clickable(onClick = onSort),
+                contentAlignment = Alignment.Center,
+            ) {
+                val sortColor = MaterialTheme.colorScheme.secondary
+                Canvas(Modifier.size(20.dp)) {
+                    val stroke = 2.dp.toPx()
+                    val w = size.width
+                    val third = size.height / 4f
+                    val cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    drawLine(start = androidx.compose.ui.geometry.Offset(0f, third), end = androidx.compose.ui.geometry.Offset(w, third), color = sortColor, strokeWidth = stroke, cap = cap)
+                    drawLine(start = androidx.compose.ui.geometry.Offset(0f, third * 2), end = androidx.compose.ui.geometry.Offset(w * 0.7f, third * 2), color = sortColor, strokeWidth = stroke, cap = cap)
+                    drawLine(start = androidx.compose.ui.geometry.Offset(0f, third * 3), end = androidx.compose.ui.geometry.Offset(w * 0.42f, third * 3), color = sortColor, strokeWidth = stroke, cap = cap)
+                }
+            }
+        }
+        Spacer(Modifier.width(10.dp))
         // 与标题行居中对齐；描边圆钮，与实心首页键形成对比
         Box(Modifier.height(38.dp), contentAlignment = Alignment.Center) {
             Box(
