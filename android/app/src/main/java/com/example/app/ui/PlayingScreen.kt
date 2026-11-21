@@ -124,15 +124,15 @@ fun PlayingScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f),
             )
+            Spacer(Modifier.width(10.dp))
             Text(
                 albumName,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(end = 20.dp),
+                modifier = Modifier.weight(1f).padding(end = 16.dp),
             )
         }
 
@@ -149,11 +149,12 @@ fun PlayingScreen(
                     .size(232.dp)
                     .clip(RoundedCornerShape(24.dp)),
             )
-            Spacer(Modifier.width(18.dp))
-            // 封面右侧：单曲下载 / 收藏，两个圆形按钮竖排
+            Spacer(Modifier.weight(1f))
+            // 封面右侧：单曲下载 / 收藏，两个圆形按钮竖排（靠近右侧边缘）
             Column(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(end = 2.dp),
             ) {
                 CircleAction(
                     icon = if (trackDownloaded) YoinSymbols.DownloadDone else YoinSymbols.Download,
