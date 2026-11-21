@@ -22,6 +22,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.pager.HorizontalPager
+import kotlinx.coroutines.flow.drop
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -65,6 +67,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.pager.HorizontalPager
+import kotlinx.coroutines.flow.drop
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -826,18 +830,24 @@ private fun HomeScreen(
             }
             else -> {
                 val pagerState = rememberPagerState(pageCount = { 4 })
+                // 点击标签：直接跳页（不做动画），快速连点不会互相打断
                 LaunchedEffect(tab) {
-                    if (!pagerState.isScrollInProgress && pagerState.currentPage != tab) {
-                        pagerState.animateScrollToPage(tab)
+                    if (pagerState.currentPage != tab) {
+                        pagerState.scrollToPage(tab)
                     }
                 }
-                LaunchedEffect(pagerState.settledPage) {
-                    if (pagerState.settledPage != tab) onTabChange(pagerState.settledPage)
+                // 用户滑动落定后回写标签；drop(1) 丢弃初始值
+                LaunchedEffect(pagerState) {
+                    snapshotFlow { pagerState.settledPage }
+                        .drop(1)
+                        .collect { page ->
+                            if (!pagerState.isScrollInProgress && page != tab) onTabChange(page)
+                        }
                 }
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount = 3,
+                    beyondViewportPageCount = 1,
                     key = { it },
                 ) { page ->
                     when (page) {
@@ -1745,17 +1755,6 @@ private fun YoinBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // 首页：小号灰底圆钮（不再用强调色）
-        Box(
-            Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(HomeCard)
-                .clickable(onClick = onHome),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(YoinSymbols.Home, contentDescription = "首页", tint = HomeText, modifier = Modifier.size(22.dp))
-        }
 
         // 迷你播放条：独立浮层，深灰底、白字、白色圆形播放键
         Row(
