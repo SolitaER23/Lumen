@@ -1,4 +1,4 @@
-package com.example.app.data
+﻿package com.example.app.data
 
 import android.content.ContentValues
 import android.content.Context
@@ -11,6 +11,7 @@ data class MoodResult(
     val valence: Float,
     val arousal: Float,
     val label: String,
+    val tempo: Float = 0f,
     val updatedAt: Long = System.currentTimeMillis(),
 )
 
@@ -18,7 +19,7 @@ object MoodStore {
     private const val DB = "moods.db"
     private const val TABLE = "moods"
 
-    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 1) {
+    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 2) {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS $TABLE (" +
@@ -40,6 +41,7 @@ object MoodStore {
             put("valence", r.valence)
             put("arousal", r.arousal)
             put("label", r.label)
+            put("tempo", r.tempo)
             put("updated", r.updatedAt)
         }
         runCatching { db(ctx).insertWithOnConflict(TABLE, null, v, SQLiteDatabase.CONFLICT_REPLACE) }
@@ -53,7 +55,8 @@ object MoodStore {
                     valence = c.getFloat(1),
                     arousal = c.getFloat(2),
                     label = c.getString(3),
-                    updatedAt = c.getLong(4),
+                    tempo = c.getFloat(4),
+                    updatedAt = c.getLong(5),
                 )
             } else null
         }
@@ -126,6 +129,6 @@ object MoodMath {
             v < 0.46f && ar >= 0.52f -> if (a > 0.10f) "Angry" else "Tense"
             else -> "Sad"
         }
-        return MoodResult(trackId = trackId, valence = v, arousal = ar, label = label)
+        return MoodResult(trackId = trackId, valence = v, arousal = ar, label = label, tempo = dsp.tempoBpm)
     }
 }
