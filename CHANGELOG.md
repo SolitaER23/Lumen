@@ -19,6 +19,23 @@
 
 ---
 
+## [0.23.0] - 2026-11-21
+
+### 适配 navidrome-stat（聆听统计）
+- 新增「统计」页：首页头部新增柱状图按钮进入；数据来自自建的
+  [StepaniaH/navidrome-stat](https://github.com/StepaniaH/navidrome-stat)
+  （`GET /api/stats/dashboard`，`Authorization: Bearer <STATS_API_TOKEN>`）。
+- 页面内容：
+  - 汇总卡片：播放次数、收听时长、曲目数、客户端数；
+  - **每日播放** 柱状图（最近 14 天，Canvas 自绘）；
+  - **最常听艺人** / **最常听专辑** 排行（次数）；
+  - **最近播放** 记录（曲名/艺人/专辑/时间）；
+  - 周期切换：7 天 / 30 天 / 全部；右上「刷新」；齿轮可随时修改地址与 token。
+- 连接配置（服务地址 + `STATS_API_TOKEN`）保存在 `lumen_stats`，未配置时显示引导表单。
+- 实测：用 mock 的 `/api/stats/dashboard` 返回真实结构数据（1234 次播放 / 126.9h / 艺人榜 / 专辑榜 / 最近播放）验证渲染与解析；Bearer token 鉴权生效（错误 token 返回 401 会显示错误）。
+
+### 版本
+- `versionName 0.23.0` / `versionCode 58`。
 ## [0.22.2] - 2026-11-21
 
 ### 下载与播放彻底解耦（修复 0.22.1 的已知问题）

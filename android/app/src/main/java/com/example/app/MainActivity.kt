@@ -208,6 +208,7 @@ private fun App() {
         4 -> "downloads"
         5 -> "artist:${selectedArtist?.id ?: ""}"
         6 -> "search"
+        7 -> "stats"
         else -> "s${k.screen}"
     }
     var lyrics by remember { mutableStateOf<List<LyricLine>?>(null) }
@@ -428,6 +429,10 @@ private fun App() {
                 ) { key ->
                 saveableStates.SaveableStateProvider(stateKeyOf(key)) {
                 when {
+                    key.screen == 7 -> com.example.app.ui.StatsScreen(
+                        initial = com.example.app.data.StatsStore.load(ctx),
+                        onBack = { goBack() },
+                    )
                     key.screen == 6 -> SearchScreen(
                         client = client,
                         coverUrl = { client.coverUrl(it) },
@@ -541,6 +546,7 @@ private fun App() {
                             durationMs = playback.durationMs,
                             onToggle = { if (current != null) playback.toggle() },
                             onOpenPlayer = { navigate(NavKey(2, null)) },
+                            onOpenStats = { navigate(NavKey(7, null)) },
                             tab = homeTab,
                             onTabChange = { homeTab = it },
                             ratingOf = { id -> Ratings.get(ctx, id) },
@@ -743,6 +749,7 @@ private fun HomeScreen(
     durationMs: Long = 0,
     onToggle: () -> Unit = {},
     onOpenPlayer: () -> Unit = {},
+    onOpenStats: () -> Unit = {},
     cache: HomeCache = remember { HomeCache() },
     coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
@@ -816,6 +823,7 @@ private fun HomeScreen(
             onSettings = onSettings,
             onSort = { showSort = true },
             onSearch = onSearch,
+            onStats = onOpenStats,
         )
 
         val activeError = if (tab == 0) error else tabError
@@ -1027,6 +1035,7 @@ private fun HomeHeader(
     onSettings: () -> Unit,
     onSort: () -> Unit,
     onSearch: () -> Unit,
+    onStats: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1035,6 +1044,24 @@ private fun HomeHeader(
                 Spacer(Modifier.height(4.dp))
                 Text(subtitle, color = HomeSub, fontSize = 12.sp)
             }
+            HomeCircleButton(onClick = onStats) {
+                val c = HomeText
+                Canvas(Modifier.size(20.dp)) {
+                    val barW = size.width / 5f
+                    val heights = floatArrayOf(0.45f, 0.75f, 1f)
+                    heights.forEachIndexed { i, h ->
+                        val left = i * barW * 1.6f
+                        val barH = size.height * h
+                        drawRoundRect(
+                            color = c,
+                            topLeft = androidx.compose.ui.geometry.Offset(left, size.height - barH),
+                            size = androidx.compose.ui.geometry.Size(barW, barH),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(barW / 2f),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(10.dp))
             HomeCircleButton(onClick = onSearch) {
                 Icon(YoinSymbols.Search, contentDescription = "搜索", tint = HomeText, modifier = Modifier.size(22.dp))
             }
