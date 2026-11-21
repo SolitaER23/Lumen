@@ -120,6 +120,7 @@ import com.example.app.data.Track
 import com.example.app.playback.Playback
 import com.example.app.playback.AlbumDownload
 import com.example.app.playback.Downloads
+import com.example.app.playback.MediaCache
 import com.example.app.playback.PlaybackEngine
 import com.example.app.playback.PlaybackService
 import com.example.app.ui.AlbumScreen
@@ -467,10 +468,8 @@ private fun App() {
                             com.example.app.data.Appearance.setContrast(ctx, v)
                         },
                         onClearCache = {
-                            // 缓存与下载共用 SimpleCache：清缓存要把下载记录一起删掉，否则管理页会显示"已下载"但文件没了
-                            downloads.forEach { Downloads.delete(ctx, it.key) }
-                            java.io.File(ctx.cacheDir, "media").deleteRecursively()
-                            downloads = emptyList()
+                            // 只清流媒体/图片缓存；下载曲目的 cache key（URI）保留
+                            MediaCache.clearStreamingCache(ctx, Downloads.downloadedUris(ctx))
                         },
                         onBack = { goBack() },
                         onLogout = {

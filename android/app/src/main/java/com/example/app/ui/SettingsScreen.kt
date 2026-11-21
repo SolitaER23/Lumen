@@ -56,8 +56,10 @@ fun SettingsScreen(
 
     LaunchedEffect(freed) {
         cacheBytes = withContext(Dispatchers.IO) {
-            runCatching { cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
-                .getOrDefault(0L)
+            runCatching {
+                val total = cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                (total - downloadBytes).coerceAtLeast(0L)
+            }.getOrDefault(0L)
         }
     }
 
@@ -125,7 +127,7 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (freed) "缓存已清理" else "清理缓存（${"%.1f".format(cacheBytes / 1048576.0)} MB）",
+                if (freed) "缓存已清理（下载不受影响）" else "清理缓存（${"%.1f".format(cacheBytes / 1048576.0)} MB，不含已下载）",
                 color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp,
                 modifier = Modifier.weight(1f),
             )

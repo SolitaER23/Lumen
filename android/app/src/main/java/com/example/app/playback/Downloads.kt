@@ -103,7 +103,9 @@ object Downloads {
                     done = list.count { it.state == Download.STATE_COMPLETED },
                     bytes = list.sumOf { d ->
                         runCatching {
-                            cache.getCachedSpans(d.request.uri.toString()).sumOf { it.length }
+                            runCatching {
+                                cache.getCachedSpans(d.request.uri.toString()).sumOf { it.length }
+                            }.getOrDefault(0L)
                         }.getOrDefault(0L)
                     },
                     failed = list.any { it.state == Download.STATE_FAILED },
@@ -115,6 +117,22 @@ object Downloads {
             }
             .sortedWith(compareByDescending<AlbumDownload> { !it.isSingle }.thenByDescending { it.name })
     }
+
+    /** 已下载曲目的 cache key（下载 URI），用于「清理缓存」时保留。 */
+    fun downloadedUris(ctx: Context): Set<String> = runCatching {
+        MediaCache.downloadManager(ctx).downloadIndex.getDownloads().use { cursor ->
+            buildSet {
+                while (cursor.moveToNext()) {
+                    val d = cursor.download
+                    if (d.state == Download.STATE_COMPLETED || d.state == Download.STATE_DOWNLOADING ||
+                        d.state == Download.STATE_QUEUED
+                    ) {
+                        add(d.request.uri.toString())
+                    }
+                }
+            }
+        }
+    }.getOrDefault(emptySet())
 
     fun delete(ctx: Context, key: String) {
         runCatching {

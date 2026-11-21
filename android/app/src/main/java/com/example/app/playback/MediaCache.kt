@@ -1,4 +1,4 @@
-﻿package com.example.app.playback
+package com.example.app.playback
 
 import android.content.Context
 import androidx.media3.database.StandaloneDatabaseProvider
@@ -14,8 +14,9 @@ import java.util.concurrent.Executors
 /**
  * 全进程共享的媒体缓存 + 下载管理器。
  *
- * 播放与离线下载必须用**同一个** [SimpleCache] 实例（同一目录二次打开会抛
- * "SimpleCache is locked"），因此这里统一持有。下载完的内容会被播放直接命中。
+ * 播放与离线下载必须用同一个 [SimpleCache] 实例（同一目录二次打开会抛
+ * "SimpleCache is locked"）。因此「清理缓存」不能删目录，而是按 key 清理——
+ * 下载内容以 `DownloadRequest.uri` 作为 cache key，把这些 key 保留即可。
  */
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 object MediaCache {
@@ -51,6 +52,27 @@ object MediaCache {
             .setUpstreamDataSourceFactory(DefaultDataSource.Factory(ctx.applicationContext, http))
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
+
+    /**
+     * 只清理「流媒体缓存与封面缓存」，保留 [keepKeys]（已下载曲目的 cache key = 下载 URI）。
+     */
+    fun clearStreamingCache(ctx: Context, keepKeys: Set<String>) {
+        val c = cache(ctx)
+        runCatching {
+            c.keys.toList().forEach { key ->
+                if (key !in keepKeys) runCatching { c.removeResource(key) }
+            }
+        }
+        runCatching { File(ctx.applicationContext.cacheDir, "image_cache").deleteRecursively() }
+    }
+
+    /** 缓存目录（流 + 下载共用）占用字节。 */
+    fun cacheBytes(ctx: Context): Long = runCatching {
+        File(ctx.applicationContext.cacheDir, "media")
+            .walkTopDown()
+            .filter { it.isFile }
+            .sumOf { it.length() }
+    }.getOrDefault(0L)
 
     fun downloadManager(ctx: Context): DownloadManager = synchronized(this) {
         manager ?: DownloadManager(
