@@ -18,6 +18,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
@@ -268,6 +269,7 @@ private fun App() {
     LaunchedEffect(cfg.complete) {
         if (cfg.complete) {
             runCatching { ctx.startService(android.content.Intent(ctx, PlaybackService::class.java)) }
+            downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
             runCatching {
                 val list = withContext(Dispatchers.IO) { client.starredTracks() }
                 starred = list
@@ -309,7 +311,7 @@ private fun App() {
     val current = playback.current
 
     // 下载状态：设置/下载管理页才轮询；专辑页只在进入时查一次，避免转场期间每秒重组整个 App
-    LaunchedEffect(screen, openAlbum?.id) {
+    LaunchedEffect(screen, openAlbum?.id, homeTab) {
         when (screen) {
             3, 4 -> while (true) {
                 downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
@@ -318,6 +320,12 @@ private fun App() {
             2 -> while (true) {
                 downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
                 delay(1500)
+            }
+            0 -> if (homeTab == 2) {
+                while (true) {
+                    downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
+                    delay(2000)
+                }
             }
             // 1 -> 专辑页暂不查询下载状态（避免转场瞬间触发整页重组）
         }
@@ -491,6 +499,7 @@ private fun App() {
                             tab = homeTab,
                             onTabChange = { homeTab = it },
                             ratingOf = { id -> Ratings.get(ctx, id) },
+                            downloads = downloads,
                             onPlayStarred = { index ->
                                 if (starred.isNotEmpty()) {
                                     playback.play(starred, index, "starred")
@@ -633,6 +642,7 @@ private fun HomeScreen(
     tab: Int = 0,
     onTabChange: (Int) -> Unit = {},
     ratingOf: (String) -> Float = { 0f },
+    downloads: List<AlbumDownload> = emptyList(),
     coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
     var sortIndex by remember(tab) { mutableIntStateOf(0) }
@@ -731,6 +741,8 @@ private fun HomeScreen(
                     2 -> RecentList(
                         newest = sortedNewest,
                         recent = sortedRecent,
+                        downloads = downloads,
+                        albums = albums,
                         coverUrl = coverUrl,
                         onOpen = onOpen,
                         loading = tabLoading && newest.isEmpty(),
@@ -1013,10 +1025,13 @@ private fun ArtistGrid(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecentList(
     newest: List<Album>,
     recent: List<Album>,
+    downloads: List<AlbumDownload>,
+    albums: List<Album>,
     coverUrl: (String) -> String,
     onOpen: (Album) -> Unit,
     loading: Boolean,
@@ -1025,17 +1040,261 @@ private fun RecentList(
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         return
     }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 120.dp),
-    ) {
-        item { SectionTitle("最近添加") }
-        items(rowsOf(newest)) { row ->
-            HorizontalAlbumRow(row, coverUrl, onOpen)
+    val ctx = LocalContext.current
+    var order by remember { mutableStateOf(loadRecentOrder(ctx)) }
+    var collapsed by remember { mutableStateOf(emptySet<Int>()) }
+    var showOrderSheet by remember { mutableStateOf(false) }
+
+    fun persist(newOrder: List<Int>) {
+        order = newOrder
+        ctx.getSharedPreferences("lumen_recent", android.content.Context.MODE_PRIVATE)
+            .edit().putString("order", newOrder.joinToString(",")).apply()
+    }
+
+    val sections = mapOf(
+        0 to "最近添加",
+        1 to "最近播放",
+        2 to "已下载",
+    )
+
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 120.dp),
+        ) {
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "最近",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "调整顺序",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(percent = 50))
+                            .clickable { showOrderSheet = true }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
+            order.forEach { section ->
+                val isCollapsed = section in collapsed
+                item(key = "h$section") {
+                    SectionHeader(
+                        title = sections[section] ?: "",
+                        count = when (section) {
+                            0 -> newest.size
+                            1 -> recent.size
+                            else -> downloads.size
+                        },
+                        collapsed = isCollapsed,
+                        onToggle = {
+                            collapsed = if (isCollapsed) collapsed - section else collapsed + section
+                        },
+                    )
+                }
+                if (!isCollapsed) {
+                    when (section) {
+                        0 -> items(rowsOf(newest), key = { "n${it.firstOrNull()?.id}" }) { row ->
+                            HorizontalAlbumRow(row, coverUrl, onOpen)
+                        }
+                        1 -> items(rowsOf(recent), key = { "r${it.firstOrNull()?.id}" }) { row ->
+                            HorizontalAlbumRow(row, coverUrl, onOpen)
+                        }
+                        else -> if (downloads.isEmpty()) {
+                            item(key = "dempty") {
+                                Text(
+                                    "还没有下载内容",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                                )
+                            }
+                        } else {
+                            items(rowsOfDownloads(downloads), key = { "d${it.firstOrNull()?.key}" }) { row ->
+                                HorizontalDownloadRow(row, albums, coverUrl, onOpen)
+                            }
+                        }
+                    }
+                }
+            }
         }
-        item { SectionTitle("最近播放") }
-        items(rowsOf(recent)) { row ->
-            HorizontalAlbumRow(row, coverUrl, onOpen)
+
+        if (showOrderSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showOrderSheet = false },
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ) {
+                Text(
+                    "调整分区顺序",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                )
+                Spacer(Modifier.height(4.dp))
+                order.forEachIndexed { index, section ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            sections[section] ?: "",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            "↑",
+                            color = if (index > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                            fontSize = 20.sp,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable(enabled = index > 0) {
+                                    persist(order.toMutableList().also {
+                                        val a = it[index]; it[index] = it[index - 1]; it[index - 1] = a
+                                    })
+                                }
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                        )
+                        Text(
+                            "↓",
+                            color = if (index < order.lastIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                            fontSize = 20.sp,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable(enabled = index < order.lastIndex) {
+                                    persist(order.toMutableList().also {
+                                        val a = it[index]; it[index] = it[index + 1]; it[index + 1] = a
+                                    })
+                                }
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(28.dp))
+            }
+        }
+    }
+}
+
+private fun loadRecentOrder(ctx: android.content.Context): List<Int> {
+    val raw = ctx.getSharedPreferences("lumen_recent", android.content.Context.MODE_PRIVATE)
+        .getString("order", null) ?: return listOf(0, 1, 2)
+    val parsed = raw.split(",").mapNotNull { it.toIntOrNull() }.filter { it in 0..2 }.distinct()
+    return if (parsed.size == 3) parsed else listOf(0, 1, 2)
+}
+
+private fun rowsOfDownloads(downloads: List<AlbumDownload>): List<List<AlbumDownload>> {
+    if (downloads.isEmpty()) return emptyList()
+    if (downloads.size == 1) return listOf(downloads)
+    val half = (downloads.size + 1) / 2
+    return listOf(downloads.take(half), downloads.drop(half)).filter { it.isNotEmpty() }
+}
+
+/** 分区标题：点击折叠/展开，右侧小三角随状态旋转 */
+@Composable
+private fun SectionHeader(title: String, count: Int, collapsed: Boolean, onToggle: () -> Unit) {
+    val angle by animateFloatAsState(if (collapsed) -90f else 0f, tween(220), label = "chevron")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(Modifier.width(8.dp))
+        Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        Spacer(Modifier.weight(1f))
+        val chevronColor = MaterialTheme.colorScheme.onSurfaceVariant
+        Canvas(
+            Modifier
+                .size(18.dp)
+                .graphicsLayer { rotationZ = angle },
+        ) {
+            val cap = androidx.compose.ui.graphics.StrokeCap.Round
+            val stroke = 2.dp.toPx()
+            drawLine(
+                start = androidx.compose.ui.geometry.Offset(size.width * 0.2f, size.height * 0.4f),
+                end = androidx.compose.ui.geometry.Offset(size.width * 0.5f, size.height * 0.7f),
+                color = chevronColor,
+                strokeWidth = stroke,
+                cap = cap,
+            )
+            drawLine(
+                start = androidx.compose.ui.geometry.Offset(size.width * 0.5f, size.height * 0.7f),
+                end = androidx.compose.ui.geometry.Offset(size.width * 0.8f, size.height * 0.4f),
+                color = chevronColor,
+                strokeWidth = stroke,
+                cap = cap,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HorizontalDownloadRow(
+    row: List<AlbumDownload>,
+    albums: List<Album>,
+    coverUrl: (String) -> String,
+    onOpen: (Album) -> Unit,
+) {
+    androidx.compose.foundation.lazy.LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+    ) {
+        items(row, key = { it.key }) { item ->
+            val album = albums.firstOrNull { "album:${it.id}" == item.key }
+            if (album != null) {
+                AlbumCard(album, coverUrl(album.coverId), Modifier.width(148.dp)) { onOpen(album) }
+            } else {
+                // 单曲下载：没有专辑对象，用音符卡片展示
+                Column(Modifier.width(148.dp)) {
+                    Box(
+                        Modifier
+                            .width(148.dp)
+                            .height(148.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            YoinSymbols.DownloadDone,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(34.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        item.name,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        if (item.isSingle) "单曲" else "专辑",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
         }
     }
 }
