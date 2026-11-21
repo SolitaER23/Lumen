@@ -210,42 +210,7 @@ fun PlayingScreen(
                 modifier = Modifier.padding(horizontal = 28.dp),
             )
 
-            // 心情：坐标优先，标签只是投影
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (mood != null) {
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(percent = 50))
-                            .background(MaterialTheme.colorScheme.secondaryContainer)
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    ) {
-                        Text(
-                            "心情 ${mood.label} · 愉悦 ${"%.2f".format(mood.valence)} / 唤醒 ${"%.2f".format(mood.arousal)}",
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            fontSize = 11.sp,
-                        )
-                    }
-                } else {
-                    Text(
-                        when {
-                            moodAnalyzing -> "分析中 $moodPhase"
-                            else -> "分析心情"
-                        },
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(percent = 50))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .clickable(enabled = !moodAnalyzing && track != null) { onAnalyzeMood() }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(10.dp))
             // 第一行：播放/暂停（左） + 波浪进度（右，时间在两侧）
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),
@@ -433,7 +398,9 @@ private fun WavyProgress(
                 }
             },
     ) {
-        val amp = (if (active) 14.dp.toPx() else 7.dp.toPx()) * pulse
+        // 暂停时冻结波形（相位与脉动都停住），只保留静态起伏
+        val amp = (if (active) 14.dp.toPx() else 7.dp.toPx()) * (if (active) pulse else 0.7f)
+        val phaseNow = if (active) phase else 0f
         val midY = size.height / 2f
         val steps = 180
         val inactive = Path()
@@ -443,7 +410,7 @@ private fun WavyProgress(
             val x = size.width * t
             // 越靠右波幅越大，像声波一样
             val env = 0.45f + 0.55f * t
-            val y = midY + sin(t * 6f * PI.toFloat() + phase) * amp * env
+            val y = midY + sin(t * 6f * PI.toFloat() + phaseNow) * amp * env
             if (i == 0) {
                 inactive.moveTo(x, y)
                 activePath.moveTo(x, y)

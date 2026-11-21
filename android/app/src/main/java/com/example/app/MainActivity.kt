@@ -303,6 +303,17 @@ private fun App() {
             p.transcodeUrl = { t -> client.streamUrl(t.id) + "&format=mp3&maxBitRate=320" }
         }
     }
+    // 冷启动恢复上次队列与进度（保持暂停，不自动播放）
+    LaunchedEffect(cfg.complete, playback) {
+        if (cfg.complete && playback.queue.isEmpty()) {
+            val saved = withContext(Dispatchers.IO) { com.example.app.playback.PlaybackStateStore.load(ctx) }
+            if (saved != null && saved.tracks.isNotEmpty()) {
+                playback.restore(saved.tracks, saved.index, saved.positionMs, saved.albumId)
+                delay(500)
+                playback.enforcePaused()
+            }
+        }
+    }
     // 登录后就常驻媒体会话服务：这样它能在"开始播放"这一刻收到事件并挂出通知/前台服务
     LaunchedEffect(cfg.complete) {
         if (cfg.complete) {
@@ -559,7 +570,7 @@ private fun App() {
                         track = current,
                         coverUrl = current?.let { client.coverUrl(it.albumId, 600) } ?: "",
                         positionMs = playback.positionMs,
-                        durationMs = playback.durationMs,
+                        durationMs = playback.durationMs.takeIf { it > 0 } ?: ((current?.seconds ?: 0) * 1000L),
                         playing = playback.playing,
                         onBack = { goBack() },
                         onToggle = { playback.toggle() },
@@ -584,7 +595,7 @@ private fun App() {
                             current = current,
                             playing = playback.playing,
                             positionMs = playback.positionMs,
-                            durationMs = playback.durationMs,
+                            durationMs = playback.durationMs.takeIf { it > 0 } ?: ((current?.seconds ?: 0) * 1000L),
                             onToggle = { if (current != null) playback.toggle() },
                             onOpenPlayer = { navigate(NavKey(2, null)) },
                             onOpenStats = { navigate(NavKey(7, null)) },
@@ -618,6 +629,21 @@ private fun App() {
                                 } catch (e: Exception) {
                                     error = e.message
                                     emptyList()
+                                }
+                            }
+                        }
+                        // 进入专辑即静默分析缺失曲目（无 UI、无提示）
+                        LaunchedEffect(album.id, albumTracksCache[album.id]?.size) {
+                            val list = albumTracksCache[album.id].orEmpty()
+                            if (list.isNotEmpty()) {
+                                withContext(Dispatchers.IO) {
+                                    val analyzer = com.example.app.data.MoodAnalyzer(ctx)
+                                    list.forEach { tr ->
+                                        if (com.example.app.data.MoodStore.get(ctx, tr.id) == null) {
+                                            runCatching { analyzer.analyze(tr.id, streamUrl(client, tr)) { _, _ -> } }
+                                                .onSuccess { com.example.app.data.MoodStore.put(ctx, it) }
+                                        }
+                                    }
                                 }
                             }
                         }

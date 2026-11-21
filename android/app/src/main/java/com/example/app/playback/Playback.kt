@@ -1,4 +1,4 @@
-﻿package com.example.app.playback
+package com.example.app.playback
 
 import android.content.Context
 import androidx.compose.runtime.getValue
@@ -145,7 +145,54 @@ class Playback(private val ctx: Context) {
     }
 
     fun toggle() {
-        if (player.isPlaying) player.pause() else player.play()
+        if (player.isPlaying) {
+            player.pause()
+            saveState()
+        } else {
+            if (player.playbackState == Player.STATE_IDLE && queue.isNotEmpty()) {
+                player.seekTo(index.coerceAtLeast(0), resumePosition)
+            }
+            player.play()
+        }
+    }
+
+    fun saveState() {
+        runCatching { PlaybackStateStore.save(ctx, queue, index, albumId, positionMs) }
+    }
+
+    fun enforcePaused() {
+        runCatching {
+            player.pause()
+            player.playWhenReady = false
+        }
+    }
+
+    /** 冷启动恢复：载入队列与进度，保持暂停。 */
+    fun restore(tracks: List<Track>, startIndex: Int, progressMs: Long, album: String?) {
+        if (tracks.isEmpty()) return
+        queue = tracks
+        albumId = album
+        val items = tracks.map { tr ->
+            MediaItem.Builder()
+                .setUri(urlFor(tr))
+                .setMediaMetadata(
+                    androidx.media3.common.MediaMetadata.Builder()
+                        .setTitle(tr.title)
+                        .setArtist(tr.artist)
+                        .build(),
+                )
+                .build()
+        }
+        val idx = startIndex.coerceIn(0, items.lastIndex)
+        player.playWhenReady = false
+        player.setMediaItems(items, idx, progressMs.coerceAtLeast(0L))
+        player.prepare()
+        player.pause()
+        index = idx
+        positionMs = progressMs.coerceAtLeast(0L)
+        resumePosition = progressMs.coerceAtLeast(0L)
+        player.stop()
+        android.util.Log.i("LumenMood", "restore idx=$idx pos=$progressMs stopped=${player.playbackState}")
     }
 
     fun next() {
@@ -169,10 +216,18 @@ class Playback(private val ctx: Context) {
         positionMs = ms.coerceAtLeast(0L)
     }
 
+    private var lastSaveAt = 0L
+    private var resumePosition = 0L
+
     fun tick() {
         positionMs = player.currentPosition.coerceAtLeast(0L)
         durationMs = player.duration.coerceAtLeast(0L)
         index = player.currentMediaItemIndex
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastSaveAt > 3000L) {
+            lastSaveAt = now
+            saveState()
+        }
         logd(
             "tick state=${player.playbackState} playing=${player.isPlaying} pos=$positionMs dur=$durationMs " +
                 "buf=${player.bufferedPercentage} err=${player.playerError?.errorCodeName}",
