@@ -1,6 +1,7 @@
 ﻿package com.example.app.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -98,7 +99,7 @@ fun PlayingScreen(
     val progress = if (known) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
 
     Box(Modifier.fillMaxSize().statusBarsPadding()) {
-        Column(Modifier.fillMaxSize().padding(bottom = 92.dp)) {
+        Column(Modifier.fillMaxSize().padding(bottom = 20.dp)) {
             // 顶栏：返回 + 正在播放 + 专辑名
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -193,8 +194,8 @@ fun PlayingScreen(
                 )
                 Box(
                     Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .size(56.dp)
+                        .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.secondaryContainer)
                         .clickable(onClick = onPrev),
                     contentAlignment = Alignment.Center,
@@ -203,14 +204,14 @@ fun PlayingScreen(
                         YoinSymbols.SkipPrevious,
                         contentDescription = "上一首",
                         tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.size(26.dp),
+                        modifier = Modifier.size(30.dp),
                     )
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(20.dp))
                 Box(
                     Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .size(56.dp)
+                        .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.tertiaryContainer)
                         .clickable(onClick = onNext),
                     contentAlignment = Alignment.Center,
@@ -219,7 +220,7 @@ fun PlayingScreen(
                         YoinSymbols.SkipNext,
                         contentDescription = "下一首",
                         tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                        modifier = Modifier.size(26.dp),
+                        modifier = Modifier.size(30.dp),
                     )
                 }
             }
@@ -252,11 +253,17 @@ fun PlayingScreen(
                     }
                     Box(
                         Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(18.dp))
                             .background(
-                                if (showLyrics) MaterialTheme.colorScheme.primaryContainer
+                                if (showLyrics) MaterialTheme.colorScheme.inversePrimary
                                 else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            )
+                            .border(
+                                1.5.dp,
+                                if (showLyrics) MaterialTheme.colorScheme.inversePrimary
+                                else MaterialTheme.colorScheme.inversePrimary.copy(alpha = 0.55f),
+                                RoundedCornerShape(18.dp),
                             )
                             .clickable(onClick = onToggleLyrics),
                         contentAlignment = Alignment.Center,
@@ -264,9 +271,9 @@ fun PlayingScreen(
                         Icon(
                             YoinSymbols.Lyrics,
                             contentDescription = "歌词",
-                            tint = if (showLyrics) MaterialTheme.colorScheme.onPrimaryContainer
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
+                            tint = if (showLyrics) MaterialTheme.colorScheme.surface
+                            else MaterialTheme.colorScheme.inversePrimary,
+                            modifier = Modifier.size(26.dp),
                         )
                     }
                 }

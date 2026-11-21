@@ -283,7 +283,6 @@ private fun App() {
             .map { it.key.removePrefix("track:") }
             .toSet()
     }
-    DisposableEffect(Unit) { onDispose { playback.release() } }
     LaunchedEffect(playback.playing) {
         while (playback.playing) {
             playback.tick()
@@ -534,7 +533,8 @@ private fun App() {
                 }
                 }
 
-                // 每一页都有底栏（含播放页）
+                // 播放页有自己的控制区，不再显示底栏
+                if (screen != 2) {
                     YoinBar(
                         pulseKey = screen,
                         modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 6.dp),
@@ -550,6 +550,7 @@ private fun App() {
                             else if (albums.isNotEmpty()) openAlbum = albums.first()
                         },
                     )
+                }
             }
         }
     }
