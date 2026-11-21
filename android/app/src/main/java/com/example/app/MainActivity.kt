@@ -153,13 +153,6 @@ private fun streamUrl(client: SubsonicClient, t: Track): String =
         client.streamUrl(t.id)
     }
 
-@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
-@Composable
-private fun SharedScreenHost(
-    content: @Composable androidx.compose.animation.SharedTransitionScope.() -> Unit,
-) {
-    androidx.compose.animation.SharedTransitionLayout(Modifier.fillMaxSize()) { content() }
-}
 
 @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
@@ -215,6 +208,7 @@ private fun App() {
     }
 
     val client = remember(cfg) { SubsonicClient(cfg) }
+    val coverOf = remember(client) { { id: String -> client.coverUrl(id) } }
     val scope = rememberCoroutineScope()
     // 全进程唯一播放器：Activity 与前台服务（通知/锁屏）共用
     val playback = remember(client) {
@@ -238,13 +232,14 @@ private fun App() {
     }
     val current = playback.current
 
-    // 下载状态轮询：只在相关页面刷新，避免全局定时器
+    // 下载状态：设置/下载管理页才轮询；专辑页只在进入时查一次，避免转场期间每秒重组整个 App
     LaunchedEffect(screen, openAlbum?.id) {
-        if (screen == 1 || screen == 3 || screen == 4) {
-            while (true) {
+        when (screen) {
+            3, 4 -> while (true) {
                 downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
                 delay(1000)
             }
+            // 1 -> 专辑页暂不查询下载状态（避免转场瞬间触发整页重组）
         }
     }
 
@@ -271,6 +266,15 @@ private fun App() {
         }
     }
 
+    val onOpenAlbum: (Album) -> Unit = remember {
+        { al -> openAlbum = al; tracks = emptyList(); screen = 1 }
+    }
+    val onGoHome: () -> Unit = remember { { screen = 0; openAlbum = null } }
+    val onOpenSettings: () -> Unit = remember { { screen = 3 } }
+    val onOpenSearch: () -> Unit = remember { { screen = 6 } }
+    val onOpenArtist: (Artist) -> Unit = remember { { a -> selectedArtist = a; screen = 5 } }
+    val onOpenArtistFromSearch: (Artist) -> Unit = remember { { a -> selectedArtist = a; screen = 5 } }
+
     MaterialTheme(colorScheme = scheme) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             Box(
@@ -281,53 +285,32 @@ private fun App() {
                     alpha = 1f - 0.12f * backProgress
                 },
             ) {
-                SharedScreenHost {
-                AnimatedContent(
-                    targetState = NavKey(screen, openAlbum),
-                    transitionSpec = {
-                        // M3 Expressive 的层级切换：新页从 92% 放大淡入，旧页放大到 104% 淡出
-                        val forward = targetState.screen >= initialState.screen
-                        if (com.example.app.BuildConfig.DEBUG) {
-                            android.util.Log.d("Lumen", "transition ${initialState.screen}->${targetState.screen} forward=$forward")
-                        }
-                        val spec = spring<Float>(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMediumLow,
-                        )
-                        val enter = scaleIn(
-                            initialScale = if (forward) 0.92f else 1.04f,
-                            animationSpec = spec,
-                        ) + fadeIn(tween(240))
-                        val exit = scaleOut(
-                            targetScale = if (forward) 1.04f else 0.92f,
-                            animationSpec = spec,
-                        ) + fadeOut(tween(180))
-                        (enter togetherWith exit).using(androidx.compose.animation.SizeTransform(clip = false))
+                run {
+                val navKey = NavKey(screen, openAlbum)
+                val pageAlpha = androidx.compose.animation.core.Animatable(1f)
+                val pageScale = androidx.compose.animation.core.Animatable(1f)
+                LaunchedEffect(navKey) {
+                    pageAlpha.snapTo(0f)
+                    pageScale.snapTo(0.985f)
+                    launch { pageAlpha.animateTo(1f, tween(220)) }
+                    pageScale.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 900f))
+                }
+                Box(
+                    Modifier.fillMaxSize().graphicsLayer {
+                        alpha = pageAlpha.value
+                        scaleX = pageScale.value
+                        scaleY = pageScale.value
                     },
-                    label = "screen",
-                    modifier = Modifier.fillMaxSize(),
-                ) { key ->
-                val albumCoverModifier = key.album?.id?.let { id ->
-                    Modifier.sharedElement(
-                        rememberSharedContentState(key = "cover-$id"),
-                        animatedVisibilityScope = this@AnimatedContent,
-                    )
-                } ?: Modifier
-                val playingCoverModifier = current?.albumId?.let { id ->
-                    Modifier.sharedElement(
-                        rememberSharedContentState(key = "cover-$id"),
-                        animatedVisibilityScope = this@AnimatedContent,
-                    )
-                } ?: Modifier
+                ) {
                 when {
-                    key.screen == 6 -> SearchScreen(
+                    screen == 6 -> SearchScreen(
                         client = client,
                         coverUrl = { client.coverUrl(it) },
                         onBack = { screen = 0 },
                         onOpenAlbum = { al -> openAlbum = al; tracks = emptyList(); screen = 1 },
-                        onOpenArtist = { a -> selectedArtist = a; screen = 5 },
+                        onOpenArtist = onOpenArtistFromSearch,
                     )
-                    key.screen == 5 -> selectedArtist?.let { a ->
+                    screen == 5 -> selectedArtist?.let { a ->
                         ArtistScreen(
                             client = client,
                             artist = a,
@@ -336,7 +319,7 @@ private fun App() {
                             onOpenAlbum = { al -> openAlbum = al; tracks = emptyList(); screen = 1 },
                         )
                     }
-                    key.screen == 4 -> DownloadsScreen(
+                    screen == 4 -> DownloadsScreen(
                         summaries = downloads,
                         onBack = { screen = 3 },
                         onDelete = { id ->
@@ -348,7 +331,7 @@ private fun App() {
                             downloads = emptyList()
                         },
                     )
-                    key.screen == 3 -> SettingsScreen(
+                    screen == 3 -> SettingsScreen(
                         cfg = cfg,
                         cacheDir = java.io.File(ctx.cacheDir, "media"),
                         downloadCount = downloads.sumOf { it.total },
@@ -370,8 +353,8 @@ private fun App() {
                             cfg = ServerConfig("", "", "")
                         },
                     )
-                    key.screen == 2 -> PlayingScreen(
-                        coverModifier = playingCoverModifier,
+                    screen == 2 -> PlayingScreen(
+                        coverModifier = Modifier,
                         track = current,
                         coverUrl = current?.let { client.coverUrl(it.albumId, 600) } ?: "",
                         positionMs = playback.positionMs,
@@ -383,25 +366,22 @@ private fun App() {
                         onNext = { playback.next() },
                         onSeek = { playback.seekTo(it) },
                     )
-                    else -> if (key.album == null) {
+                    else -> if (openAlbum == null) {
                         HomeScreen(
                             client = client,
                             albums = albums,
                             loading = loading,
                             error = error,
-                            coverUrl = { client.coverUrl(it) },
-                            onOpen = { album ->
-                                openAlbum = album
-                                tracks = emptyList()
-                                screen = 1
-                            },
-                            onSettings = { screen = 3 },
+                            coverUrl = coverOf,
+                            onOpen = onOpenAlbum,
+                            onSettings = onOpenSettings,
                             onRetry = { scope.launch { loadAlbums(cfg) } },
-                            onSearch = { screen = 6 },
-                            onOpenArtist = { a -> selectedArtist = a; screen = 5 },
+                            onSearch = onOpenSearch,
+                            onOpenArtist = onOpenArtist,
+
                         )
                     } else {
-                        val album = key.album
+                        val album = openAlbum ?: return@Box
                         if (tracks.isEmpty()) {
                             LaunchedEffect(album.id) {
                                 tracks = try {
@@ -414,7 +394,7 @@ private fun App() {
                         }
                         AlbumScreen(
                             album = album,
-                            coverModifier = albumCoverModifier,
+                            coverModifier = Modifier,
                             tracks = tracks,
                             coverUrl = client.coverUrl(album.coverId),
                             currentTrackId = current?.id,
@@ -422,6 +402,10 @@ private fun App() {
                             download = downloads.firstOrNull { it.albumId == album.id },
                             onDownload = {
                                 Downloads.enqueue(ctx, album, tracks) { tr -> streamUrl(client, tr) }
+                                scope.launch {
+                                    delay(600)
+                                    downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
+                                }
                             },
                             onPlay = { start ->
                                 if (tracks.isNotEmpty()) {
@@ -515,6 +499,7 @@ private fun HomeScreen(
     onSearch: () -> Unit,
     onSettings: () -> Unit,
     onRetry: () -> Unit,
+    coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
     var tab by remember { mutableIntStateOf(0) } // 0 专辑 / 1 艺人 / 2 最近
     var artists by remember { mutableStateOf<List<Artist>>(emptyList()) }
@@ -587,7 +572,7 @@ private fun HomeScreen(
                 onOpen = onOpen,
                 loading = tabLoading && newest.isEmpty(),
             )
-            else -> AlbumGrid(albums, coverUrl, onOpen)
+            else -> AlbumGrid(albums, coverUrl, onOpen, coverShared)
         }
         }
 
@@ -676,7 +661,12 @@ private fun TabLabel(title: String, count: Int?, index: Int, selected: Int, onTa
 }
 
 @Composable
-private fun AlbumGrid(albums: List<Album>, coverUrl: (String) -> String, onOpen: (Album) -> Unit) {
+private fun AlbumGrid(
+    albums: List<Album>,
+    coverUrl: (String) -> String,
+    onOpen: (Album) -> Unit,
+    coverShared: @Composable (String) -> Modifier,
+) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 120.dp),
@@ -685,7 +675,7 @@ private fun AlbumGrid(albums: List<Album>, coverUrl: (String) -> String, onOpen:
         modifier = Modifier.fillMaxSize(),
     ) {
         items(albums, key = { it.id }) { album ->
-            AlbumCard(album, coverUrl(album.coverId)) { onOpen(album) }
+            AlbumCard(album, coverUrl(album.coverId), coverModifier = coverShared(album.id)) { onOpen(album) }
         }
     }
 }
@@ -784,19 +774,25 @@ private fun VerticalArtistName(text: String, modifier: Modifier = Modifier) {
     var textHeight by remember { mutableIntStateOf(0) }
     val overflow = (textHeight - boxHeight).coerceAtLeast(0)
 
-    val transition = rememberInfiniteTransition(label = "artist")
-    val offset by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = -overflow.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = (overflow * 45).coerceAtLeast(1200),
-                easing = androidx.compose.animation.core.LinearEasing,
+    // 只有真的溢出才启动无限动画，否则静止（否则每张卡都在跑一个时钟，明显耗帧）
+    val offset = if (overflow > 0) {
+        val transition = rememberInfiniteTransition(label = "artist")
+        val v by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = -overflow.toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = (overflow * 45).coerceAtLeast(1200),
+                    easing = androidx.compose.animation.core.LinearEasing,
+                ),
+                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
             ),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
-        ),
-        label = "artistScroll",
-    )
+            label = "artistScroll",
+        )
+        v
+    } else {
+        0f
+    }
 
     Box(
         modifier.onSizeChanged { boxHeight = it.height }.clipToBounds(),
@@ -812,7 +808,7 @@ private fun VerticalArtistName(text: String, modifier: Modifier = Modifier) {
             modifier = Modifier
                 .wrapContentHeight(align = Alignment.Top, unbounded = true)
                 .onSizeChanged { textHeight = it.height }
-                .graphicsLayer { translationY = if (overflow > 0) offset else 0f },
+                .graphicsLayer { translationY = offset },
         )
     }
 }
@@ -822,6 +818,7 @@ private fun AlbumCard(
     album: Album,
     url: String,
     modifier: Modifier = Modifier,
+    coverModifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     Column(
@@ -830,25 +827,18 @@ private fun AlbumCard(
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable(onClick = onClick),
     ) {
-        // 封面保持正方形，右侧留一条竖排艺人名的窄列
-        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val strip = 26.dp
-            val cover = maxWidth - strip
-            Row {
-                AsyncImage(
-                    model = url,
-                    contentDescription = album.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(cover).clip(
-                        // 只圆左上角，其余保持直角
-                        RoundedCornerShape(topStart = 20.dp),
-                    ),
-                )
-                VerticalArtistName(
-                    text = album.artist,
-                    modifier = Modifier.width(strip).height(cover),
-                )
-            }
+        // 封面：正方形区域（右侧 26dp 留给竖排艺人名），避免每张卡都做一次子组合
+        Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+            AsyncImage(
+                model = url,
+                contentDescription = album.name,
+                contentScale = ContentScale.Crop,
+                modifier = coverModifier.fillMaxSize().padding(end = 26.dp).clip(RoundedCornerShape(topStart = 20.dp)),
+            )
+            VerticalArtistName(
+                text = album.artist,
+                modifier = Modifier.align(Alignment.CenterEnd).width(26.dp).fillMaxHeight(),
+            )
         }
         // 专辑名固定一行；过长时自动横向滚动
         Text(

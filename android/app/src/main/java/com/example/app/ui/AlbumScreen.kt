@@ -27,6 +27,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +73,9 @@ fun AlbumScreen(
     onDownload: () -> Unit,
     coverModifier: Modifier = Modifier,
 ) {
+    // 首帧只画头部，曲目表推到下一帧，避免一次组合太多导致掉帧
+    var showList by remember(album.id) { mutableStateOf(false) }
+    LaunchedEffect(album.id) { withFrameNanos { }; showList = true }
     val discKeys = remember(tracks) { discsOf(tracks) }
     var discIndex by remember(album.id) { mutableIntStateOf(0) }
     val discKey = discKeys.getOrNull(discIndex.coerceIn(0, (discKeys.size - 1).coerceAtLeast(0))) ?: 1
@@ -149,7 +158,7 @@ fun AlbumScreen(
                 }
             }
         }
-        if (discKeys.size > 1) {
+        if (showList && discKeys.size > 1) {
             item {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
@@ -181,7 +190,7 @@ fun AlbumScreen(
                 Spacer(Modifier.height(8.dp))
             }
         }
-        itemsIndexed(list, key = { _, t -> t.id }) { i, track ->
+        if (showList) itemsIndexed(list, key = { _, t -> t.id }) { i, track ->
             val active = track.id == currentTrackId
             Row(
                 Modifier
@@ -208,7 +217,7 @@ fun AlbumScreen(
                     else MaterialTheme.colorScheme.onSurface,
                     fontSize = 15.sp,
                     maxLines = 1,
-                    modifier = Modifier.weight(1f).basicMarquee(),
+                    modifier = Modifier.weight(1f),
                 )
                 Text(
                     "%d:%02d".format(track.seconds / 60, track.seconds % 60),
