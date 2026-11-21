@@ -1,14 +1,15 @@
-package com.example.app.ui
+﻿package com.example.app.ui
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.lazy.LazyColumn
-import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,11 +19,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,15 +37,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.data.ServerConfig
 import com.gpo.yoin.symbols.YoinSymbols
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** 设置页：连接信息、缓存占用与清理、关于。 */
+/** 设置页：连接、外观、心情分析、缓存、下载、NeoDB、账号与关于。 */
 @Composable
 fun SettingsScreen(
     cfg: ServerConfig,
@@ -68,276 +74,292 @@ fun SettingsScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp)) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
-                Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().statusBarsPadding(),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
+    ) {
+        item {
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
+                }
+                Text("设置", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
-            Text("设置", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text("设置", color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
+            Text(
+                "账户、外观与数据",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
-        Text("设置", color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
-        Spacer(Modifier.height(20.dp))
 
-        Section("连接")
-        InfoRow("服务器", cfg.base)
-        InfoRow("用户名", cfg.user)
+        item {
+            SettingSection("连接") {
+                SettingRow("服务器", cfg.base)
+                SettingRow("用户名", cfg.user)
+            }
+        }
 
-        Spacer(Modifier.height(16.dp))
-        Section("外观")
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            listOf(0f to "标准", 0.5f to "中", 1f to "高").forEach { (value, label) ->
-                val selected = kotlin.math.abs(contrast - value) < 0.01f
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(
-                            if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        )
-                        .clickable { onContrast(value) },
-                    contentAlignment = Alignment.Center,
+        item {
+            SettingSection("外观") {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        label,
-                        color = if (selected) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                    )
+                    listOf(0f to "标准", 0.5f to "中", 1f to "高").forEach { (value, label) ->
+                        val selected = kotlin.math.abs(contrast - value) < 0.01f
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                )
+                                .clickable { onContrast(value) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                label,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp,
+                            )
+                        }
+                    }
+                }
+                Text(
+                    "对比度越高，文字与容器越清晰（MCU 动态取色）",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        }
+
+        item {
+            SettingSection("心情分析") {
+                var moodDone by remember { mutableStateOf(0) }
+                var moodTotal by remember { mutableStateOf(0) }
+                var moodRunning by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        val (d, t, r) = com.example.app.playback.MoodWorker.progress(ctx)
+                        moodDone = d
+                        moodTotal = t
+                        moodRunning = r
+                        delay(1500)
+                    }
+                }
+                Text(
+                    if (moodTotal == 0) "尚未开始（充电 + Wi-Fi 时后台分析整库）"
+                    else "已分析 $moodDone / $moodTotal 首" + if (moodRunning) " · 进行中" else "",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 13.sp,
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    PillButton("开始分析", primary = true) { com.example.app.playback.MoodWorker.start(ctx) }
+                    PillButton("暂停") { com.example.app.playback.MoodWorker.cancel(ctx) }
+                    PillButton("清空") { com.example.app.data.MoodStore.clear(ctx) }
                 }
             }
         }
-        Text(
-            "对比度越高，文字与容器越清晰（Material Color Utilities 动态取色）",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-        )
 
-        Section("心情分析")
-        var moodDone by remember { mutableStateOf(0) }
-        var moodTotal by remember { mutableStateOf(0) }
-        var moodRunning by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                val (d, t, r) = com.example.app.playback.MoodWorker.progress(ctx)
-                moodDone = d; moodTotal = t; moodRunning = r
-                delay(1500)
-            }
-        }
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
-            Text(
-                if (moodTotal == 0) "尚未开始（充电 + Wi-Fi 时后台分析整库）"
-                else "已分析 $moodDone / $moodTotal 首" + if (moodRunning) " · 进行中" else "",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 13.sp,
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(
-                    Modifier
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable {
-                            com.example.app.playback.MoodWorker.start(ctx)
-                        }
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Text("开始分析", color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp) }
-                Box(
-                    Modifier
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .clickable {
-                            com.example.app.playback.MoodWorker.cancel(ctx)
-                        }
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Text("暂停", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
-                Box(
-                    Modifier
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .clickable { com.example.app.data.MoodStore.clear(ctx) }
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Text("清空", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
-            }
-        }
-
-        Section("缓存")
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .clickable {
-                    onClearCache()
-                    freed = !freed
+        item {
+            SettingSection("缓存") {
+                SettingRow(
+                    "清理缓存",
+                    "${"%.1f".format(cacheBytes / 1024f / 1024f)} MB · 不含已下载",
+                ) {
+                    IconButton(onClick = {
+                        onClearCache()
+                        freed = !freed
+                    }) {
+                        Icon(YoinSymbols.Delete, contentDescription = "清理缓存", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-                .padding(horizontal = 14.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                if (freed) "缓存已清理（下载不受影响）" else "清理缓存（${"%.1f".format(cacheBytes / 1048576.0)} MB，不含已下载）",
-                color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(YoinSymbols.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (freed) {
+                    Text("缓存已清理（下载不受影响）", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                }
+            }
         }
 
-        Spacer(Modifier.height(16.dp))
-        Section("离线下载")
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .clickable(onClick = onManageDownloads)
-                .padding(horizontal = 14.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "$downloadCount 首 · ${"%.1f".format(downloadBytes / 1048576.0)} MB",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 14.sp,
-                modifier = Modifier.weight(1f),
-            )
-            Text("管理", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
+        item {
+            SettingSection("离线下载") {
+                SettingRow("已下载", "$downloadCount 首 · ${"%.1f".format(downloadBytes / 1024f / 1024f)} MB") {
+                    TextButton(onClick = onManageDownloads) {
+                        Text("管理", fontSize = 12.sp)
+                    }
+                }
+            }
         }
 
-        Spacer(Modifier.height(16.dp))
-        Section("NeoDB")
-        var neodbInstance by remember { mutableStateOf(com.example.app.data.Neodb.config.instance) }
-        var neodbClientId by remember { mutableStateOf(com.example.app.data.Neodb.config.clientId) }
-        var neodbSecret by remember { mutableStateOf(com.example.app.data.Neodb.config.clientSecret) }
-        Text(
-            if (com.example.app.data.Neodb.loggedIn)
-                "已连接：${com.example.app.data.Neodb.username.ifBlank { "NeoDB" }}"
-            else "未连接（用于查看专辑评分与短评）",
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-        )
-        androidx.compose.material3.OutlinedTextField(
-            value = neodbInstance,
-            onValueChange = { neodbInstance = it },
-            label = { Text("实例地址", fontSize = 12.sp) },
-            singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
-        )
-        androidx.compose.material3.OutlinedTextField(
-            value = neodbClientId,
-            onValueChange = { neodbClientId = it },
-            label = { Text("Client ID", fontSize = 12.sp) },
-            singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
-        )
-        androidx.compose.material3.OutlinedTextField(
-            value = neodbSecret,
-            onValueChange = { neodbSecret = it },
-            label = { Text("Client Secret（可选）", fontSize = 12.sp) },
-            singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
-        )
-        Text(
-            "回调地址请填：lumen://neodb（在实例的 OAuth 应用里注册）",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
-        )
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(MaterialTheme.colorScheme.primary)
-                    .clickable {
+        item {
+            SettingSection("NeoDB") {
+                var neodbInstance by remember { mutableStateOf(com.example.app.data.Neodb.config.instance) }
+                var neodbClientId by remember { mutableStateOf(com.example.app.data.Neodb.config.clientId) }
+                var neodbSecret by remember { mutableStateOf(com.example.app.data.Neodb.config.clientSecret) }
+                Text(
+                    if (com.example.app.data.Neodb.loggedIn)
+                        "已连接：${com.example.app.data.Neodb.username.ifBlank { "NeoDB" }}"
+                    else "未连接（用于查看专辑评分与短评）",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 13.sp,
+                )
+                Spacer(Modifier.height(4.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = neodbInstance,
+                    onValueChange = { neodbInstance = it },
+                    label = { Text("实例地址", fontSize = 12.sp) },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                )
+                androidx.compose.material3.OutlinedTextField(
+                    value = neodbClientId,
+                    onValueChange = { neodbClientId = it },
+                    label = { Text("Client ID", fontSize = 12.sp) },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                )
+                androidx.compose.material3.OutlinedTextField(
+                    value = neodbSecret,
+                    onValueChange = { neodbSecret = it },
+                    label = { Text("Client Secret（可选）", fontSize = 12.sp) },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                )
+                Text(
+                    "回调地址请填：lumen://neodb",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    PillButton("连接 NeoDB", primary = true) {
                         com.example.app.data.Neodb.saveConfig(
                             ctx,
                             com.example.app.data.Neodb.Config(neodbInstance, neodbClientId, neodbSecret),
                         )
                         val url = com.example.app.data.Neodb.authorizeUrl(ctx)
                         if (url == null) {
-                            android.widget.Toast.makeText(
-                                ctx,
-                                "请先填写 Client ID（在 NeoDB 注册 OAuth 应用后获得）",
-                                android.widget.Toast.LENGTH_LONG,
-                            ).show()
+                            Toast.makeText(ctx, "请先填写 Client ID（在 NeoDB 注册 OAuth 应用后获得）", Toast.LENGTH_LONG).show()
                         } else {
                             runCatching {
-                                ctx.startActivity(
-                                    android.content.Intent(
-                                        android.content.Intent.ACTION_VIEW,
-                                        android.net.Uri.parse(url),
-                                    ),
-                                )
+                                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                             }
                         }
-                    },
-                contentAlignment = Alignment.Center,
-            ) { Text("连接 NeoDB", color = MaterialTheme.colorScheme.onPrimary, fontSize = 13.sp) }
-            if (com.example.app.data.Neodb.loggedIn) {
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .clickable { com.example.app.data.Neodb.logout(ctx) },
-                    contentAlignment = Alignment.Center,
-                ) { Text("断开连接", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) }
+                    }
+                    if (com.example.app.data.Neodb.loggedIn) {
+                        PillButton("断开连接") { com.example.app.data.Neodb.logout(ctx) }
+                    }
+                }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-        Section("账号")
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .clickable(onClick = onLogout)
-                .padding(horizontal = 14.dp, vertical = 14.dp),
-        ) {
-            Text("退出登录", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+        item {
+            SettingSection("账号") {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable(onClick = onLogout)
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                ) {
+                    Text("退出登录", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+                }
+            }
         }
 
-        Spacer(Modifier.height(24.dp))
-        Section("关于")
-        InfoRow("界面", "Jetpack Compose · Material 3")
-        InfoRow("音频", "Media3 ExoPlayer")
-        InfoRow("图标", "yoin-symbols")
-        InfoRow("目标设备", "Pixel 10a · 120Hz")
+        item {
+            SettingSection("关于") {
+                SettingRow("界面", "Jetpack Compose · Material 3")
+                SettingRow("音频", "Media3 ExoPlayer")
+                SettingRow("图标", "yoin-symbols")
+                SettingRow("目标设备", "Pixel 10a · 120Hz")
+            }
+        }
     }
 }
 
 @Composable
-private fun Section(title: String) {
-    Text(
-        title, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp,
-        fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 6.dp),
-    )
+private fun SettingSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 22.dp)) {
+        Text(
+            title,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+        )
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), content = content)
+        }
+    }
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.width(72.dp))
-        Text(value, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+private fun SettingRow(
+    label: String,
+    value: String,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+        Spacer(Modifier.width(16.dp))
+        Text(
+            value,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+        )
+        if (trailing != null) {
+            Spacer(Modifier.width(4.dp))
+            trailing()
+        }
+    }
+}
+
+@Composable
+private fun PillButton(label: String, primary: Boolean = false, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .height(38.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(
+                if (primary) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = if (primary) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+        )
     }
 }
