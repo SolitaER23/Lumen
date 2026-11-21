@@ -359,7 +359,7 @@ private fun App() {
     LaunchedEffect(playback.playing) {
         while (playback.playing) {
             playback.tick()
-            delay(500)
+            delay(250)
         }
     }
     val current = playback.current

@@ -1,4 +1,4 @@
-﻿package com.example.app.ui
+package com.example.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
@@ -462,43 +462,31 @@ private fun LyricsArea(
                 Text("暂无歌词", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
             else -> {
-                // 当前行始终停在视觉中心：滚动目标 = 该行中心对齐视口中心
+                // 上下留白 = 半个视口，配合 scrollToItem 让当前行自然落在视觉中心
+                val vPad = (maxHeight / 2) - 13.dp
                 LaunchedEffect(currentIndex) {
                     if (currentIndex >= 0) {
-                        val info = listState.layoutInfo
-                        val itemH = info.visibleItemsInfo
-                            .firstOrNull { it.index == currentIndex + 1 }?.size
-                            ?: with(density) { 48.dp.toPx() }.toInt()
-                        val center = (info.viewportStartOffset + info.viewportEndOffset) / 2
-                        runCatching {
-                            listState.animateScrollToItem(currentIndex + 1, center - itemH / 2)
-                        }
+                        runCatching { listState.animateScrollToItem(currentIndex) }
                     }
                 }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize().graphicsLayer { alpha = appear.value },
-                    contentPadding = PaddingValues(horizontal = 24.dp),
+                    contentPadding = PaddingValues(top = vPad, bottom = vPad, start = 24.dp, end = 24.dp),
                 ) {
-                    item { Spacer(Modifier.height(fadeRange)) }
                     itemsIndexed(lines) { i, line ->
-                        val info = listState.layoutInfo
-                        val item = info.visibleItemsInfo.firstOrNull { it.index == i + 1 }
-                        val center = (info.viewportStartOffset + info.viewportEndOffset) / 2f
-                        val dist = item?.let {
-                            kotlin.math.abs(it.offset + it.size / 2f - center)
-                        } ?: Float.MAX_VALUE
-                        val t = (1f - dist / fadePx.coerceAtLeast(1f)).coerceIn(0f, 1f)
-                        val smooth = t * t * (3f - 2f * t)
-                        val alpha = 0.13f + 0.87f * smooth
-                        val scale = 0.945f + 0.055f * smooth
+                        // 层次只由“离当前行的距离”决定，不读取滚动布局，滚动中不会反复重排
+                        val d = kotlin.math.abs(i - currentIndex).toFloat()
+                        val smooth = kotlin.math.exp(-d / 2.0f)
+                        val alpha = 0.12f + 0.88f * smooth
                         val isCurrent = i == currentIndex
+                        val scale = if (isCurrent) 1.0f else 0.97f
                         Text(
                             line.text,
                             color = if (isCurrent) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurface,
                             fontSize = 17.sp,
-                            fontWeight = if (smooth > 0.72f) FontWeight.SemiBold else FontWeight.Normal,
+                            fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.Center,
                             lineHeight = 26.sp,
                             modifier = Modifier
@@ -514,7 +502,6 @@ private fun LyricsArea(
                                 },
                         )
                     }
-                    item { Spacer(Modifier.height(fadeRange)) }
                 }
             }
         }
