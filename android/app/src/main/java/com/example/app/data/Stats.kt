@@ -1,4 +1,4 @@
-package com.example.app.data
+﻿package com.example.app.data
 
 import android.content.Context
 import okhttp3.OkHttpClient
@@ -51,6 +51,9 @@ data class StatsDay(val date: String, val count: Int)
  * 对接 `StepaniaH/navidrome-stat`：`GET /api/stats/dashboard`，
  * 用 `Authorization: Bearer <token>` 认证。
  */
+/** 带可读原因的统计请求异常。 */
+class StatsException(message: String) : Exception(message)
+
 class StatsClient(private val cfg: StatsConfig) {
     private val http = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
@@ -58,16 +61,43 @@ class StatsClient(private val cfg: StatsConfig) {
         .build()
 
     fun dashboard(days: Int): StatsDashboard {
-        val url = cfg.base.trimEnd('/') +
-            "/api/stats/dashboard?days=$days&timezone=Asia%2FShanghai"
+        var base = cfg.base.trim().trimEnd('/')
+        // 允许用户直接粘贴 dashboard 地址
+        base = base.removeSuffix("/api/stats/dashboard")
+        val url = "$base/api/stats/dashboard?days=$days&timezone=Asia%2FShanghai"
         val req = Request.Builder()
             .url(url)
             .header("Authorization", "Bearer ${cfg.token}")
+            .header("Accept", "application/json")
             .build()
-        http.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) error("HTTP ${resp.code}")
-            val body = resp.body?.string() ?: error("empty body")
-            return parseDashboard(JSONObject(body))
+        val resp = try {
+            http.newCall(req).execute()
+        } catch (e: javax.net.ssl.SSLException) {
+            throw StatsException("SSL 证书校验失败（自签证书请改用 http 或受信任证书）")
+        } catch (e: java.net.SocketTimeoutException) {
+            throw StatsException("连接超时：服务器不可达或端口不对")
+        } catch (e: java.net.ConnectException) {
+            throw StatsException("连接被拒绝：检查地址与端口")
+        } catch (e: java.net.UnknownHostException) {
+            throw StatsException("域名解析失败：检查地址")
+        } catch (e: java.io.IOException) {
+            throw StatsException("无法连接服务器（连接被中断或服务未启动）：${e.message ?: ""}".trim())
+        } catch (e: Exception) {
+            throw StatsException(e.message ?: "网络错误")
+        }
+        resp.use {
+            val code = resp.code
+            val body = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) {
+                when (code) {
+                    401, 403 -> throw StatsException("认证失败（HTTP $code）：STATS_API_TOKEN 不正确或无权访问")
+                    404 -> throw StatsException("接口不存在（404）：地址可能缺少路径前缀，或服务版本过旧")
+                    else -> throw StatsException("服务返回 HTTP $code")
+                }
+            }
+            val json = runCatching { JSONObject(body) }.getOrNull()
+                ?: throw StatsException("返回的不是 JSON（可能是反向代理的错误页）")
+            return parseDashboard(json)
         }
     }
 

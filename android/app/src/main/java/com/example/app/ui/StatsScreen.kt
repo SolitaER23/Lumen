@@ -48,6 +48,7 @@ import com.example.app.data.StatsDashboard
 import com.example.app.data.StatsStore
 import com.gpo.yoin.symbols.YoinSymbols
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -140,8 +141,23 @@ fun StatsScreen(
                 loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-                error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                error != null -> Column(
+                    Modifier.fillMaxSize().padding(top = 60.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                     Text(error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                    Spacer(Modifier.height(16.dp))
+                    Box(
+                        Modifier
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .clickable { editing = true }
+                            .padding(horizontal = 18.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("修改连接", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
+                    }
                 }
                 data != null -> StatsContent(data!!)
             }
@@ -151,8 +167,8 @@ fun StatsScreen(
 
 @Composable
 private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
-    var base by remember { mutableStateOf(cfg.base.ifBlank { "http://" }) }
-    var token by remember { mutableStateOf(cfg.token) }
+    var base by remember(cfg) { mutableStateOf(cfg.base.ifBlank { "http://" }) }
+    var token by remember(cfg) { mutableStateOf(cfg.token) }
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Text(
             "连接统计服务",
@@ -162,7 +178,7 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "填写自建的 navidrome-stat 地址与 STATS_API_TOKEN，App 直接读取 /api/stats/dashboard。",
+            "填写自建的 navidrome-stat 地址（例：http://192.0.2.15:39421）与部署时设置的 STATS_API_TOKEN。",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
         )
@@ -184,6 +200,9 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
         )
+        var testResult by remember { mutableStateOf<String?>(null) }
+        var testing by remember { mutableStateOf(false) }
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
         Spacer(Modifier.height(18.dp))
         Box(
             Modifier
@@ -197,6 +216,49 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Text("保存并连接", color = MaterialTheme.colorScheme.onPrimary, fontSize = 15.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .clickable(enabled = !testing && base.startsWith("http") && token.isNotBlank()) {
+                    testing = true
+                    testResult = null
+                    scope.launch {
+                        testResult = try {
+                            kotlinx.coroutines.withContext(Dispatchers.IO) {
+                                StatsClient(StatsConfig(base.trim(), token.trim())).dashboard(0)
+                            }
+                            "连接正常"
+                        } catch (e: Exception) {
+                            e.message ?: "连接失败"
+                        }
+                        testing = false
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                if (testing) "测试中…" else "测试连接",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 13.sp,
+            )
+        }
+        testResult?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        }
+        if (cfg.base.isNotBlank()) {
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "清除已保存的配置",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                modifier = Modifier.clickable { onSave("", "") },
+            )
         }
     }
 }
