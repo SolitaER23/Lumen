@@ -866,17 +866,6 @@ private fun HomeScreen(
                             loading = tabLoading && newest.isEmpty(),
                         )
                         else -> Column(Modifier.fillMaxSize()) {
-                            if (current != null) {
-                                ContinueCard(
-                                    track = current,
-                                    albumLabel = current.album,
-                                    coverUrl = coverUrl(current.albumId),
-                                    playing = playing,
-                                    onToggle = onToggle,
-                                    onOpen = onOpenPlayer,
-                                )
-                                Spacer(Modifier.height(10.dp))
-                            }
                             SectionRow("全部专辑", "共 ${albums.size} 张")
                             Box(Modifier.weight(1f)) {
                                 AlbumGrid(
@@ -1103,64 +1092,6 @@ private fun HomeCircleButton(onClick: () -> Unit, content: @Composable () -> Uni
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
-}
-
-@Composable
-private fun ContinueCard(
-    track: Track,
-    albumLabel: String,
-    coverUrl: String,
-    playing: Boolean,
-    onToggle: () -> Unit,
-    onOpen: () -> Unit,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(HomeCard)
-            .clickable(onClick = onOpen)
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = coverUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.size(58.dp).clip(RoundedCornerShape(12.dp)),
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("继续播放", color = HomeAccent, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(4.dp))
-            Text(track.title, color = HomeText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(3.dp))
-            Text(
-                listOfNotNull(track.artist.ifBlank { null }, albumLabel.ifBlank { null }).joinToString(" · "),
-                color = HomeSub,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(Modifier.width(10.dp))
-        Box(
-            Modifier
-                .size(46.dp)
-                .clip(CircleShape)
-                .background(androidx.compose.ui.graphics.Color.White)
-                .clickable(onClick = onToggle),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
-                contentDescription = if (playing) "暂停" else "播放",
-                tint = androidx.compose.ui.graphics.Color(0xFF0B0B0D),
-                modifier = Modifier.size(22.dp),
-            )
-        }
-    }
 }
 
 @Composable
