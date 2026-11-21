@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -109,6 +110,12 @@ fun PlayingScreen(
     lyricsLoading: Boolean = false,
     showLyrics: Boolean = false,
     onToggleLyrics: () -> Unit = {},
+    showNeodb: Boolean = false,
+    onShowNeodb: () -> Unit = {},
+    onShowLyrics: () -> Unit = {},
+    neodbState: com.example.app.data.Neodb.UiState = com.example.app.data.Neodb.UiState.NotLoggedIn,
+    onNeodbLogin: () -> Unit = {},
+    onNeodbRetry: () -> Unit = {},
     onSeekPlay: (Long) -> Unit = {},
     mood: com.example.app.data.MoodResult? = null,
     moodAnalyzing: Boolean = false,
@@ -161,9 +168,9 @@ fun PlayingScreen(
                 )
                 Spacer(Modifier.weight(1f))
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(end = 2.dp),
+                    modifier = Modifier.padding(end = 2.dp).offset(y = (-8).dp),
                 ) {
                     CircleAction(
                         icon = if (trackDownloaded) YoinSymbols.DownloadDone else YoinSymbols.Download,
@@ -187,6 +194,7 @@ fun PlayingScreen(
                         else MaterialTheme.colorScheme.onTertiaryContainer,
                         onClick = onToggleStar,
                     )
+                    NeodbAction(active = showNeodb, onClick = onShowNeodb)
                 }
             }
 
@@ -273,7 +281,7 @@ fun PlayingScreen(
                             else MaterialTheme.colorScheme.inversePrimary.copy(alpha = 0.55f),
                             RoundedCornerShape(18.dp),
                         )
-                        .clickable(onClick = onToggleLyrics),
+                        .clickable { if (showNeodb) onShowLyrics() else onToggleLyrics() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -324,7 +332,15 @@ fun PlayingScreen(
                 )
             }
             Spacer(Modifier.height(6.dp))
-            if (showLyrics) {
+            if (showNeodb) {
+                NeodbPanel(
+                    state = neodbState,
+                    myRating10 = rating,
+                    onLogin = onNeodbLogin,
+                    onRetry = onNeodbRetry,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+            } else if (showLyrics) {
                 LyricsArea(
                     lines = lyrics,
                     loading = lyricsLoading,
@@ -609,5 +625,28 @@ private fun CircleAction(
             Spacer(Modifier.height(6.dp))
             Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+/** NeoDB 入口按钮：与下载/收藏并列的方形按钮。 */
+@Composable
+private fun NeodbAction(active: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(64.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                if (active) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            "N",
+            color = if (active) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurface,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }

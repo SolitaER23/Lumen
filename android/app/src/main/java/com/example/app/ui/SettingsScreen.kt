@@ -1,6 +1,8 @@
 ﻿package com.example.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -209,6 +211,91 @@ fun SettingsScreen(
                 modifier = Modifier.weight(1f),
             )
             Text("管理", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Section("NeoDB")
+        var neodbInstance by remember { mutableStateOf(com.example.app.data.Neodb.config.instance) }
+        var neodbClientId by remember { mutableStateOf(com.example.app.data.Neodb.config.clientId) }
+        var neodbSecret by remember { mutableStateOf(com.example.app.data.Neodb.config.clientSecret) }
+        Text(
+            if (com.example.app.data.Neodb.loggedIn)
+                "已连接：${com.example.app.data.Neodb.username.ifBlank { "NeoDB" }}"
+            else "未连接（用于查看专辑评分与短评）",
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+        )
+        androidx.compose.material3.OutlinedTextField(
+            value = neodbInstance,
+            onValueChange = { neodbInstance = it },
+            label = { Text("实例地址", fontSize = 12.sp) },
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+        )
+        androidx.compose.material3.OutlinedTextField(
+            value = neodbClientId,
+            onValueChange = { neodbClientId = it },
+            label = { Text("Client ID", fontSize = 12.sp) },
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+        )
+        androidx.compose.material3.OutlinedTextField(
+            value = neodbSecret,
+            onValueChange = { neodbSecret = it },
+            label = { Text("Client Secret（可选）", fontSize = 12.sp) },
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+        )
+        Text(
+            "回调地址请填：lumen://neodb（在实例的 OAuth 应用里注册）",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
+        )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable {
+                        com.example.app.data.Neodb.saveConfig(
+                            ctx,
+                            com.example.app.data.Neodb.Config(neodbInstance, neodbClientId, neodbSecret),
+                        )
+                        val url = com.example.app.data.Neodb.authorizeUrl(ctx)
+                        if (url != null) {
+                            runCatching {
+                                ctx.startActivity(
+                                    android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse(url),
+                                    ),
+                                )
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) { Text("连接 NeoDB", color = MaterialTheme.colorScheme.onPrimary, fontSize = 13.sp) }
+            if (com.example.app.data.Neodb.loggedIn) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable { com.example.app.data.Neodb.logout(ctx) },
+                    contentAlignment = Alignment.Center,
+                ) { Text("断开连接", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp) }
+            }
         }
 
         Spacer(Modifier.height(16.dp))
