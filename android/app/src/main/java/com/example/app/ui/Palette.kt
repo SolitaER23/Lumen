@@ -85,16 +85,25 @@ fun moodTintedSeed(coverSeed: Int, mood: MoodResult): Int {
         ).coerceIn(0f, 1f)
     // harmonize 只做 ≤15° 的“协调”，幅度太弱；这里在 HCT 色相上按情绪强度做 15%–60% 的旋转，
     // chroma/tone 仍取封面 seed，视觉身份保留、情绪倾向可见。
-    val amount = (0.15f + 0.45f * strength).toDouble()
+    val cover = Hct.fromInt(coverSeed)
+    val moodHct = Hct.fromInt(moodColor)
+    val amount = (0.25f + 0.50f * strength).toDouble()
     val harmonized = Blend.harmonize(coverSeed, moodColor)
-    val seed = Blend.hctHue(coverSeed, moodColor, amount)
+    val rotated = Hct.fromInt(Blend.hctHue(coverSeed, moodColor, amount))
+    // 色度也往情绪色靠一点（15%–45%），明度仍保持封面 seed
+    val chromaK = (0.15 + 0.30 * strength.toDouble()).coerceIn(0.0, 0.45)
+    val chroma = cover.chroma * (1.0 - chromaK) + moodHct.chroma * chromaK
+    val seed = Hct.from(rotated.hue, chroma, cover.tone).toInt()
     android.util.Log.i(
         "LumenMood",
-        "tint coverHue=%.0f moodHue=%.0f harmonizedHue=%.0f outHue=%.0f amount=%.2f".format(
-            Hct.fromInt(coverSeed).hue,
-            Hct.fromInt(moodColor).hue,
+        "tint coverHue=%.0f moodHue=%.0f harm=%.0f outHue=%.0f chroma %.1f→%.1f (k=%.2f) amount=%.2f".format(
+            cover.hue,
+            moodHct.hue,
             Hct.fromInt(harmonized).hue,
-            Hct.fromInt(seed).hue,
+            rotated.hue,
+            cover.chroma,
+            chroma,
+            chromaK,
             amount,
         ),
     )
