@@ -46,6 +46,8 @@ object Downloads {
         DownloadRequest.Builder(id, android.net.Uri.parse(url))
             .setData(key.toByteArray(Charsets.UTF_8))
             .setMimeType("audio/mpeg")
+            // 独立 cache key：既不与在线播放同一 URI 并发冲突，也方便"清缓存"时保留
+            .setCustomCacheKey(MediaCache.downloadKey(id))
             .build()
 
     /** 整张专辑 */
@@ -104,7 +106,9 @@ object Downloads {
                     bytes = list.sumOf { d ->
                         runCatching {
                             runCatching {
-                                cache.getCachedSpans(d.request.uri.toString()).sumOf { it.length }
+                                val byKey = cache.getCachedSpans(MediaCache.downloadKey(d.request.id)).sumOf { it.length }
+                                val byUri = cache.getCachedSpans(d.request.uri.toString()).sumOf { it.length }
+                                maxOf(byKey, byUri)
                             }.getOrDefault(0L)
                         }.getOrDefault(0L)
                     },
@@ -118,7 +122,7 @@ object Downloads {
             .sortedWith(compareByDescending<AlbumDownload> { !it.isSingle }.thenByDescending { it.name })
     }
 
-    /** 已下载曲目的 cache key（下载 URI），用于「清理缓存」时保留。 */
+    /** 已下载曲目的 cache key（自定义下载 key），用于「清理缓存」时保留。 */
     fun downloadedUris(ctx: Context): Set<String> = runCatching {
         MediaCache.downloadManager(ctx).downloadIndex.getDownloads().use { cursor ->
             buildSet {
@@ -127,6 +131,7 @@ object Downloads {
                     if (d.state == Download.STATE_COMPLETED || d.state == Download.STATE_DOWNLOADING ||
                         d.state == Download.STATE_QUEUED
                     ) {
+                        add(MediaCache.downloadKey(d.request.id))
                         add(d.request.uri.toString())
                     }
                 }

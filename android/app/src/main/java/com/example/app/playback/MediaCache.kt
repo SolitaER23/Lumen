@@ -1,10 +1,11 @@
-package com.example.app.playback
+﻿package com.example.app.playback
 
 import android.content.Context
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.CacheKeyFactory
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.offline.DownloadManager
@@ -43,6 +44,12 @@ object MediaCache {
         database ?: StandaloneDatabaseProvider(ctx.applicationContext).also { database = it }
     }
 
+    /** 已下载内容的独立 cache key，避免与在线播放的同一 URI 并发读写互相卡住。 */
+    fun downloadKey(trackId: String): String = "$trackId#lumen-dl"
+
+    private fun trackIdOf(uri: android.net.Uri): String? =
+        runCatching { uri.getQueryParameter("id") }.getOrNull()?.takeIf { it.isNotBlank() }
+
     fun cacheDataSourceFactory(ctx: Context): CacheDataSource.Factory {
         val http = DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(10_000)
@@ -50,6 +57,15 @@ object MediaCache {
         return CacheDataSource.Factory()
             .setCache(cache(ctx))
             .setUpstreamDataSourceFactory(DefaultDataSource.Factory(ctx.applicationContext, http))
+            .setCacheKeyFactory(object : CacheKeyFactory {
+                override fun buildCacheKey(spec: androidx.media3.datasource.DataSpec): String {
+                    // 已下载的曲目直接读下载 key；否则用 URI（流缓存/网络）
+                    val id = trackIdOf(spec.uri)
+                    val key = id?.let { downloadKey(it) }
+                    return if (key != null && runCatching { cache(ctx).getCachedSpans(key).isNotEmpty() }.getOrDefault(false)) key
+                    else spec.uri.toString()
+                }
+            })
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
 
