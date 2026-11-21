@@ -91,6 +91,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.app.data.Album
+import com.example.app.data.LyricLine
 import com.example.app.data.Artist
 import com.example.app.data.ServerConfig
 import com.example.app.data.SettingsStore
@@ -173,10 +174,10 @@ private fun App() {
     var starredIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var downloadedTrackIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var homeTab by remember { mutableIntStateOf(0) }
-    var lyrics by remember { mutableStateOf<String?>(null) }
+    var lyrics by remember { mutableStateOf<List<LyricLine>?>(null) }
     var lyricsTrackId by remember { mutableStateOf<String?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
-    var showLyrics by remember { mutableStateOf(false) }
+    var showLyrics by remember { mutableStateOf(true) }
     val navStack = remember { androidx.compose.runtime.mutableStateListOf<NavKey>() }
 
     /** 去下一页，并把"来处"压栈 */
@@ -268,11 +269,19 @@ private fun App() {
         }
     }
 
+    // 换歌自动加载歌词（播放页下方常驻显示）
     LaunchedEffect(playback.current?.id) {
-        if (lyricsTrackId != playback.current?.id) {
+        val tr = playback.current
+        if (lyricsTrackId != tr?.id) {
             lyrics = null
-            lyricsTrackId = playback.current?.id
-            showLyrics = false
+            lyricsTrackId = tr?.id
+            if (tr != null) {
+                lyricsLoading = true
+                runCatching {
+                    lyrics = withContext(Dispatchers.IO) { client.lyrics(tr.id, tr.title, tr.artist) }
+                }
+                lyricsLoading = false
+            }
         }
     }
 
@@ -427,21 +436,7 @@ private fun App() {
                         lyrics = lyrics,
                         lyricsLoading = lyricsLoading,
                         showLyrics = showLyrics,
-                        onToggleLyrics = {
-                            showLyrics = !showLyrics
-                            val tr = current
-                            if (showLyrics && tr != null && lyricsTrackId != tr.id) {
-                                lyricsTrackId = tr.id
-                                lyrics = null
-                                lyricsLoading = true
-                                scope.launch {
-                                    lyrics = runCatching {
-                                        withContext(Dispatchers.IO) { client.lyrics(tr.id, tr.title, tr.artist) }
-                                    }.getOrNull()
-                                    lyricsLoading = false
-                                }
-                            }
-                        },
+                        onToggleLyrics = { showLyrics = !showLyrics },
                         onToggleStar = { current?.let { toggleStar(it) } },
                         onDownloadTrack = {
                             current?.let { tr ->

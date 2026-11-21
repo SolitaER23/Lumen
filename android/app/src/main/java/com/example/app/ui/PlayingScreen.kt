@@ -27,6 +27,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.style.TextAlign
+import com.example.app.data.LyricLine
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -89,7 +99,7 @@ fun PlayingScreen(
     trackDownloaded: Boolean = false,
     onToggleStar: () -> Unit = {},
     onDownloadTrack: () -> Unit = {},
-    lyrics: String? = null,
+    lyrics: List<LyricLine>? = null,
     lyricsLoading: Boolean = false,
     showLyrics: Boolean = false,
     onToggleLyrics: () -> Unit = {},
@@ -231,6 +241,7 @@ fun PlayingScreen(
             }
             Spacer(Modifier.height(10.dp))
             // 第二行：歌词 + 上一首 + 下一首（靠左，不贴右）
+
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -293,16 +304,18 @@ fun PlayingScreen(
                     )
                 }
             }
+            Spacer(Modifier.height(6.dp))
+            if (showLyrics) {
+                LyricsArea(
+                    lines = lyrics,
+                    loading = lyricsLoading,
+                    positionMs = positionMs,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+            }
         }
 
-        if (showLyrics) {
-            LyricsOverlay(
-                title = track?.title ?: "",
-                lyrics = lyrics,
-                loading = lyricsLoading,
-                onClose = onToggleLyrics,
-            )
-        }
+
     }
 }
 
@@ -390,57 +403,93 @@ private fun WavyProgress(
     }
 }
 
+/** 播放页下方的歌词区：按时间轴高亮当前行、自动滚动、上下渐隐。 */
 @Composable
-private fun LyricsOverlay(
-    title: String,
-    lyrics: String?,
+private fun LyricsArea(
+    lines: List<LyricLine>?,
     loading: Boolean,
-    onClose: () -> Unit,
+    positionMs: Long,
+    modifier: Modifier = Modifier,
 ) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface)
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    title,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = onClose) {
-                    Icon(YoinSymbols.Close, contentDescription = "关闭歌词", tint = MaterialTheme.colorScheme.onSurface)
-                }
+    val listState = rememberLazyListState()
+    val hasTimeline = lines?.any { it.startMs > 0L } == true
+    val currentIndex = if (lines.isNullOrEmpty() || !hasTimeline) -1
+    else lines.indexOfLast { it.startMs <= positionMs }.coerceAtLeast(0)
+
+    LaunchedEffect(currentIndex) {
+        if (currentIndex >= 0) {
+            runCatching { listState.animateScrollToItem((currentIndex - 1).coerceAtLeast(0)) }
+        }
+    }
+    val appear = remember { Animatable(0f) }
+    LaunchedEffect(lines) {
+        if (!lines.isNullOrEmpty()) {
+            appear.snapTo(0f)
+            appear.animateTo(1f, tween(400))
+        }
+    }
+
+    Box(modifier) {
+        when {
+            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
-            when {
-                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-                lyrics.isNullOrBlank() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("暂无歌词", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                }
-                else -> Column(
-                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                ) {
+            lines.isNullOrEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("暂无歌词", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            }
+            else -> LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = appear.value },
+                contentPadding = PaddingValues(vertical = 10.dp),
+            ) {
+                itemsIndexed(lines) { i, line ->
+                    val isCurrent = i == currentIndex
+                    val distance = if (currentIndex >= 0) kotlin.math.abs(i - currentIndex) else 0
+                    val alpha = when {
+                        isCurrent -> 1f
+                        distance == 1 -> 0.6f
+                        distance == 2 -> 0.38f
+                        else -> 0.22f
+                    }
                     Text(
-                        lyrics,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
-                        fontSize = 16.sp,
-                        lineHeight = 28.sp,
+                        line.text,
+                        color = if (isCurrent) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface,
+                        fontSize = if (isCurrent) 18.sp else 15.sp,
+                        fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 24.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 28.dp, vertical = 5.dp)
+                            .graphicsLayer { this.alpha = alpha },
                     )
                 }
             }
         }
+        // 上下渐隐：滚动到按钮下方时优雅淡出
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(MaterialTheme.colorScheme.surface, Color.Transparent),
+                    ),
+                ),
+        )
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(40.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, MaterialTheme.colorScheme.surface),
+                    ),
+                ),
+        )
     }
 }
 

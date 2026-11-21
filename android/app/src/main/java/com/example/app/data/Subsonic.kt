@@ -17,6 +17,9 @@ data class Album(
     val year: Int,
 )
 
+/** 一行歌词：startMs 为 0 表示无时间轴（纯文本歌词） */
+data class LyricLine(val startMs: Long, val text: String)
+
 data class Artist(
     val id: String,
     val name: String,
@@ -277,26 +280,27 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
         get("unstar.view", mapOf("id" to trackId))
     }
 
-    /** 歌词：优先 OpenSubsonic 的 getLyricsBySongId，退回旧的 getLyrics */
-    fun lyrics(trackId: String, title: String, artist: String): String? {
+    /** 歌词：优先 OpenSubsonic 的 getLyricsBySongId（带时间轴），退回旧的 getLyrics 纯文本 */
+    fun lyrics(trackId: String, title: String, artist: String): List<LyricLine>? {
         val byId = runCatching { get("getLyricsBySongId.view", mapOf("id" to trackId)) }.getOrNull()
         byId?.optJSONObject("lyricsList")?.optJSONArray("structuredLyrics")?.let { arr ->
             for (i in 0 until arr.length()) {
                 val lines = arr.getJSONObject(i).optJSONArray("line") ?: continue
-                val sb = StringBuilder()
+                val out = mutableListOf<LyricLine>()
                 for (j in 0 until lines.length()) {
-                    val v = lines.getJSONObject(j).optString("value")
-                    if (v.isNotBlank()) sb.append(v).append('\n')
+                    val o = lines.getJSONObject(j)
+                    val v = o.optString("value")
+                    if (v.isNotBlank()) out.add(LyricLine(o.optLong("start"), v))
                 }
-                if (sb.isNotBlank()) return sb.toString().trim()
+                if (out.isNotEmpty()) return out
             }
         }
         val legacy = runCatching {
             get("getLyrics.view", mapOf("artist" to artist, "title" to title))
         }.getOrNull() ?: return null
-        val l = legacy.optJSONObject("lyrics")
-        val value = l?.optString("value").orEmpty()
-        return value.takeIf { it.isNotBlank() }
+        val value = legacy.optJSONObject("lyrics")?.optString("value").orEmpty()
+        if (value.isBlank()) return null
+        return value.split("\n").filter { it.isNotBlank() }.map { LyricLine(0L, it.trim()) }
     }
 
     fun coverUrl(id: String, size: Int = 400): String =
