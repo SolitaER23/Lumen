@@ -1,4 +1,4 @@
-package com.example.app.playback
+﻿package com.example.app.playback
 
 import android.content.Context
 import androidx.compose.runtime.getValue
@@ -76,6 +76,7 @@ class Playback(private val ctx: Context) {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
+                android.util.Log.i("LumenPlay", "isPlaying=$isPlaying state=${player.playbackState} pwr=${player.playWhenReady}")
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -149,7 +150,15 @@ class Playback(private val ctx: Context) {
             player.pause()
             saveState()
         } else {
+            if (player.mediaItemCount == 0 && queue.isNotEmpty()) {
+                // 冷启动后第一次播放：按上次的曲目与进度装载
+                val target = index.coerceIn(0, queue.lastIndex)
+                play(queue, target, albumId ?: "")
+                player.seekTo(resumePosition)
+                return
+            }
             if (player.playbackState == Player.STATE_IDLE && queue.isNotEmpty()) {
+                player.prepare()
                 player.seekTo(index.coerceAtLeast(0), resumePosition)
             }
             player.play()
@@ -184,15 +193,11 @@ class Playback(private val ctx: Context) {
                 .build()
         }
         val idx = startIndex.coerceIn(0, items.lastIndex)
-        player.playWhenReady = false
-        player.setMediaItems(items, idx, progressMs.coerceAtLeast(0L))
-        player.prepare()
-        player.pause()
+        // 不往播放器装载：保持完全静默，UI 用 queue/index/position 显示“上次播放”，点播放时才真正装载
         index = idx
         positionMs = progressMs.coerceAtLeast(0L)
         resumePosition = progressMs.coerceAtLeast(0L)
-        player.stop()
-        android.util.Log.i("LumenMood", "restore idx=$idx pos=$progressMs stopped=${player.playbackState}")
+        android.util.Log.i("LumenMood", "restore hint idx=$idx pos=$progressMs state=${player.playbackState}")
     }
 
     fun next() {
@@ -220,9 +225,11 @@ class Playback(private val ctx: Context) {
     private var resumePosition = 0L
 
     fun tick() {
-        positionMs = player.currentPosition.coerceAtLeast(0L)
-        durationMs = player.duration.coerceAtLeast(0L)
-        index = player.currentMediaItemIndex
+        if (player.playbackState != Player.STATE_IDLE) {
+            positionMs = player.currentPosition.coerceAtLeast(0L)
+            durationMs = player.duration.coerceAtLeast(0L)
+            index = player.currentMediaItemIndex
+        }
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastSaveAt > 3000L) {
             lastSaveAt = now
