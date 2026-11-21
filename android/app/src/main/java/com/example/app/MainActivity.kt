@@ -371,9 +371,9 @@ private fun App() {
     }
 
     // 封面取色：主色跟着正在播的专辑走
-    LaunchedEffect(current?.albumId) {
+    LaunchedEffect(current?.albumId, contrast, mood) {
         current?.let { t ->
-            schemeFromCover(client.coverUrl(t.albumId, 200), contrast)?.let { scheme = it }
+            schemeFromCover(client.coverUrl(t.albumId, 200), contrast, mood)?.let { scheme = it }
         }
     }
 

@@ -5,6 +5,8 @@ import android.graphics.BitmapFactory
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.graphics.Color
+import blend.Blend
+import com.example.app.data.MoodResult
 import dynamiccolor.DynamicColor
 import hct.Hct
 import dynamiccolor.MaterialDynamicColors
@@ -56,9 +58,57 @@ private fun Int.asColor(): Color = Color(this)
  *
  * @param contrast 0f = 标准，0.5f = 中，1f = 高
  */
-suspend fun schemeFromCover(url: String, contrast: Float = 0f): ColorScheme? = withContext(Dispatchers.IO) {
+/** 情绪锚点色：按标签给 HCT 锚点，再按坐标做小幅修正。 */
+private fun moodAnchorArgb(m: MoodResult): Int {
+    val (hue, chroma, tone) = when (m.label) {
+        "Happy" -> Triple(52.0, 70.0, 62.0)
+        "Excited" -> Triple(28.0, 75.0, 64.0)
+        "Tender" -> Triple(338.0, 45.0, 70.0)
+        "Calm" -> Triple(168.0, 32.0, 66.0)
+        "Sad" -> Triple(232.0, 30.0, 55.0)
+        "Angry" -> Triple(8.0, 75.0, 55.0)
+        else -> Triple(286.0, 45.0, 52.0) // Tense
+    }
+    val hueShift = (m.valence - 0.5f) * 18.0 - (m.arousal - 0.5f) * 10.0
+    return Hct.from((hue + hueShift + 360.0) % 360.0, chroma, tone).toInt()
+}
+
+/**
+ * 封面主色为主、情绪色只做「协调偏移」：
+ * 1) Blend.harmonize(封面seed, 情绪色)：把封面色相柔和拉向情绪色（≤15°）；
+ * 2) 再按情绪强度做部分应用（18%–60%），保证封面视觉身份不丢。
+ */
+fun moodTintedSeed(coverSeed: Int, mood: MoodResult): Int {
+    val moodColor = moodAnchorArgb(mood)
+    val strength = (
+        (kotlin.math.abs(mood.valence - 0.5f) + kotlin.math.abs(mood.arousal - 0.5f)) * 2f
+        ).coerceIn(0f, 1f)
+    // harmonize 只做 ≤15° 的“协调”，幅度太弱；这里在 HCT 色相上按情绪强度做 15%–60% 的旋转，
+    // chroma/tone 仍取封面 seed，视觉身份保留、情绪倾向可见。
+    val amount = (0.15f + 0.45f * strength).toDouble()
+    val harmonized = Blend.harmonize(coverSeed, moodColor)
+    val seed = Blend.hctHue(coverSeed, moodColor, amount)
+    android.util.Log.i(
+        "LumenMood",
+        "tint coverHue=%.0f moodHue=%.0f harmonizedHue=%.0f outHue=%.0f amount=%.2f".format(
+            Hct.fromInt(coverSeed).hue,
+            Hct.fromInt(moodColor).hue,
+            Hct.fromInt(harmonized).hue,
+            Hct.fromInt(seed).hue,
+            amount,
+        ),
+    )
+    return seed
+}
+
+suspend fun schemeFromCover(
+    url: String,
+    contrast: Float = 0f,
+    mood: MoodResult? = null,
+): ColorScheme? = withContext(Dispatchers.IO) {
     if (url.isBlank()) return@withContext null
-    val key = "$url|$contrast"
+    val moodKey = mood?.let { "${it.label}|%.2f/%.2f".format(it.valence, it.arousal) } ?: "-"
+    val key = "$url|$contrast|$moodKey"
     schemeCache.get(key)?.let { return@withContext it }
 
     val bitmap: Bitmap = try {
@@ -78,7 +128,8 @@ suspend fun schemeFromCover(url: String, contrast: Float = 0f): ColorScheme? = w
     small.getPixels(pixels, 0, small.width, 0, 0, small.width, small.height)
 
     val quantized = QuantizerCelebi.quantize(pixels, 128)
-    val seed = Score.score(quantized).firstOrNull() ?: return@withContext null
+    var seed = Score.score(quantized).firstOrNull() ?: return@withContext null
+    if (mood != null) seed = moodTintedSeed(seed, mood)
     val scheme = SchemeTonalSpot(Hct.fromInt(seed), true, contrast.toDouble())
     // material 1.12 内置的 MCU 版本用 MaterialDynamicColors 计算各角色
     val mdc = MaterialDynamicColors()

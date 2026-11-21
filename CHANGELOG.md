@@ -19,6 +19,18 @@
 
 ---
 
+## [0.24.1] - 2026-11-21
+
+### 情绪色 × 封面动态取色（MCU）
+- 主题 seed 仍是**封面提取的主种子**；有心情数据时再做一次 HCT 色相偏移：
+  - 情绪标签 → HCT 锚点色（Happy 52°、Excited 28°、Tender 338°、Calm 168°、Sad 232°、Angry 8°、Tense 286°），并按 valence/arousal 微调色相；
+  - 用 MCU `Blend.harmonize(封面seed, 情绪色)` 计算「协调方向」，再按情绪强度 `amount = 0.15 + 0.45 × strength` 在 HCT 色相上旋转（chroma/tone 保持封面 seed），保证封面身份不被替换；
+  - `strength = (|v−0.5| + |a−0.5|) × 2`，越接近中性偏移越小。
+- 主题缓存 key 加入 `label + 坐标`，心情分析完成后播放页配色会自动重算；对比度切换同样生效。
+- 实测：`心湖` 封面 hue 48、情绪 hue 51 → 输出 49（几乎不变），符合「封面为主、情绪只做轻微染色」；对比度/坐标变化会改变 seed。
+
+### 版本
+- `versionName 0.24.1` / `versionCode 61`。
 ## [0.24.0] - 2026-11-21
 
 ### 心情分析（端侧，YAMNet + PANNs CNN14）
