@@ -519,27 +519,32 @@ private fun LyricsArea(
     }
 }
 
-/** 横向拖动打分条：0.0 – 10.0，步径 0.1，渐变填充 + 刻度 + 竖向把手 */
+/** 横向拖动打分条：0.0 – 10.0，步径 0.1；加宽轨道、无刻度线、固定数值宽度避免拖动抖动。 */
 @Composable
 private fun RatingControl(value: Float, onChange: (Float) -> Unit, modifier: Modifier = Modifier) {
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableFloatStateOf(value) }
     val shown = if (dragging) dragValue else value
     val inactiveColor = MaterialTheme.colorScheme.surfaceContainerHigh
-    val outline = MaterialTheme.colorScheme.outlineVariant
     val primary = MaterialTheme.colorScheme.primary
     val tertiary = MaterialTheme.colorScheme.tertiary
+    val surface = MaterialTheme.colorScheme.surface
 
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier.padding(start = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Canvas(
             Modifier
                 .weight(1f)
-                .height(44.dp)
+                .height(52.dp)
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         val down = awaitFirstDown()
-                        val w = size.width.toFloat().coerceAtLeast(1f)
-                        fun quantize(x: Float) = ((x / w * 10f * 10f).roundToInt() / 10f).coerceIn(0f, 10f)
+                        fun quantize(x: Float): Float {
+                            val w = size.width.toFloat().coerceAtLeast(1f)
+                            return ((x / w * 100f).roundToInt() / 10f).coerceIn(0f, 10f)
+                        }
                         dragValue = quantize(down.position.x)
                         dragging = true
                         down.consume()
@@ -555,7 +560,7 @@ private fun RatingControl(value: Float, onChange: (Float) -> Unit, modifier: Mod
                     }
                 },
         ) {
-            val trackH = 8.dp.toPx()
+            val trackH = 12.dp.toPx()
             val cy = size.height / 2f
             val top = cy - trackH / 2f
             drawRoundRect(
@@ -576,30 +581,26 @@ private fun RatingControl(value: Float, onChange: (Float) -> Unit, modifier: Mod
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(trackH / 2f),
                 )
             }
-            // 每 1 分的刻度
-            for (i in 1 until 10) {
-                val x = size.width * i / 10f
-                drawLine(
-                    color = outline,
-                    start = Offset(x, cy - 7.dp.toPx()),
-                    end = Offset(x, cy + 7.dp.toPx()),
-                    strokeWidth = 1.dp.toPx(),
-                )
-            }
-            // 把手
-            val hx = (size.width * (shown / 10f)).coerceIn(2.dp.toPx(), size.width - 2.dp.toPx())
-            drawRoundRect(
+            // 圆形把手（无刻度分隔线）
+            val hx = (size.width * (shown / 10f)).coerceIn(11.dp.toPx(), size.width - 11.dp.toPx())
+            drawCircle(
+                color = surface,
+                radius = 11.dp.toPx(),
+                center = Offset(hx, cy),
+            )
+            drawCircle(
                 color = primary,
-                topLeft = Offset(hx - 2.dp.toPx(), cy - 11.dp.toPx()),
-                size = androidx.compose.ui.geometry.Size(4.dp.toPx(), 22.dp.toPx()),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+                radius = 8.dp.toPx(),
+                center = Offset(hx, cy),
             )
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(10.dp))
         Text(
             "%.1f".format(shown),
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            modifier = Modifier.width(38.dp),
         )
     }
 }
