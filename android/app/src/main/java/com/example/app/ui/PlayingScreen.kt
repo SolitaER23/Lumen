@@ -48,34 +48,29 @@ import com.gpo.yoin.symbols.rememberPlayPauseSymbolPainter
 private fun CircleAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    active: Boolean,
+    shape: androidx.compose.ui.graphics.Shape,
+    container: androidx.compose.ui.graphics.Color,
+    content: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(
-                    if (active) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceContainerHigh,
-                )
+                .size(66.dp)
+                .clip(shape)
+                .background(container)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 icon,
                 contentDescription = label,
-                tint = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(22.dp),
+                tint = content,
+                modifier = Modifier.size(27.dp),
             )
         }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            label,
-            fontSize = 10.sp,
-            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Spacer(Modifier.height(6.dp))
+        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -157,19 +152,27 @@ fun PlayingScreen(
             Spacer(Modifier.width(18.dp))
             // 封面右侧：单曲下载 / 收藏，两个圆形按钮竖排
             Column(
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 CircleAction(
                     icon = if (trackDownloaded) YoinSymbols.DownloadDone else YoinSymbols.Download,
                     label = if (trackDownloaded) "已下载" else "下载",
-                    active = trackDownloaded,
+                    shape = RoundedCornerShape(20.dp),
+                    container = if (trackDownloaded) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.secondaryContainer,
+                    content = if (trackDownloaded) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onSecondaryContainer,
                     onClick = { if (!trackDownloaded) onDownloadTrack() },
                 )
                 CircleAction(
                     icon = if (starred) YoinSymbols.StarFilled else YoinSymbols.Star,
                     label = if (starred) "已收藏" else "收藏",
-                    active = starred,
+                    shape = CircleShape,
+                    container = if (starred) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.tertiaryContainer,
+                    content = if (starred) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onTertiaryContainer,
                     onClick = onToggleStar,
                 )
             }

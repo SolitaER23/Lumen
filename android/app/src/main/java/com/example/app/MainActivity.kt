@@ -172,6 +172,22 @@ private fun App() {
     var starred by remember { mutableStateOf<List<Track>>(emptyList()) }
     var starredIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var downloadedTrackIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var homeTab by remember { mutableIntStateOf(0) }
+    val navStack = remember { androidx.compose.runtime.mutableStateListOf<NavKey>() }
+
+    /** 去下一页，并把"来处"压栈 */
+    fun navigate(target: NavKey) {
+        navStack.add(NavKey(screen, openAlbum))
+        screen = target.screen
+        openAlbum = target.album
+    }
+
+    /** 原路返回 */
+    fun goBack() {
+        val prev = navStack.removeLastOrNull() ?: return
+        screen = prev.screen
+        openAlbum = prev.album
+    }
 
 
     suspend fun loadAlbums(c: ServerConfig) {
@@ -303,13 +319,13 @@ private fun App() {
     }
 
     val onOpenAlbum: (Album) -> Unit = remember {
-        { al -> openAlbum = al; tracks = emptyList(); screen = 1 }
+        { al -> tracks = emptyList(); navigate(NavKey(1, al)) }
     }
-    val onGoHome: () -> Unit = remember { { screen = 0; openAlbum = null } }
-    val onOpenSettings: () -> Unit = remember { { screen = 3 } }
-    val onOpenSearch: () -> Unit = remember { { screen = 6 } }
-    val onOpenArtist: (Artist) -> Unit = remember { { a -> selectedArtist = a; screen = 5 } }
-    val onOpenArtistFromSearch: (Artist) -> Unit = remember { { a -> selectedArtist = a; screen = 5 } }
+    val onGoHome: () -> Unit = remember { { navStack.clear(); screen = 0; openAlbum = null } }
+    val onOpenSettings: () -> Unit = remember { { navigate(NavKey(3, null)) } }
+    val onOpenSearch: () -> Unit = remember { { navigate(NavKey(6, null)) } }
+    val onOpenArtist: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
+    val onOpenArtistFromSearch: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
 
     MaterialTheme(colorScheme = scheme) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
@@ -344,8 +360,8 @@ private fun App() {
                     key.screen == 6 -> SearchScreen(
                         client = client,
                         coverUrl = { client.coverUrl(it) },
-                        onBack = { screen = 0 },
-                        onOpenAlbum = { al -> openAlbum = al; tracks = emptyList(); screen = 1 },
+                        onBack = { goBack() },
+                        onOpenAlbum = { al -> tracks = emptyList(); navigate(NavKey(1, al)) },
                         onOpenArtist = onOpenArtistFromSearch,
                     )
                     key.screen == 5 -> selectedArtist?.let { a ->
@@ -353,13 +369,13 @@ private fun App() {
                             client = client,
                             artist = a,
                             coverUrl = { client.coverUrl(it) },
-                            onBack = { screen = 0 },
-                            onOpenAlbum = { al -> openAlbum = al; tracks = emptyList(); screen = 1 },
+                            onBack = { goBack() },
+                            onOpenAlbum = { al -> tracks = emptyList(); navigate(NavKey(1, al)) },
                         )
                     }
                     key.screen == 4 -> DownloadsScreen(
                         summaries = downloads,
-                        onBack = { screen = 3 },
+                        onBack = { goBack() },
                         onDelete = { id ->
                             Downloads.delete(ctx, id)
                             downloads = Downloads.summaries(ctx)
@@ -374,19 +390,20 @@ private fun App() {
                         cacheDir = java.io.File(ctx.cacheDir, "media"),
                         downloadCount = downloads.sumOf { it.total },
                         downloadBytes = downloads.sumOf { it.bytes },
-                        onManageDownloads = { screen = 4 },
+                        onManageDownloads = { navigate(NavKey(4, null)) },
                         onClearCache = {
                             // 缓存与下载共用 SimpleCache：清缓存要把下载记录一起删掉，否则管理页会显示"已下载"但文件没了
                             downloads.forEach { Downloads.delete(ctx, it.key) }
                             java.io.File(ctx.cacheDir, "media").deleteRecursively()
                             downloads = emptyList()
                         },
-                        onBack = { screen = 0 },
+                        onBack = { goBack() },
                         onLogout = {
                             ctx.getSharedPreferences("lumen_settings", android.content.Context.MODE_PRIVATE)
                                 .edit().clear().apply()
                             albums = emptyList()
                             openAlbum = null
+                            navStack.clear()
                             screen = 0
                             cfg = ServerConfig("", "", "")
                         },
@@ -411,7 +428,7 @@ private fun App() {
                         positionMs = playback.positionMs,
                         durationMs = playback.durationMs,
                         playing = playback.playing,
-                        onBack = { screen = 1 },
+                        onBack = { goBack() },
                         onToggle = { playback.toggle() },
                         onPrev = { playback.prev() },
                         onNext = { playback.next() },
@@ -430,11 +447,14 @@ private fun App() {
                             onSearch = onOpenSearch,
                             onOpenArtist = onOpenArtist,
                             starred = starred,
+                            tab = homeTab,
+                            onTabChange = { homeTab = it },
                             onPlayStarred = { index ->
                                 if (starred.isNotEmpty()) {
                                     playback.play(starred, index, "starred")
                                     playback.tick()
-                                    screen = 2
+                                    homeTab = 3
+                                    navigate(NavKey(2, null))
                                 }
                             },
 
@@ -457,7 +477,7 @@ private fun App() {
                             tracks = tracks,
                             coverUrl = client.coverUrl(album.coverId),
                             currentTrackId = current?.id,
-                            onBack = { screen = 0; openAlbum = null },
+                            onBack = { goBack() },
                             download = downloads.firstOrNull { it.key == "album:${album.id}" },
                             onDownload = {
                                 Downloads.enqueue(ctx, album, tracks) { tr -> streamUrl(client, tr) }
@@ -493,8 +513,8 @@ private fun App() {
                         coverUrl = current?.let { client.coverUrl(it.albumId, 200) } ?: "",
                         playing = playback.playing,
                         enabled = current != null,
-                        onHome = { screen = 0; openAlbum = null },
-                        onOpenPlayer = { screen = 2 },
+                        onHome = { navStack.clear(); screen = 0; openAlbum = null },
+                        onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
                         onToggle = {
                             if (current != null) playback.toggle()
                             else if (albums.isNotEmpty()) openAlbum = albums.first()
@@ -566,9 +586,11 @@ private fun HomeScreen(
     onRetry: () -> Unit,
     starred: List<Track> = emptyList(),
     onPlayStarred: (Int) -> Unit = {},
+    tab: Int = 0,
+    onTabChange: (Int) -> Unit = {},
     coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
-    var tab by remember { mutableIntStateOf(0) } // 0 专辑 / 1 艺人 / 2 最近
+    // tab 由上层持有，返回首页时能保持原来的标签
     var artists by remember { mutableStateOf<List<Artist>>(emptyList()) }
     var newest by remember { mutableStateOf<List<Album>>(emptyList()) }
     var recent by remember { mutableStateOf<List<Album>>(emptyList()) }
@@ -610,7 +632,7 @@ private fun HomeScreen(
             albumCount = albums.size,
             artistCount = artists.size,
             starredCount = starred.size,
-            onTab = { tab = it },
+            onTab = onTabChange,
             onSettings = onSettings,
         )
 
@@ -745,13 +767,13 @@ private fun HomeHeader(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        TabLabel("专辑", albumCount, 0, selected, onTab)
+        TabLabel("专辑", 0, selected, onTab, MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(16.dp))
-        TabLabel("艺人", artistCount, 1, selected, onTab)
+        TabLabel("艺人", 1, selected, onTab, MaterialTheme.colorScheme.secondary)
         Spacer(Modifier.width(16.dp))
-        TabLabel("最近", null, 2, selected, onTab)
+        TabLabel("最近", 2, selected, onTab, MaterialTheme.colorScheme.tertiary)
         Spacer(Modifier.width(16.dp))
-        TabLabel("收藏", starredCount, 3, selected, onTab)
+        TabLabel("收藏", 3, selected, onTab, MaterialTheme.colorScheme.inversePrimary)
         Spacer(Modifier.weight(1f))
         // 与标题行居中对齐；描边圆钮，与实心首页键形成对比
         Box(Modifier.height(38.dp), contentAlignment = Alignment.Center) {
@@ -775,24 +797,16 @@ private fun HomeHeader(
 }
 
 @Composable
-private fun TabLabel(title: String, count: Int?, index: Int, selected: Int, onTab: (Int) -> Unit) {
+private fun TabLabel(title: String, index: Int, selected: Int, onTab: (Int) -> Unit, accent: androidx.compose.ui.graphics.Color) {
     val active = selected == index
-    Column(
-        Modifier.clickable { onTab(index) },
-        horizontalAlignment = Alignment.Start,
-    ) {
+    Column(Modifier.clickable { onTab(index) }) {
         Text(
             title,
-            color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            // 选中的标签用自己的强调色，未选中用低对比灰
+            color = if (active) accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
             fontSize = 26.sp,
-            fontWeight = if (active) FontWeight.Normal else FontWeight.Light,
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Light,
         )
-        // 固定高度占位，保证三个标签基线一致（没有数量的「最近」也不歪）
-        Box(Modifier.height(16.dp), contentAlignment = Alignment.TopStart) {
-            if (count != null) {
-                Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-            }
-        }
     }
 }
 
