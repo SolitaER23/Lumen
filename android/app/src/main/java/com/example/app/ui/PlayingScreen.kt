@@ -24,6 +24,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,8 +67,12 @@ fun PlayingScreen(
     onSeek: (Long) -> Unit,
     coverModifier: Modifier = Modifier,
 ) {
-    val duration = durationMs.coerceAtLeast(1L)
-    val frac = (positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+    // duration 未知（刚起播 / 刚切歌）时不要把比例算成 100%，拖动时用本地值覆盖
+    val known = durationMs > 0L
+    var dragging by remember(track?.id) { mutableStateOf(false) }
+    var dragMs by remember(track?.id) { mutableStateOf(0L) }
+    val shownMs = if (dragging) dragMs else positionMs
+    val frac = if (!known) 0f else (shownMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
 
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(bottom = 76.dp)) {
         Row(
@@ -113,7 +121,18 @@ fun PlayingScreen(
         Column(Modifier.padding(horizontal = 28.dp)) {
             Slider(
                 value = frac,
-                onValueChange = { onSeek((it * duration).toLong()) },
+                onValueChange = { v ->
+                    if (known) {
+                        dragging = true
+                        dragMs = (v * durationMs).toLong()
+                    }
+                },
+                onValueChangeFinished = {
+                    if (dragging) {
+                        onSeek(dragMs)
+                        dragging = false
+                    }
+                },
                 colors = SliderDefaults.colors(
                     thumbColor = MaterialTheme.colorScheme.primary,
                     activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -122,8 +141,12 @@ fun PlayingScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(fmt(positionMs), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("-" + fmt(duration - positionMs), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(fmt(shownMs), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    if (known) "-" + fmt(durationMs - shownMs) else "--:--",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 

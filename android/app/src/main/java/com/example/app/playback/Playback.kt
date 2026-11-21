@@ -129,6 +129,9 @@ class Playback(private val ctx: Context) {
             "play album=$album start=$startIndex track=${tracks[startIndex].title} " +
                 "suffix=${tracks[startIndex].suffix} uri=${items[startIndex].localConfiguration?.uri}",
         )
+        // 新队列：先把对外暴露的进度清零，避免播放页用上一首的 position/duration 算比例
+        positionMs = 0L
+        durationMs = 0L
         player.setMediaItems(items, startIndex.coerceIn(0, items.lastIndex), 0L)
         player.prepare()
         player.play()
