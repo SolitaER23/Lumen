@@ -144,6 +144,7 @@ fun PlayingScreen(
                     CircleAction(
                         icon = if (trackDownloaded) YoinSymbols.DownloadDone else YoinSymbols.Download,
                         label = if (trackDownloaded) "已下载" else "下载",
+                        showLabel = false,
                         shape = RoundedCornerShape(20.dp),
                         container = if (trackDownloaded) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.secondaryContainer,
@@ -154,6 +155,7 @@ fun PlayingScreen(
                     CircleAction(
                         icon = if (starred) YoinSymbols.StarFilled else YoinSymbols.Star,
                         label = if (starred) "已收藏" else "收藏",
+                        showLabel = false,
                         shape = CircleShape,
                         container = if (starred) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.tertiaryContainer,
@@ -189,21 +191,35 @@ fun PlayingScreen(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = onPrev, modifier = Modifier.size(40.dp)) {
+                Box(
+                    Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .clickable(onClick = onPrev),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Icon(
                         YoinSymbols.SkipPrevious,
                         contentDescription = "上一首",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.size(26.dp),
                     )
                 }
-                Spacer(Modifier.width(4.dp))
-                IconButton(onClick = onNext, modifier = Modifier.size(40.dp)) {
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.tertiaryContainer)
+                        .clickable(onClick = onNext),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Icon(
                         YoinSymbols.SkipNext,
                         contentDescription = "下一首",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.size(26.dp),
                     )
                 }
             }
@@ -214,61 +230,69 @@ fun PlayingScreen(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
-                    Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable(onClick = onToggle),
-                    contentAlignment = Alignment.Center,
+                // 左列：播放/暂停（上） + 歌词（下）
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(
-                        if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
-                        contentDescription = if (playing) "暂停" else "播放",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(26.dp),
-                    )
-                }
-                Spacer(Modifier.width(10.dp))
-                Box(
-                    Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (showLyrics) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceContainerHigh,
+                    Box(
+                        Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .clickable(onClick = onToggle),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
+                            contentDescription = if (playing) "暂停" else "播放",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(26.dp),
                         )
-                        .clickable(onClick = onToggleLyrics),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        YoinSymbols.Lyrics,
-                        contentDescription = "歌词",
-                        tint = if (showLyrics) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(22.dp),
-                    )
+                    }
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (showLyrics) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            )
+                            .clickable(onClick = onToggleLyrics),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            YoinSymbols.Lyrics,
+                            contentDescription = "歌词",
+                            tint = if (showLyrics) MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
                 Spacer(Modifier.width(14.dp))
-                WavyProgress(
-                    progress = progress,
-                    active = playing,
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    activeColor = MaterialTheme.colorScheme.primary,
-                    inactiveColor = MaterialTheme.colorScheme.outlineVariant,
-                    onSeek = { f -> if (known) onSeek((f * durationMs).toLong()) },
-                )
-            }
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(fmt(positionMs), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    if (known) "-" + fmt(durationMs - positionMs) else "--:--",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                // 右侧：当前时间 — 波浪进度 — 剩余时间
+                Row(
+                    Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(fmt(positionMs), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(8.dp))
+                    WavyProgress(
+                        progress = progress,
+                        active = playing,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        activeColor = MaterialTheme.colorScheme.primary,
+                        inactiveColor = MaterialTheme.colorScheme.outlineVariant,
+                        onSeek = { f -> if (known) onSeek((f * durationMs).toLong()) },
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (known) "-" + fmt(durationMs - positionMs) else "--:--",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -364,7 +388,6 @@ private fun WavyProgress(
         }
         drawPath(inactive, inactiveColor, style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round))
         drawPath(activePath, activeColor, style = Stroke(width = 4.5.dp.toPx(), cap = StrokeCap.Round))
-        drawCircle(activeColor, radius = 5.5.dp.toPx(), center = Offset(size.width * shown, midY))
     }
 }
 
@@ -431,19 +454,22 @@ private fun CircleAction(
     container: Color,
     content: Color,
     onClick: () -> Unit,
+    showLabel: Boolean = true,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
-                .size(66.dp)
+                .size(72.dp)
                 .clip(shape)
                 .background(container)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(27.dp))
+            Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(30.dp))
         }
-        Spacer(Modifier.height(6.dp))
-        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (showLabel) {
+            Spacer(Modifier.height(6.dp))
+            Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
