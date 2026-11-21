@@ -1,4 +1,4 @@
-package com.example.app.ui
+﻿package com.example.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
@@ -158,7 +158,7 @@ fun PlayingScreen(
             Spacer(Modifier.height(6.dp))
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
                 AsyncImage(
                     model = coverUrl,
@@ -170,31 +170,32 @@ fun PlayingScreen(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(end = 2.dp).offset(y = (-8).dp),
+                    modifier = Modifier.padding(top = 8.dp, end = 2.dp),
                 ) {
-                    CircleAction(
+                    PlayerAction(
                         icon = if (trackDownloaded) YoinSymbols.DownloadDone else YoinSymbols.Download,
-                        label = if (trackDownloaded) "已下载" else "下载",
-                        showLabel = false,
-                        shape = RoundedCornerShape(20.dp),
                         container = if (trackDownloaded) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.secondaryContainer,
+                        else MaterialTheme.colorScheme.surfaceContainerHigh,
                         content = if (trackDownloaded) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSecondaryContainer,
+                        else MaterialTheme.colorScheme.onSurface,
                         onClick = { if (!trackDownloaded) onDownloadTrack() },
                     )
-                    CircleAction(
+                    PlayerAction(
                         icon = if (starred) YoinSymbols.StarFilled else YoinSymbols.Star,
-                        label = if (starred) "已收藏" else "收藏",
-                        showLabel = false,
-                        shape = CircleShape,
                         container = if (starred) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.tertiaryContainer,
+                        else MaterialTheme.colorScheme.surfaceContainerHigh,
                         content = if (starred) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onTertiaryContainer,
+                        else MaterialTheme.colorScheme.onSurface,
                         onClick = onToggleStar,
                     )
-                    NeodbAction(active = showNeodb, onClick = onShowNeodb)
+                    PlayerAction(
+                        text = "N",
+                        container = if (showNeodb) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        content = if (showNeodb) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurface,
+                        onClick = onShowNeodb,
+                    )
                 }
             }
 
@@ -648,5 +649,29 @@ private fun NeodbAction(active: Boolean, onClick: () -> Unit) {
             fontSize = 24.sp,
             fontWeight = FontWeight.SemiBold,
         )
+    }
+}
+/** 播放页右侧的统一操作按钮（下载/收藏/NeoDB 共用一套尺寸与圆角）。 */
+@Composable
+private fun PlayerAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    text: String? = null,
+    container: Color,
+    content: Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        Modifier
+            .size(56.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(container)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(24.dp))
+        } else if (text != null) {
+            Text(text, color = content, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
