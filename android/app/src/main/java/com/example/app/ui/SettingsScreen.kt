@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.LazyColumn
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -51,6 +53,7 @@ fun SettingsScreen(
     contrast: Float = 0f,
     onContrast: (Float) -> Unit = {},
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     var cacheBytes by remember { mutableStateOf(0L) }
     var freed by remember { mutableStateOf(false) }
 
@@ -112,6 +115,60 @@ fun SettingsScreen(
             fontSize = 11.sp,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
         )
+
+        Section("心情分析")
+        var moodDone by remember { mutableStateOf(0) }
+        var moodTotal by remember { mutableStateOf(0) }
+        var moodRunning by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                val (d, t, r) = com.example.app.playback.MoodWorker.progress(ctx)
+                moodDone = d; moodTotal = t; moodRunning = r
+                delay(1500)
+            }
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
+            Text(
+                if (moodTotal == 0) "尚未开始（充电 + Wi-Fi 时后台分析整库）"
+                else "已分析 $moodDone / $moodTotal 首" + if (moodRunning) " · 进行中" else "",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 13.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable {
+                            com.example.app.playback.MoodWorker.start(ctx)
+                        }
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("开始分析", color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp) }
+                Box(
+                    Modifier
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable {
+                            com.example.app.playback.MoodWorker.cancel(ctx)
+                        }
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("暂停", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
+                Box(
+                    Modifier
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable { com.example.app.data.MoodStore.clear(ctx) }
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("清空", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
+            }
+        }
 
         Section("缓存")
         Row(

@@ -126,7 +126,7 @@ class PlaybackService : MediaSessionService() {
         }
         if (Build.VERSION.SDK_INT >= 31) builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
 
-        startForeground(NOTIF_ID, builder.build())
+        // 后台启动可能被系统拒绝（ForegroundServiceStartNotAllowed），忽略即可，播放本身不受影响\n        runCatching { startForeground(NOTIF_ID, builder.build()) }
     }
 
     companion object {

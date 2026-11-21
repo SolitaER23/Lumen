@@ -216,6 +216,9 @@ private fun App() {
     var lyricsLoading by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(true) }
     var rating by remember { mutableFloatStateOf(0f) }
+    var mood by remember { mutableStateOf<com.example.app.data.MoodResult?>(null) }
+    var moodAnalyzing by remember { mutableStateOf(false) }
+    var moodPhase by remember { mutableStateOf("") }
     val navStack = remember { androidx.compose.runtime.mutableStateListOf<NavKey>() }
 
     /** 去下一页，并把"来处"压栈 */
@@ -321,6 +324,7 @@ private fun App() {
             lyricsTrackId = tr?.id
             if (tr != null) {
                 rating = Ratings.get(ctx, tr.id)
+                mood = com.example.app.data.MoodStore.get(ctx, tr.id)
                 lyricsLoading = true
                 runCatching {
                     lyrics = withContext(Dispatchers.IO) { client.lyrics(tr.id, tr.title, tr.artist) }
@@ -501,6 +505,31 @@ private fun App() {
                             if (!playback.playing) playback.toggle()
                         },
                         rating = rating,
+                        mood = mood,
+                        moodAnalyzing = moodAnalyzing,
+                        moodPhase = moodPhase,
+                        onAnalyzeMood = {
+                            current?.let { tr ->
+                                moodAnalyzing = true
+                                moodPhase = "准备"
+                                scope.launch {
+                                    runCatching {
+                                        withContext(Dispatchers.IO) {
+                                            com.example.app.data.MoodAnalyzer(ctx).analyze(
+                                                tr.id,
+                                                streamUrl(client, tr),
+                                            ) { phase, p -> moodPhase = "$phase ${(p * 100).toInt()}%" }
+                                        }
+                                    }.onSuccess {
+                                        com.example.app.data.MoodStore.put(ctx, it)
+                                        mood = it
+                                    }.onFailure {
+                                        android.util.Log.e("LumenMood", "mood analysis failed", it)
+                                    }
+                                    moodAnalyzing = false
+                                }
+                            }
+                        },
                         onRating = { v ->
                             rating = v
                             current?.let { Ratings.set(ctx, it.id, v) }

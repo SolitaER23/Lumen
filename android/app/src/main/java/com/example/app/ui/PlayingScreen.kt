@@ -109,6 +109,10 @@ fun PlayingScreen(
     showLyrics: Boolean = false,
     onToggleLyrics: () -> Unit = {},
     onSeekPlay: (Long) -> Unit = {},
+    mood: com.example.app.data.MoodResult? = null,
+    moodAnalyzing: Boolean = false,
+    moodPhase: String = "",
+    onAnalyzeMood: () -> Unit = {},
     rating: Float = 0f,
     onRating: (Float) -> Unit = {},
     coverModifier: Modifier = Modifier,
@@ -206,7 +210,42 @@ fun PlayingScreen(
                 modifier = Modifier.padding(horizontal = 28.dp),
             )
 
-            Spacer(Modifier.height(10.dp))
+            // 心情：坐标优先，标签只是投影
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (mood != null) {
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            "心情 ${mood.label} · 愉悦 ${"%.2f".format(mood.valence)} / 唤醒 ${"%.2f".format(mood.arousal)}",
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            fontSize = 11.sp,
+                        )
+                    }
+                } else {
+                    Text(
+                        when {
+                            moodAnalyzing -> "分析中 $moodPhase"
+                            else -> "分析心情"
+                        },
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .clickable(enabled = !moodAnalyzing && track != null) { onAnalyzeMood() }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
             // 第一行：播放/暂停（左） + 波浪进度（右，时间在两侧）
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),

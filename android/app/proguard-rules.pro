@@ -1,4 +1,4 @@
-# Retrofit / Gson
+﻿# Retrofit / Gson
 -keepattributes Signature, InnerClasses, EnclosingMethod
 -keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations, AnnotationDefault
 -keep,allowobfuscation interface retrofit2.Call
@@ -13,3 +13,8 @@
 # Kotlinx serialization
 -keepattributes RuntimeVisibleAnnotations
 -keep class kotlinx.serialization.** { *; }
+
+# TensorFlow Lite (GPU / XNNPACK delegates use JNI class lookups)
+-keep class org.tensorflow.lite.** { *; }
+-keep class org.tensorflow.lite.gpu.** { *; }
+-dontwarn org.tensorflow.lite.**

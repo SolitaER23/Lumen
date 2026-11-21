@@ -19,6 +19,31 @@
 
 ---
 
+## [0.24.0] - 2026-11-21
+
+### 心情分析（端侧，YAMNet + PANNs CNN14）
+- **模型**（打进 APK，arm64）：
+  - YAMNet tflite（4.1MB，521 类）；
+  - PANNs **Cnn14_16k**（16kHz 版本，来自 HF `Vaytl/PANNs_CNN14_ONNX`）→ **QDQ int8 量化 82MB**（用 37 段真实音乐校准），输出 527 类 + 2048 维 embedding。
+- **管线**（坐标优先，标签后置）：
+  1. 整首拉流 → MediaCodec 解码 → 16kHz 单声道；
+  2. YAMNet 逐 0.975s 窗、CNN14 逐 10s 窗（embedding 暂未用）；
+  3. 6 个 mood 类**逐类重标定**（logit 温度 + 偏置），不参与 521/527 类 top-1；
+  4. DSP：RMS、谱心（FFT）、onset rate、tempo（onset 自相关）；
+  5. 融合 → Russell **valence / arousal** 坐标；
+  6. 坐标 → 标签（Happy / Calm / Tender / Sad / Angry / Tense）。
+- **播放页**：显示「心情 X · 愉悦 v / 唤醒 a」；未分析时显示「分析心情」，带阶段进度。
+- **整库批量**：设置 → 心情分析，`WorkManager`（充电 + Wi-Fi）逐首分析、断点续跑、失败重试；显示「已分析 x / y 首」，可开始/暂停/清空；结果存 `moods.db`（坐标为主数据）。
+- **实测**：单曲 4:36 约 8–15s 跑完；整库 1567 首后台进行中（约 3–4 小时）；`FATAL EXCEPTION` 0。
+
+### 工程备注
+- 关闭 R8 minify（`isMinifyEnabled = false`）：TFLite JNI 在混淆后报 `java_class == null` 直接 SIGABRT；关闭后稳定。APK 约 **127MB**。
+- CNN14 的 `quantize_dynamic`（ConvInteger）在 ORT Android 无实现（`ORT_NOT_IMPLEMENTED`），改用 **QDQ 静态量化**（QLinearConv），验证可加载。
+- YAMNet 输入是 1-D `[15600]`，不是 `[1,15600]`。
+- **GPU/TPU**：Tensor G4 的 TPU（Rio）无第三方接口，无法调用；TFLite GPU delegate 在 Pixel 10a 上对该模型创建失败，已自动回退 CPU；CNN14 int8 走 CPU。
+
+### 版本
+- `versionName 0.24.0` / `versionCode 60`。
 ## [0.23.1] - 2026-11-21
 
 ### 统计连接诊断与修正
