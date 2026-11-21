@@ -5,12 +5,12 @@ import android.graphics.BitmapFactory
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.graphics.Color
-import com.google.android.material.color.utilities.DynamicColor
-import com.google.android.material.color.utilities.Hct
-import com.google.android.material.color.utilities.MaterialDynamicColors
-import com.google.android.material.color.utilities.QuantizerCelebi
-import com.google.android.material.color.utilities.SchemeTonalSpot
-import com.google.android.material.color.utilities.Score
+import dynamiccolor.DynamicColor
+import hct.Hct
+import dynamiccolor.MaterialDynamicColors
+import quantize.QuantizerCelebi
+import scheme.SchemeTonalSpot
+import score.Score
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -31,9 +31,9 @@ val FallbackScheme: ColorScheme = darkColorScheme(
     tertiaryContainer = Color(0xFF4A3712),
     onTertiaryContainer = Color(0xFFFFE7B8),
     inversePrimary = Color(0xFF8FB6FF),
-    surface = Color(0xFF0E0F12),
-    surfaceContainer = Color(0xFF1A1B1F),
-    surfaceContainerHigh = Color(0xFF222327),
+    surface = Color(0xFF202126),
+    surfaceContainer = Color(0xFF26272D),
+    surfaceContainerHigh = Color(0xFF2E2F36),
     onSurface = Color(0xFFE8E9ED),
     onSurfaceVariant = Color(0xFFA9ABB3),
     outlineVariant = Color(0xFF3A3B40),
@@ -102,11 +102,13 @@ suspend fun schemeFromCover(url: String, contrast: Float = 0f): ColorScheme? = w
         onError = argb(mdc.onError()),
         errorContainer = argb(mdc.errorContainer()),
         onErrorContainer = argb(mdc.onErrorContainer()),
-        surface = argb(mdc.surface()),
+        // 底色抬到 MCU 的 surfaceContainer（约 tone 12-14），不再用接近纯黑的 surface
+        background = argb(mdc.surfaceContainer()),
+        surface = argb(mdc.surfaceContainer()),
         onSurface = argb(mdc.onSurface()),
         surfaceVariant = argb(mdc.surfaceVariant()),
         onSurfaceVariant = argb(mdc.onSurfaceVariant()),
-        surfaceContainerLowest = argb(mdc.surfaceContainerLowest()),
+        surfaceContainerLowest = argb(mdc.surface()),
         surfaceContainerLow = argb(mdc.surfaceContainerLow()),
         surfaceContainer = argb(mdc.surfaceContainer()),
         surfaceContainerHigh = argb(mdc.surfaceContainerHigh()),

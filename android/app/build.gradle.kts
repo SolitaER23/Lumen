@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 54
-        versionName = "0.21.0"
+        versionCode = 55
+        versionName = "0.22.0"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
@@ -66,7 +66,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.palette:palette-ktx:1.0.0")
-    implementation("com.google.android.material:material:1.12.0")
 
     implementation("io.github.p2o51:yoin-symbols:0.2.0")
 

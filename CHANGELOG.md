@@ -19,6 +19,24 @@
 
 ---
 
+## [0.22.0] - 2026-11-21
+
+### MCU 源码内联，移除 material 依赖
+- 从 `material-foundation/material-color-utilities` 引入 **47 个 Java 源文件**（blend / contrast / dislike / dynamiccolor / hct / palettes / quantize / scheme / score / temperature / utils）到 `app/src/main/java/`，保留 Apache 2.0 许可文本 `assets/licenses/MCU-Apache-2.0.txt`。
+- 删除 `com.google.android.material:material:1.12.0` 依赖；`Palette.kt` 改为引用内联的 `hct.Hct`、`quantize.QuantizerCelebi`、`score.Score`、`scheme.SchemeTonalSpot`、`dynamiccolor.MaterialDynamicColors`。
+- release APK **4.93MB → 3.36MB**（比内联前更小，且比最初的 4.93MB 版本减少 1.5MB）。
+
+### 默认高对比度 + 主基调优化
+- MCU 对比度默认改为 **高**（`contrastLevel = 1.0`），并对已安装用户做一次性迁移。
+- 底色不再用接近纯黑的 `surface`（tone 4-6），改为 MCU 的 `surfaceContainer`（tone 12）：
+  - 专辑/播放/搜索/设置页背景由 `#1A1B20` 抬升到 **`#202126`**；
+  - 容器层级按 MCU 顺序重排（Lowest=surface、Low=containerLow、High=containerHigh、Highest=containerHighest）；
+  - 首页中性色同步提亮：背景 `#202126`、卡片 `#2A2B31`；
+  - 无封面时的 FallbackScheme 也一并抬升。
+- 效果：亮色按钮与底色的明暗差更柔和，整体更接近 Material 的深色灰阶而不是纯黑。
+
+### 版本
+- `versionName 0.22.0` / `versionCode 55`。
 ## [0.21.0] - 2026-11-21
 
 ### 动态取色改用 Material Color Utilities（方案 A）

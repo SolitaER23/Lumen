@@ -1079,7 +1079,7 @@ private fun HomeHeader(
                 ) {
                     Text(
                         label,
-                        color = if (i == selected) androidx.compose.ui.graphics.Color(0xFF0B0B0D) else HomeSub,
+                        color = if (i == selected) androidx.compose.ui.graphics.Color(0xFF202126) else HomeSub,
                         fontSize = 13.sp,
                         fontWeight = if (i == selected) FontWeight.Medium else FontWeight.Normal,
                     )
@@ -1117,11 +1117,11 @@ private fun SectionRow(title: String, trailing: String) {
 
 
 // 首页中性色板（设计稿）：颜色交给封面，界面只用灰阶 + 一种强调色
-private val HomeCard = androidx.compose.ui.graphics.Color(0xFF17171C)
+private val HomeCard = androidx.compose.ui.graphics.Color(0xFF2A2B31)
 private val HomeText = androidx.compose.ui.graphics.Color(0xFFF5F5F7)
 private val HomeSub = androidx.compose.ui.graphics.Color(0xFF8B8B94)
 private val HomeAccent = androidx.compose.ui.graphics.Color(0xFFE5484D)
-private val HomeBg = androidx.compose.ui.graphics.Color(0xFF0B0B0D)
+private val HomeBg = androidx.compose.ui.graphics.Color(0xFF202126)
 
 /** 首页专用的中性灰阶配色：颜色交给封面，界面只用灰阶 + 一种强调色。 */
 private val HomeScheme = androidx.compose.material3.darkColorScheme(
@@ -1762,7 +1762,7 @@ private fun YoinBar(
                 Icon(
                     if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
                     contentDescription = if (playing) "暂停" else "播放",
-                    tint = androidx.compose.ui.graphics.Color(0xFF0B0B0D),
+                    tint = androidx.compose.ui.graphics.Color(0xFF202126),
                     modifier = Modifier.size(22.dp),
                 )
             }

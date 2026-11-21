@@ -24,8 +24,15 @@ object Appearance {
     private const val FILE = "lumen_settings"
     private const val KEY_CONTRAST = "mcu_contrast"
 
-    fun contrast(ctx: Context): Float =
-        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getFloat(KEY_CONTRAST, 0f)
+    fun contrast(ctx: Context): Float {
+        val p = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        // 本次升级默认切到「高」对比度（只迁移一次）
+        if (!p.getBoolean("mcu_contrast_high_default", false)) {
+            p.edit().putFloat(KEY_CONTRAST, 1f).putBoolean("mcu_contrast_high_default", true).apply()
+            return 1f
+        }
+        return p.getFloat(KEY_CONTRAST, 1f)
+    }
 
     fun setContrast(ctx: Context, value: Float) {
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
