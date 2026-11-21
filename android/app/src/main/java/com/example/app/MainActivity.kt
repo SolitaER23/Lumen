@@ -21,6 +21,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -62,6 +64,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -759,31 +763,38 @@ private fun HomeScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 ) { Text("重试") }
             }
-            else -> AnimatedContent(
-                targetState = tab,
-                transitionSpec = {
-                    val dir = if (targetState > initialState) 1 else -1
-                    (fadeIn(tween<Float>(220)) + slideInHorizontally { dir * it / 10 }) togetherWith
-                        (fadeOut(tween<Float>(160)) + slideOutHorizontally { -dir * it / 10 })
-                },
-                label = "tab",
-                modifier = Modifier.fillMaxSize(),
-            ) { t ->
-                when (t) {
-                    3 -> StarredList(sortedStarred, onPlayStarred)
-                    1 -> ArtistGrid(sortedArtists, onOpenArtist)
-                    2 -> RecentList(
-                        newest = sortedNewest,
-                        recent = sortedRecent,
-                        client = client,
-                        downloads = downloads,
-                        albums = albums,
-                        coverUrl = coverUrl,
-                        onOpen = onOpen,
-                        onPlayTrack = onPlayTrack,
-                        loading = tabLoading && newest.isEmpty(),
-                    )
-                    else -> AlbumGrid(sortedAlbums, coverUrl, onOpen, coverShared)
+            else -> {
+                val pagerState = rememberPagerState(pageCount = { 4 })
+                LaunchedEffect(tab) {
+                    if (!pagerState.isScrollInProgress && pagerState.currentPage != tab) {
+                        pagerState.animateScrollToPage(tab)
+                    }
+                }
+                LaunchedEffect(pagerState.settledPage) {
+                    if (pagerState.settledPage != tab) onTabChange(pagerState.settledPage)
+                }
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                    beyondViewportPageCount = 3,
+                    key = { it },
+                ) { page ->
+                    when (page) {
+                        3 -> StarredList(sortedStarred, onPlayStarred)
+                        1 -> ArtistGrid(sortedArtists, onOpenArtist)
+                        2 -> RecentList(
+                            newest = sortedNewest,
+                            recent = sortedRecent,
+                            client = client,
+                            downloads = downloads,
+                            albums = albums,
+                            coverUrl = coverUrl,
+                            onOpen = onOpen,
+                            onPlayTrack = onPlayTrack,
+                            loading = tabLoading && newest.isEmpty(),
+                        )
+                        else -> AlbumGrid(sortedAlbums, coverUrl, onOpen, coverShared)
+                    }
                 }
             }
         }
