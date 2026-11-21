@@ -1,4 +1,4 @@
-﻿package com.example.app.ui
+package com.example.app.ui
 
 import android.content.Intent
 import android.net.Uri
@@ -236,6 +236,29 @@ fun SettingsScreen(
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )
+                var neodbToken by remember { mutableStateOf("") }
+                androidx.compose.material3.OutlinedTextField(
+                    value = neodbToken,
+                    onValueChange = { neodbToken = it },
+                    label = { Text("访问令牌（可直接登录）", fontSize = 12.sp) },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    PillButton("用令牌登录") {
+                        com.example.app.data.Neodb.loginWithToken(ctx, neodbToken) { ok, msg ->
+                            Toast.makeText(
+                                ctx,
+                                if (ok) "NeoDB 登录成功" else "令牌登录失败：${msg ?: "未知错误"}",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
+                    }
+                }
                 Text(
                     "回调地址请填：lumen://neodb",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -1,4 +1,4 @@
-package com.example.app.ui
+﻿package com.example.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -104,7 +104,7 @@ private fun Ready(state: Neodb.UiState.Ready, myRating10: Float, modifier: Modif
             verticalAlignment = Alignment.Bottom,
         ) {
             Text(
-                "%.1f".format(state.item.ratingAvg),
+                "%.1f".format(state.item.rating10),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 42.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -122,7 +122,7 @@ private fun Ready(state: Neodb.UiState.Ready, myRating10: Float, modifier: Modif
             Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            SourceCard("NeoDB", state.item.ratingAvg, Modifier.weight(1f))
+            SourceCard("NeoDB", state.item.rating10 / 2f, Modifier.weight(1f))
             SourceCard(
                 "我的评分",
                 if (myRating10 > 0f) myRating10 / 2f else null,

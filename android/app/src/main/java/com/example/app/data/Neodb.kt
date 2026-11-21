@@ -1,4 +1,4 @@
-﻿package com.example.app.data
+package com.example.app.data
 
 import android.content.Context
 import android.net.Uri
@@ -37,7 +37,8 @@ object Neodb {
         val uuid: String,
         val title: String,
         val artist: String,
-        val ratingAvg: Float,
+        /** 0–10 的平均分（NeoDB 原始刻度）。 */
+        val rating10: Float,
         val ratingCount: Int,
         val coverUrl: String?,
     )
@@ -179,6 +180,32 @@ object Neodb {
         prefs(ctx).edit().putString("username", username).apply()
     }
 
+    /** 用现成的访问令牌直接登录（不经过 OAuth 浏览器流程）。 */
+    fun loginWithToken(ctx: Context, raw: String, onDone: (Boolean, String?) -> Unit) {
+        val value = raw.trim()
+        if (value.isBlank()) {
+            onDone(false, "令牌为空")
+            return
+        }
+        prefs(ctx).edit().putString("access_token", value).apply()
+        Thread {
+            val result = runCatching { fetchMe(ctx) }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (result.isSuccess) {
+                    loggedIn = true
+                    lastError = null
+                    onDone(true, null)
+                } else {
+                    prefs(ctx).edit().remove("access_token").remove("username").apply()
+                    loggedIn = false
+                    username = ""
+                    lastError = result.exceptionOrNull()?.message
+                    onDone(false, lastError)
+                }
+            }
+        }.start()
+    }
+
     fun logout(ctx: Context) {
         prefs(ctx).edit()
             .remove("access_token").remove("refresh_token").remove("username").remove("pkce_verifier")
@@ -246,7 +273,7 @@ object Neodb {
     }
 
     private fun parseItem(o: JSONObject): Item? {
-        val uuid = o.optString("id").ifBlank { o.optString("uuid") }
+        val uuid = o.optString("uuid").ifBlank { o.optString("id").substringAfterLast('/') }
         val title = o.optString("title").ifBlank { o.optString("display_title") }
         if (uuid.isBlank() || title.isBlank()) return null
         val artist = o.optString("artist").ifBlank {
@@ -255,12 +282,20 @@ object Neodb {
             } ?: ""
         }
         var rating = o.optDouble("rating", 0.0).toFloat()
-        if (rating > 5f) rating /= 2f
+        if (rating in 0.01f..5f) rating *= 2f // 少数实例返回 5 分制
+        val artistField = artist.ifBlank {
+            o.optJSONArray("credits")?.let { arr ->
+                (0 until arr.length())
+                    .mapNotNull { arr.optJSONObject(it) }
+                    .filter { it.optString("role") == "artist" }
+                    .joinToString(", ") { it.optString("name") }
+            } ?: ""
+        }
         return Item(
             uuid = uuid,
             title = title,
-            artist = artist,
-            ratingAvg = rating,
+            artist = artistField,
+            rating10 = rating,
             ratingCount = o.optInt("rating_count", 0),
             coverUrl = o.optString("cover_image_url").takeIf { it.isNotBlank() },
         )
@@ -274,9 +309,10 @@ object Neodb {
     /** 搜专辑并挑选最匹配的条目；命中后缓存 uuid。 */
     fun lookup(ctx: Context, albumId: String, album: String, artist: String): Item? {
         cachedUuid(ctx, albumId)?.let { uuid ->
-            runCatching { return parseItem(get(ctx, "/api/catalog/$uuid")) ?: error("空条目") }
+            val cached = runCatching { parseItem(get(ctx, "/api/album/$uuid")) }.getOrNull()
+            if (cached != null) return cached
         }
-        val json = get(ctx, "/api/search", mapOf("query" to "$album $artist", "category" to "music"))
+        val json = get(ctx, "/api/catalog/search", mapOf("query" to "$album $artist", "category" to "music"))
         val arr: JSONArray = json.optJSONArray("data") ?: json.optJSONArray("items") ?: return null
         var best: Item? = null
         var bestScore = 0.0
@@ -294,27 +330,33 @@ object Neodb {
     }
 
     fun reviews(ctx: Context, uuid: String): List<Review> {
-        // NeoDB 不同版本路径略有差异，依次尝试
-        val json = runCatching { get(ctx, "/api/review/", mapOf("item" to uuid, "page" to "1")) }
-            .getOrElse { get(ctx, "/api/review", mapOf("item" to uuid, "page" to "1")) }
-        val arr: JSONArray = json.optJSONArray("data") ?: json.optJSONArray("reviews") ?: JSONArray()
+        val json = get(ctx, "/api/item/$uuid/posts/", mapOf("page" to "1"))
+        val arr: JSONArray = json.optJSONArray("data") ?: return emptyList()
         val out = ArrayList<Review>(arr.length())
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            val body = o.optString("comment").ifBlank { o.optString("body") }
-                .ifBlank { o.optString("content") }
-            if (body.isBlank()) continue
-            var rating = o.optDouble("rating", 0.0).toFloat()
-            if (rating > 5f) rating /= 2f
-            val userObj = o.optJSONObject("user")
-            val user = userObj?.optString("display_name")?.ifBlank { userObj.optString("username") }
-                ?: o.optString("user_name")
+            val account = o.optJSONObject("account")
+            val user = account?.optString("display_name").orEmpty()
+                .ifBlank { account?.optString("username").orEmpty() }
+            var text = ""
+            var rating10 = 0f
+            val related = o.optJSONObject("ext_neodb")?.optJSONArray("relatedWith")
+            if (related != null) {
+                for (j in 0 until related.length()) {
+                    val r = related.optJSONObject(j) ?: continue
+                    when (r.optString("type")) {
+                        "Comment" -> text = r.optString("content").ifBlank { r.optString("text") }
+                        "Rating" -> rating10 = r.optDouble("value", 0.0).toFloat()
+                    }
+                }
+            }
+            if (text.isBlank()) continue
             out.add(
                 Review(
                     user = user.ifBlank { "NeoDB 用户" },
-                    rating = rating,
-                    text = body,
-                    created = o.optString("created_time").ifBlank { o.optString("created") },
+                    rating = rating10 / 2f,
+                    text = text,
+                    created = o.optString("created_at"),
                 ),
             )
         }
