@@ -143,7 +143,7 @@ class MainActivity : ComponentActivity() {
 }
 
 /** 页面栈的动画键：屏幕 + 当前专辑，用来判断方向与触发转场 */
-private data class NavKey(val screen: Int, val albumId: String?)
+private data class NavKey(val screen: Int, val album: Album?)
 
 /** m4a（ALAC）在 Pixel 上能"播"但无声，统一走 320k MP3 转码 */
 private fun streamUrl(client: SubsonicClient, t: Track): String =
@@ -283,7 +283,7 @@ private fun App() {
             ) {
                 SharedScreenHost {
                 AnimatedContent(
-                    targetState = NavKey(screen, openAlbum?.id),
+                    targetState = NavKey(screen, openAlbum),
                     transitionSpec = {
                         // M3 Expressive 的层级切换：新页从 92% 放大淡入，旧页放大到 104% 淡出
                         val forward = targetState.screen >= initialState.screen
@@ -307,7 +307,7 @@ private fun App() {
                     label = "screen",
                     modifier = Modifier.fillMaxSize(),
                 ) { key ->
-                val albumCoverModifier = key.albumId?.let { id ->
+                val albumCoverModifier = key.album?.id?.let { id ->
                     Modifier.sharedElement(
                         rememberSharedContentState(key = "cover-$id"),
                         animatedVisibilityScope = this@AnimatedContent,
@@ -383,7 +383,7 @@ private fun App() {
                         onNext = { playback.next() },
                         onSeek = { playback.seekTo(it) },
                     )
-                    else -> if (key.albumId == null) {
+                    else -> if (key.album == null) {
                         HomeScreen(
                             client = client,
                             albums = albums,
@@ -401,7 +401,7 @@ private fun App() {
                             onOpenArtist = { a -> selectedArtist = a; screen = 5 },
                         )
                     } else {
-                        val album = openAlbum!!
+                        val album = key.album
                         if (tracks.isEmpty()) {
                             LaunchedEffect(album.id) {
                                 tracks = try {
