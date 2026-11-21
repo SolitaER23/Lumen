@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +38,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextAlign
 import com.example.app.data.LyricLine
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,6 +46,8 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableLongStateOf
+import kotlin.math.roundToInt
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,6 +108,8 @@ fun PlayingScreen(
     lyricsLoading: Boolean = false,
     showLyrics: Boolean = false,
     onToggleLyrics: () -> Unit = {},
+    rating: Float = 0f,
+    onRating: (Float) -> Unit = {},
     coverModifier: Modifier = Modifier,
 ) {
     val known = durationMs > 0L
@@ -303,6 +310,12 @@ fun PlayingScreen(
                         modifier = Modifier.size(30.dp),
                     )
                 }
+                Spacer(Modifier.width(14.dp))
+                RatingControl(
+                    value = rating,
+                    onChange = onRating,
+                    modifier = Modifier.weight(1f),
+                )
             }
             Spacer(Modifier.height(6.dp))
             if (showLyrics) {
@@ -310,6 +323,8 @@ fun PlayingScreen(
                     lines = lyrics,
                     loading = lyricsLoading,
                     positionMs = positionMs,
+                    durationMs = durationMs,
+                    onSeek = onSeek,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
             }
@@ -409,8 +424,15 @@ private fun LyricsArea(
     lines: List<LyricLine>?,
     loading: Boolean,
     positionMs: Long,
+    durationMs: Long,
+    onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // 横向拖动歌词 = 拖动播放进度（拖动整行宽度约等于整首歌）
+    val latestPosition by rememberUpdatedState(positionMs)
+    var scrubStartMs by remember { mutableLongStateOf(0L) }
+    var scrubStartX by remember { mutableFloatStateOf(0f) }
+    var lastSeekAt by remember { mutableLongStateOf(0L) }
     val listState = rememberLazyListState()
     val hasTimeline = lines?.any { it.startMs > 0L } == true
     val currentIndex = if (lines.isNullOrEmpty() || !hasTimeline) -1
@@ -429,7 +451,35 @@ private fun LyricsArea(
         }
     }
 
-    Box(modifier) {
+    Box(
+        modifier
+            .pointerInput(durationMs) {
+                val slop = 24.dp.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val startX = down.position.x
+                    val startMs = latestPosition
+                    var scrubbing = false
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.first()
+                        if (!change.pressed) break
+                        val dx = change.position.x - startX
+                        if (!scrubbing && kotlin.math.abs(dx) > slop) scrubbing = true
+                        if (scrubbing && durationMs > 0L) {
+                            val delta = dx / size.width.toFloat()
+                            val target = (startMs + (delta * durationMs).toLong()).coerceIn(0L, durationMs)
+                            val now = System.currentTimeMillis()
+                            if (now - lastSeekAt > 100L) {
+                                lastSeekAt = now
+                                onSeek(target)
+                            }
+                            change.consume()
+                        }
+                    }
+                }
+            },
+    ) {
         when {
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -489,6 +539,91 @@ private fun LyricsArea(
                         listOf(Color.Transparent, MaterialTheme.colorScheme.surface),
                     ),
                 ),
+        )
+    }
+}
+
+/** 横向拖动打分条：0.0 – 10.0，步径 0.1，渐变填充 + 刻度 + 竖向把手 */
+@Composable
+private fun RatingControl(value: Float, onChange: (Float) -> Unit, modifier: Modifier = Modifier) {
+    var dragging by remember { mutableStateOf(false) }
+    var dragValue by remember { mutableFloatStateOf(value) }
+    val shown = if (dragging) dragValue else value
+    val inactiveColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val outline = MaterialTheme.colorScheme.outlineVariant
+    val primary = MaterialTheme.colorScheme.primary
+    val tertiary = MaterialTheme.colorScheme.tertiary
+
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Canvas(
+            Modifier
+                .weight(1f)
+                .height(44.dp)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        val w = size.width.toFloat().coerceAtLeast(1f)
+                        fun quantize(x: Float) = ((x / w * 10f * 10f).roundToInt() / 10f).coerceIn(0f, 10f)
+                        dragValue = quantize(down.position.x)
+                        dragging = true
+                        down.consume()
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.first()
+                            if (!change.pressed) break
+                            dragValue = quantize(change.position.x)
+                            change.consume()
+                        }
+                        dragging = false
+                        onChange(dragValue)
+                    }
+                },
+        ) {
+            val trackH = 8.dp.toPx()
+            val cy = size.height / 2f
+            val top = cy - trackH / 2f
+            drawRoundRect(
+                color = inactiveColor,
+                topLeft = Offset(0f, top),
+                size = androidx.compose.ui.geometry.Size(size.width, trackH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(trackH / 2f),
+            )
+            if (shown > 0f) {
+                drawRoundRect(
+                    brush = Brush.horizontalGradient(
+                        listOf(tertiary, primary),
+                        startX = 0f,
+                        endX = size.width,
+                    ),
+                    topLeft = Offset(0f, top),
+                    size = androidx.compose.ui.geometry.Size(size.width * (shown / 10f), trackH),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(trackH / 2f),
+                )
+            }
+            // 每 1 分的刻度
+            for (i in 1 until 10) {
+                val x = size.width * i / 10f
+                drawLine(
+                    color = outline,
+                    start = Offset(x, cy - 7.dp.toPx()),
+                    end = Offset(x, cy + 7.dp.toPx()),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            }
+            // 把手
+            val hx = (size.width * (shown / 10f)).coerceIn(2.dp.toPx(), size.width - 2.dp.toPx())
+            drawRoundRect(
+                color = primary,
+                topLeft = Offset(hx - 2.dp.toPx(), cy - 11.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(4.dp.toPx(), 22.dp.toPx()),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "%.1f".format(shown),
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

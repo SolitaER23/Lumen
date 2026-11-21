@@ -66,6 +66,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -92,6 +93,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.app.data.Album
 import com.example.app.data.LyricLine
+import com.example.app.data.Ratings
 import com.example.app.data.Artist
 import com.example.app.data.ServerConfig
 import com.example.app.data.SettingsStore
@@ -178,6 +180,7 @@ private fun App() {
     var lyricsTrackId by remember { mutableStateOf<String?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(true) }
+    var rating by remember { mutableFloatStateOf(0f) }
     val navStack = remember { androidx.compose.runtime.mutableStateListOf<NavKey>() }
 
     /** 去下一页，并把"来处"压栈 */
@@ -276,6 +279,7 @@ private fun App() {
             lyrics = null
             lyricsTrackId = tr?.id
             if (tr != null) {
+                rating = Ratings.get(ctx, tr.id)
                 lyricsLoading = true
                 runCatching {
                     lyrics = withContext(Dispatchers.IO) { client.lyrics(tr.id, tr.title, tr.artist) }
@@ -437,6 +441,11 @@ private fun App() {
                         lyricsLoading = lyricsLoading,
                         showLyrics = showLyrics,
                         onToggleLyrics = { showLyrics = !showLyrics },
+                        rating = rating,
+                        onRating = { v ->
+                            rating = v
+                            current?.let { Ratings.set(ctx, it.id, v) }
+                        },
                         onToggleStar = { current?.let { toggleStar(it) } },
                         onDownloadTrack = {
                             current?.let { tr ->
