@@ -286,31 +286,33 @@ private fun App() {
                 },
             ) {
                 run {
-                val navKey = NavKey(screen, openAlbum)
-                val pageAlpha = androidx.compose.animation.core.Animatable(1f)
-                val pageScale = androidx.compose.animation.core.Animatable(1f)
-                LaunchedEffect(navKey) {
-                    pageAlpha.snapTo(0f)
-                    pageScale.snapTo(0.985f)
-                    launch { pageAlpha.animateTo(1f, tween(220)) }
-                    pageScale.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 900f))
-                }
-                Box(
-                    Modifier.fillMaxSize().graphicsLayer {
-                        alpha = pageAlpha.value
-                        scaleX = pageScale.value
-                        scaleY = pageScale.value
+                AnimatedContent(
+                    targetState = NavKey(screen, openAlbum),
+                    transitionSpec = {
+                        val forward = targetState.screen >= initialState.screen
+                        val spec = spring<Float>(dampingRatio = 0.85f, stiffness = 420f)
+                        val enter = fadeIn(tween<Float>(260)) + scaleIn(
+                            initialScale = if (forward) 0.90f else 1.06f,
+                            animationSpec = spec,
+                        )
+                        val exit = fadeOut(tween<Float>(180)) + scaleOut(
+                            targetScale = if (forward) 1.06f else 0.90f,
+                            animationSpec = spec,
+                        )
+                        (enter togetherWith exit).using(androidx.compose.animation.SizeTransform(clip = false))
                     },
-                ) {
+                    label = "screen",
+                    modifier = Modifier.fillMaxSize(),
+                ) { key ->
                 when {
-                    screen == 6 -> SearchScreen(
+                    key.screen == 6 -> SearchScreen(
                         client = client,
                         coverUrl = { client.coverUrl(it) },
                         onBack = { screen = 0 },
                         onOpenAlbum = { al -> openAlbum = al; tracks = emptyList(); screen = 1 },
                         onOpenArtist = onOpenArtistFromSearch,
                     )
-                    screen == 5 -> selectedArtist?.let { a ->
+                    key.screen == 5 -> selectedArtist?.let { a ->
                         ArtistScreen(
                             client = client,
                             artist = a,
@@ -319,7 +321,7 @@ private fun App() {
                             onOpenAlbum = { al -> openAlbum = al; tracks = emptyList(); screen = 1 },
                         )
                     }
-                    screen == 4 -> DownloadsScreen(
+                    key.screen == 4 -> DownloadsScreen(
                         summaries = downloads,
                         onBack = { screen = 3 },
                         onDelete = { id ->
@@ -331,7 +333,7 @@ private fun App() {
                             downloads = emptyList()
                         },
                     )
-                    screen == 3 -> SettingsScreen(
+                    key.screen == 3 -> SettingsScreen(
                         cfg = cfg,
                         cacheDir = java.io.File(ctx.cacheDir, "media"),
                         downloadCount = downloads.sumOf { it.total },
@@ -353,7 +355,7 @@ private fun App() {
                             cfg = ServerConfig("", "", "")
                         },
                     )
-                    screen == 2 -> PlayingScreen(
+                    key.screen == 2 -> PlayingScreen(
                         coverModifier = Modifier,
                         track = current,
                         coverUrl = current?.let { client.coverUrl(it.albumId, 600) } ?: "",
@@ -366,7 +368,7 @@ private fun App() {
                         onNext = { playback.next() },
                         onSeek = { playback.seekTo(it) },
                     )
-                    else -> if (openAlbum == null) {
+                    else -> if (key.album == null) {
                         HomeScreen(
                             client = client,
                             albums = albums,
@@ -381,7 +383,7 @@ private fun App() {
 
                         )
                     } else {
-                        val album = openAlbum ?: return@Box
+                        val album = key.album
                         if (tracks.isEmpty()) {
                             LaunchedEffect(album.id) {
                                 tracks = try {
@@ -564,15 +566,28 @@ private fun HomeScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 ) { Text("重试") }
             }
-            tab == 1 -> ArtistGrid(artists, onOpenArtist)
-            tab == 2 -> RecentList(
-                newest = newest,
-                recent = recent,
-                coverUrl = coverUrl,
-                onOpen = onOpen,
-                loading = tabLoading && newest.isEmpty(),
-            )
-            else -> AlbumGrid(albums, coverUrl, onOpen, coverShared)
+            else -> AnimatedContent(
+                targetState = tab,
+                transitionSpec = {
+                    val dir = if (targetState > initialState) 1 else -1
+                    (fadeIn(tween<Float>(220)) + slideInHorizontally { dir * it / 10 }) togetherWith
+                        (fadeOut(tween<Float>(160)) + slideOutHorizontally { -dir * it / 10 })
+                },
+                label = "tab",
+                modifier = Modifier.fillMaxSize(),
+            ) { t ->
+                when (t) {
+                    1 -> ArtistGrid(artists, onOpenArtist)
+                    2 -> RecentList(
+                        newest = newest,
+                        recent = recent,
+                        coverUrl = coverUrl,
+                        onOpen = onOpen,
+                        loading = tabLoading && newest.isEmpty(),
+                    )
+                    else -> AlbumGrid(albums, coverUrl, onOpen, coverShared)
+                }
+            }
         }
         }
 
