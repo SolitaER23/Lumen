@@ -403,7 +403,7 @@ private fun App() {
     val onOpenArtistFromSearch: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
 
     MaterialTheme(colorScheme = scheme, typography = lumenTypography()) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
             Box(
                 Modifier.fillMaxSize().graphicsLayer {
                     val s = 1f - 0.06f * backProgress
@@ -412,6 +412,7 @@ private fun App() {
                     alpha = 1f - 0.12f * backProgress
                 },
             ) {
+                com.example.app.ui.ExpressiveBackdrop(Modifier.matchParentSize())
                 run {
                 AnimatedContent(
                     targetState = NavKey(screen, openAlbum),

@@ -534,7 +534,7 @@ private fun LyricsArea(
                 .height(56.dp)
                 .background(
                     Brush.verticalGradient(
-                        listOf(MaterialTheme.colorScheme.surface, Color.Transparent),
+                        listOf(Color.Transparent, Color.Transparent),
                     ),
                 ),
         )
@@ -545,7 +545,7 @@ private fun LyricsArea(
                 .height(40.dp)
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.Transparent, MaterialTheme.colorScheme.surface),
+                        listOf(Color.Transparent, Color.Transparent),
                     ),
                 ),
         )
