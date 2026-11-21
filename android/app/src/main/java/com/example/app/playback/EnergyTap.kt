@@ -1,52 +1,102 @@
 ﻿package com.example.app.playback
 
+import com.example.app.data.MoodResult
+
 /**
- * 节拍相位：由播放状态 + 曲目 tempo 推导，用于背景的轻微“闪烁/呼吸”。
- *
- * 不做音频侵入（不改播放链路），相位在 [ExpressiveBackdrop] 的帧循环里推进：
- * 每拍走 0..1，脉冲在拍点达到峰值后平滑衰减，避免突兀闪烁。
+ * 背景的节拍/强弱驱动：
+ * - 分析阶段已存下 beatsMs（拍点）与 env（100ms 能量包络）；
+ * - 播放时用 position 平滑推进，拍点给柔和冲量，包络驱动明暗呼吸；
+ * - 没有分析数据时退回 tempo 相位呼吸，保证不会死板。
  */
 object MusicPulse {
     @Volatile var playing: Boolean = false
+        private set
+    @Volatile var level: Float = 0f
+        private set
+    @Volatile var beat: Float = 0f
+        private set
     @Volatile var tempoBpm: Float = 0f
-    @Volatile var phase: Float = 0f     // 0..1，一拍内相位
-    @Volatile var level: Float = 0f     // 0..1，随相位平滑起伏的“强弱”
-    @Volatile var beat: Float = 0f      // 0..1，拍点冲击（柔和衰减）
+        private set
 
+    private var beats = IntArray(0)
+    private var env = FloatArray(0)
+    private var envStep = 100
+    private var posMs = 0.0
+    private var beatIdx = 0
     private var trackId: String? = null
-    private var lastNanos = 0L
+    private var beatLogs = 0
+    private var lastPos = 0.0
 
-    fun setTrack(id: String?, playingNow: Boolean) {
+    fun sync(id: String?, playingNow: Boolean, mood: MoodResult?) {
         if (id != trackId) {
             trackId = id
-            phase = 0f
+            posMs = 0.0
+            beatIdx = 0
             beat = 0f
+            beatLogs = 0
         }
         playing = playingNow
+        val t = mood?.tempo ?: 0f
+        tempoBpm = t.coerceIn(0f, 200f)
+        beats = mood?.beatsMs ?: IntArray(0)
+        env = mood?.env ?: FloatArray(0)
+        envStep = mood?.envStepMs ?: 100
+        if (beats.isNotEmpty()) {
+            android.util.Log.i(
+                "LumenPulse",
+                "sync $id beats=${beats.size} env=${env.size} step=$envStep tempo=${"%.0f".format(tempoBpm)}",
+            )
+        }
     }
 
-    fun setTempo(bpm: Float) {
-        tempoBpm = bpm.coerceIn(50f, 180f)
-    }
-
-    /** 由 UI 每帧调用；dt 秒。 */
-    fun advance(dt: Float) {
-        if (!playing || tempoBpm <= 0f) {
-            // 没有节拍信息时：极慢呼吸，不会死气沉沉
-            phase = (phase + dt * 0.12f) % 1f
-            level += (0.18f - level) * 0.02f
-            beat *= 0.90f
+    /** 播放器上报的绝对位置（毫秒）；跳变视为 seek。 */
+    fun setPosition(ms: Long) {
+        val p = ms.toDouble()
+        if (beats.isEmpty()) {
+            posMs = p
             return
         }
-        val beatsPerSecond = tempoBpm / 60f
-        phase += dt * beatsPerSecond
-        if (phase >= 1f) {
-            phase -= 1f
-            beat = 1f  // 拍点：只给一个柔和冲量
+        if (kotlin.math.abs(p - posMs) > 1500.0) {
+            posMs = p
+            val idx = beats.indexOfFirst { it >= ms }
+            beatIdx = if (idx < 0) beats.size else idx
+        } else {
+            posMs = p
         }
-        // 拍内包络：拍点附近亮一点，随后平滑回落
-        val env = (0.35f + 0.65f * (1f - phase)).coerceIn(0f, 1f)
-        level += (env - level) * 0.15f
-        beat *= 0.82f
+    }
+
+    /** UI 每帧调用，dt 秒。 */
+    fun advance(dt: Float) {
+        if (!playing) {
+            level *= 0.95f
+            beat *= 0.88f
+            return
+        }
+        posMs += dt * 1000.0
+
+        // 能量包络（0..1）
+        val target = if (env.isNotEmpty()) {
+            val i = (posMs / envStep).toInt()
+            if (i in env.indices) env[i] else 0.2f
+        } else 0.2f
+        level += (target - level) * 0.10f
+
+        if (beats.isNotEmpty()) {
+            while (beatIdx < beats.size && posMs >= beats[beatIdx]) {
+                beat = 1f
+                beatIdx++
+                if (beatLogs < 5) {
+                    beatLogs++
+                    android.util.Log.i("LumenPulse", "beat @${beats[beatIdx - 1]}ms level=${"%.2f".format(level)}")
+                }
+            }
+            beat *= 0.86f
+        } else if (tempoBpm > 0f) {
+            // 无拍点数据时：按 tempo 相位呼吸
+            val phase = ((posMs / 1000.0) * (tempoBpm / 60.0)) % 1.0
+            if (phase < 0.08) beat = 1f else beat *= 0.86f
+        } else {
+            beat *= 0.90f
+        }
     }
 }

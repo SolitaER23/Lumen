@@ -325,6 +325,10 @@ private fun App() {
             if (tr != null) {
                 rating = Ratings.get(ctx, tr.id)
                 mood = com.example.app.data.MoodStore.get(ctx, tr.id)
+                android.util.Log.i(
+                    "LumenMood",
+                    "load mood id=${tr.id} found=${mood != null} beats=${mood?.beatsMs?.size ?: -1} tempo=${mood?.tempo ?: -1f}",
+                )
                 lyricsLoading = true
                 runCatching {
                     lyrics = withContext(Dispatchers.IO) { client.lyrics(tr.id, tr.title, tr.artist) }
@@ -368,6 +372,13 @@ private fun App() {
             }
             // 1 -> 专辑页暂不查询下载状态（避免转场瞬间触发整页重组）
         }
+    }
+
+    LaunchedEffect(current?.id, playback.playing, mood) {
+        com.example.app.playback.MusicPulse.sync(current?.id, playback.playing, mood)
+    }
+    LaunchedEffect(playback.positionMs) {
+        com.example.app.playback.MusicPulse.setPosition(playback.positionMs)
     }
 
     // 封面取色：主色跟着正在播的专辑走

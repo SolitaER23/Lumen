@@ -49,7 +49,12 @@ class MoodAnalyzer(private val ctx: Context) {
             onPhase("CNN14", 0.66f)
             val cnn14 = runCnn14(pcm) { onPhase("CNN14", 0.66f + it * 0.33f) }
             onPhase("融合", 0.99f)
-            return MoodMath.fuse(yamnet, cnn14, dsp, trackId)
+            val result = MoodMath.fuse(yamnet, cnn14, dsp, trackId)
+            android.util.Log.i(
+                "LumenMood",
+                "mood $trackId label=${result.label} beats=${result.beatsMs.size} env=${result.env.size} tempo=${"%.0f".format(result.tempo)}",
+            )
+            return result
         } finally {
             runCatching { temp.delete() }
         }
@@ -348,7 +353,52 @@ class MoodAnalyzer(private val ctx: Context) {
             }
         }
         val tempo = if (bestLag > 0) 60f * fps / bestLag else 0f
-        return MoodMath.Dsp(rms, centroid, onsetRate, tempo.coerceIn(40f, 200f))
+
+        // 能量包络（100ms 一点）与拍点（onset 通量局部峰），供背景精确同步
+        val envStepMs = 100
+        val frameMs = hop * 1000f / SR
+        val buckets = ((energies.size * frameMs) / envStepMs).toInt() + 1
+        val envRaw = FloatArray(buckets)
+        val envCnt = IntArray(buckets)
+        for (i in energies.indices) {
+            val b = (i * frameMs / envStepMs).toInt().coerceIn(0, buckets - 1)
+            envRaw[b] += energies[i]
+            envCnt[b]++
+        }
+        for (b in 0 until buckets) if (envCnt[b] > 0) envRaw[b] /= envCnt[b]
+        val sortedEnv = envRaw.copyOf().also { it.sort() }
+        val p95 = sortedEnv[(0.95f * (sortedEnv.size - 1)).toInt().coerceIn(0, sortedEnv.size - 1)]
+            .coerceAtLeast(1e-6f)
+        val env = FloatArray(buckets) { (envRaw[it] / p95).coerceIn(0f, 1f) }
+
+        var meanFlux2 = 0f
+        for (f in flux) meanFlux2 += f
+        meanFlux2 /= flux.size.coerceAtLeast(1)
+        var varFlux = 0f
+        for (f in flux) varFlux += (f - meanFlux2) * (f - meanFlux2)
+        val stdFlux = sqrt(varFlux / flux.size.coerceAtLeast(1))
+        val beatThreshold = meanFlux2 + 1.5f * stdFlux
+        val beats = ArrayList<Int>(1024)
+        var lastBeatMs = -10_000
+        for (i in 1 until flux.size - 1) {
+            if (flux[i] > beatThreshold && flux[i] >= flux[i - 1] && flux[i] >= flux[i + 1]) {
+                val ms = (i * frameMs).toInt()
+                if (ms - lastBeatMs >= 260) {
+                    beats.add(ms)
+                    lastBeatMs = ms
+                    if (beats.size >= 4000) break
+                }
+            }
+        }
+        return MoodMath.Dsp(
+            rms = rms,
+            centroidHz = centroid,
+            onsetRate = onsetRate,
+            tempoBpm = tempo.coerceIn(40f, 200f),
+            beatsMs = beats.toIntArray(),
+            env = env,
+            envStepMs = envStepMs,
+        )
     }
 
     private fun fft(re: FloatArray, im: FloatArray) {
