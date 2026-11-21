@@ -24,6 +24,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.pager.HorizontalPager
 import kotlinx.coroutines.flow.drop
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -69,6 +70,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.pager.HorizontalPager
 import kotlinx.coroutines.flow.drop
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -836,13 +838,12 @@ private fun HomeScreen(
                         pagerState.scrollToPage(tab)
                     }
                 }
-                // 用户滑动落定后回写标签；drop(1) 丢弃初始值
+                // 滑动过程中就跟随 currentPage 回写标签；用 rememberUpdatedState 读最新 tab，避免闭包捕获旧值
+                val latestTab = rememberUpdatedState(tab)
                 LaunchedEffect(pagerState) {
-                    snapshotFlow { pagerState.settledPage }
+                    snapshotFlow { pagerState.currentPage }
                         .drop(1)
-                        .collect { page ->
-                            if (!pagerState.isScrollInProgress && page != tab) onTabChange(page)
-                        }
+                        .collect { page -> if (page != latestTab.value) onTabChange(page) }
                 }
                 HorizontalPager(
                     state = pagerState,
