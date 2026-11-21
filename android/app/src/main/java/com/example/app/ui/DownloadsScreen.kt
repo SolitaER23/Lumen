@@ -1,4 +1,4 @@
-package com.example.app.ui
+﻿package com.example.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,7 +36,7 @@ import com.gpo.yoin.symbols.YoinSymbols
 fun DownloadsScreen(
     summaries: List<AlbumDownload>,
     onBack: () -> Unit,
-    onDelete: (albumId: String) -> Unit,
+    onDelete: (key: String) -> Unit,
     onClearAll: () -> Unit,
 ) {
     LazyColumn(
@@ -79,7 +79,7 @@ fun DownloadsScreen(
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            items(summaries, key = { it.albumId }) { s ->
+            items(summaries, key = { it.key }) { s ->
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -100,6 +100,7 @@ fun DownloadsScreen(
                         )
                         Text(
                             buildString {
+                                if (s.isSingle) append("单曲 · ")
                                 append("${s.done}/${s.total} 首")
                                 append(" · ")
                                 append("%.1f".format(s.bytes / 1048576.0))
@@ -110,7 +111,7 @@ fun DownloadsScreen(
                             fontSize = 12.sp,
                         )
                     }
-                    IconButton(onClick = { onDelete(s.albumId) }) {
+                    IconButton(onClick = { onDelete(s.key) }) {
                         Icon(
                             YoinSymbols.Delete,
                             contentDescription = "删除",

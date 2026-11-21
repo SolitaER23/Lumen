@@ -169,6 +169,9 @@ private fun App() {
     var scheme by remember { mutableStateOf(FallbackScheme) }
     var downloads by remember { mutableStateOf<List<AlbumDownload>>(emptyList()) }
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
+    var starred by remember { mutableStateOf<List<Track>>(emptyList()) }
+    var starredIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var downloadedTrackIds by remember { mutableStateOf<Set<String>>(emptySet()) }
 
 
     suspend fun loadAlbums(c: ServerConfig) {
@@ -193,6 +196,7 @@ private fun App() {
         if (cfg.complete && albums.isEmpty()) loadAlbums(cfg)
     }
 
+
     if (!cfg.complete) {
         // 登录页也要套主题，否则用的是 M3 默认浅色 → 深色字压在黑底上看不清
         MaterialTheme(colorScheme = FallbackScheme) {
@@ -210,6 +214,21 @@ private fun App() {
     val client = remember(cfg) { SubsonicClient(cfg) }
     val coverOf = remember(client) { { id: String -> client.coverUrl(id) } }
     val scope = rememberCoroutineScope()
+
+    fun toggleStar(track: Track) {
+        scope.launch {
+            val on = starredIds.contains(track.id)
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    if (on) client.unstar(track.id) else client.star(track.id)
+                }
+            }.onSuccess {
+                starredIds = if (on) starredIds - track.id else starredIds + track.id
+                starred = if (on) starred.filterNot { it.id == track.id }
+                else starred + track.copy(starred = true)
+            }
+        }
+    }
     // 全进程唯一播放器：Activity 与前台服务（通知/锁屏）共用
     val playback = remember(client) {
         PlaybackEngine.get(ctx).also { p ->
@@ -221,7 +240,20 @@ private fun App() {
     LaunchedEffect(cfg.complete) {
         if (cfg.complete) {
             runCatching { ctx.startService(android.content.Intent(ctx, PlaybackService::class.java)) }
+            runCatching {
+                val list = withContext(Dispatchers.IO) { client.starredTracks() }
+                starred = list
+                starredIds = list.map { it.id }.toSet()
+            }
         }
+    }
+
+    // 下载完成情况 → 单曲是否已下载
+    LaunchedEffect(downloads) {
+        downloadedTrackIds = downloads
+            .filter { it.isSingle && it.total > 0 && it.done == it.total }
+            .map { it.key.removePrefix("track:") }
+            .toSet()
     }
     DisposableEffect(Unit) { onDispose { playback.release() } }
     LaunchedEffect(playback.playing) {
@@ -238,6 +270,10 @@ private fun App() {
             3, 4 -> while (true) {
                 downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
                 delay(1000)
+            }
+            2 -> while (true) {
+                downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
+                delay(1500)
             }
             // 1 -> 专辑页暂不查询下载状态（避免转场瞬间触发整页重组）
         }
@@ -329,7 +365,7 @@ private fun App() {
                             downloads = Downloads.summaries(ctx)
                         },
                         onClearAll = {
-                            downloads.forEach { Downloads.delete(ctx, it.albumId) }
+                            downloads.forEach { Downloads.delete(ctx, it.key) }
                             downloads = emptyList()
                         },
                     )
@@ -341,7 +377,7 @@ private fun App() {
                         onManageDownloads = { screen = 4 },
                         onClearCache = {
                             // 缓存与下载共用 SimpleCache：清缓存要把下载记录一起删掉，否则管理页会显示"已下载"但文件没了
-                            downloads.forEach { Downloads.delete(ctx, it.albumId) }
+                            downloads.forEach { Downloads.delete(ctx, it.key) }
                             java.io.File(ctx.cacheDir, "media").deleteRecursively()
                             downloads = emptyList()
                         },
@@ -357,6 +393,19 @@ private fun App() {
                     )
                     key.screen == 2 -> PlayingScreen(
                         coverModifier = Modifier,
+                        albumName = current?.album?.takeIf { it.isNotBlank() } ?: (key.album?.name ?: ""),
+                        starred = current?.let { starredIds.contains(it.id) } ?: false,
+                        trackDownloaded = current?.let { downloadedTrackIds.contains(it.id) } ?: false,
+                        onToggleStar = { current?.let { toggleStar(it) } },
+                        onDownloadTrack = {
+                            current?.let { tr ->
+                                Downloads.enqueueTrack(ctx, tr) { tt -> streamUrl(client, tt) }
+                                scope.launch {
+                                    delay(800)
+                                    downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
+                                }
+                            }
+                        },
                         track = current,
                         coverUrl = current?.let { client.coverUrl(it.albumId, 600) } ?: "",
                         positionMs = playback.positionMs,
@@ -380,6 +429,14 @@ private fun App() {
                             onRetry = { scope.launch { loadAlbums(cfg) } },
                             onSearch = onOpenSearch,
                             onOpenArtist = onOpenArtist,
+                            starred = starred,
+                            onPlayStarred = { index ->
+                                if (starred.isNotEmpty()) {
+                                    playback.play(starred, index, "starred")
+                                    playback.tick()
+                                    screen = 2
+                                }
+                            },
 
                         )
                     } else {
@@ -401,7 +458,7 @@ private fun App() {
                             coverUrl = client.coverUrl(album.coverId),
                             currentTrackId = current?.id,
                             onBack = { screen = 0; openAlbum = null },
-                            download = downloads.firstOrNull { it.albumId == album.id },
+                            download = downloads.firstOrNull { it.key == "album:${album.id}" },
                             onDownload = {
                                 Downloads.enqueue(ctx, album, tracks) { tr -> streamUrl(client, tr) }
                                 scope.launch {
@@ -507,6 +564,8 @@ private fun HomeScreen(
     onSearch: () -> Unit,
     onSettings: () -> Unit,
     onRetry: () -> Unit,
+    starred: List<Track> = emptyList(),
+    onPlayStarred: (Int) -> Unit = {},
     coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
     var tab by remember { mutableIntStateOf(0) } // 0 专辑 / 1 艺人 / 2 最近
@@ -550,6 +609,7 @@ private fun HomeScreen(
             selected = tab,
             albumCount = albums.size,
             artistCount = artists.size,
+            starredCount = starred.size,
             onTab = { tab = it },
             onSettings = onSettings,
         )
@@ -583,6 +643,7 @@ private fun HomeScreen(
                 modifier = Modifier.fillMaxSize(),
             ) { t ->
                 when (t) {
+                    3 -> StarredList(starred, onPlayStarred)
                     1 -> ArtistGrid(artists, onOpenArtist)
                     2 -> RecentList(
                         newest = newest,
@@ -621,10 +682,62 @@ private fun HomeScreen(
 }
 
 @Composable
+private fun StarredList(tracks: List<Track>, onPlay: (Int) -> Unit) {
+    if (tracks.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("还没有收藏的单曲", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+        }
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 120.dp),
+    ) {
+        items(tracks, key = { it.id }) { track ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .height(62.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable { onPlay(tracks.indexOf(track)) }
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        track.title,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        modifier = Modifier.basicMarquee(),
+                    )
+                    Text(
+                        listOfNotNull(track.artist.takeIf { it.isNotBlank() }, track.album.takeIf { it.isNotBlank() })
+                            .joinToString(" · "),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Icon(
+                    YoinSymbols.StarFilled,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun HomeHeader(
     selected: Int,
     albumCount: Int,
     artistCount: Int,
+    starredCount: Int,
     onTab: (Int) -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -633,10 +746,12 @@ private fun HomeHeader(
         verticalAlignment = Alignment.Top,
     ) {
         TabLabel("专辑", albumCount, 0, selected, onTab)
-        Spacer(Modifier.width(20.dp))
+        Spacer(Modifier.width(16.dp))
         TabLabel("艺人", artistCount, 1, selected, onTab)
-        Spacer(Modifier.width(20.dp))
+        Spacer(Modifier.width(16.dp))
         TabLabel("最近", null, 2, selected, onTab)
+        Spacer(Modifier.width(16.dp))
+        TabLabel("收藏", starredCount, 3, selected, onTab)
         Spacer(Modifier.weight(1f))
         // 与标题行居中对齐；描边圆钮，与实心首页键形成对比
         Box(Modifier.height(38.dp), contentAlignment = Alignment.Center) {

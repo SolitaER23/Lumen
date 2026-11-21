@@ -1,6 +1,7 @@
 ﻿package com.example.app.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +43,42 @@ import com.example.app.data.Track
 import com.gpo.yoin.symbols.YoinSymbols
 import com.gpo.yoin.symbols.rememberPlayPauseSymbolPainter
 
+/** 胶囊圆形操作按钮：图标 + 文字标签 */
+@Composable
+private fun CircleAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(
+                    if (active) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceContainerHigh,
+                )
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                icon,
+                contentDescription = label,
+                tint = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            fontSize = 10.sp,
+            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 private fun fmt(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(s / 60, s % 60)
@@ -65,6 +102,11 @@ fun PlayingScreen(
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onSeek: (Long) -> Unit,
+    albumName: String = "",
+    starred: Boolean = false,
+    trackDownloaded: Boolean = false,
+    onToggleStar: () -> Unit = {},
+    onDownloadTrack: () -> Unit = {},
     coverModifier: Modifier = Modifier,
 ) {
     // duration 未知（刚起播 / 刚切歌）时不要把比例算成 100%，拖动时用本地值覆盖
@@ -82,22 +124,58 @@ fun PlayingScreen(
             IconButton(onClick = onBack) {
                 Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
             }
-            Text("正在播放", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(
+                "正在播放",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                albumName,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(end = 20.dp),
+            )
         }
 
-        Spacer(Modifier.height(12.dp))
-        AsyncImage(
-            model = coverUrl,
-            contentDescription = track?.title,
-            contentScale = ContentScale.Crop,
-            modifier = coverModifier
-                .fillMaxWidth()
-                .padding(horizontal = 28.dp)
-                .height(330.dp)
-                .clip(RoundedCornerShape(28.dp)),
-        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AsyncImage(
+                model = coverUrl,
+                contentDescription = track?.title,
+                contentScale = ContentScale.Crop,
+                modifier = coverModifier
+                    .size(232.dp)
+                    .clip(RoundedCornerShape(24.dp)),
+            )
+            Spacer(Modifier.width(18.dp))
+            // 封面右侧：单曲下载 / 收藏，两个圆形按钮竖排
+            Column(
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                CircleAction(
+                    icon = if (trackDownloaded) YoinSymbols.DownloadDone else YoinSymbols.Download,
+                    label = if (trackDownloaded) "已下载" else "下载",
+                    active = trackDownloaded,
+                    onClick = { if (!trackDownloaded) onDownloadTrack() },
+                )
+                CircleAction(
+                    icon = if (starred) YoinSymbols.StarFilled else YoinSymbols.Star,
+                    label = if (starred) "已收藏" else "收藏",
+                    active = starred,
+                    onClick = onToggleStar,
+                )
+            }
+        }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(20.dp))
         Column(Modifier.padding(horizontal = 28.dp)) {
             Text(
                 track?.title ?: "未在播放",

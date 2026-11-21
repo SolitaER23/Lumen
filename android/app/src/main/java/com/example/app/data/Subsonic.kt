@@ -29,10 +29,12 @@ data class Track(
     val title: String,
     val artist: String,
     val albumId: String,
-    val disc: Int,
-    val track: Int,
-    val seconds: Int,
-    val suffix: String,
+    val album: String = "",
+    val disc: Int = 1,
+    val track: Int = 0,
+    val seconds: Int = 0,
+    val suffix: String = "",
+    val starred: Boolean = false,
 )
 
 // ---------------------------------------------------------------------------
@@ -91,10 +93,12 @@ internal fun parseAlbumDetail(root: JSONObject, albumId: String): List<Track> {
             title = s.optString("title"),
             artist = s.optString("artist"),
             albumId = albumId,
+            album = s.optString("album"),
             disc = s.optInt("discNumber", 1).coerceAtLeast(1),
             track = s.optInt("track", i + 1),
             seconds = s.optInt("duration"),
             suffix = s.optString("suffix"),
+            starred = s.optString("starred").isNotBlank(),
         )
     }.sortedWith(compareBy({ it.disc }, { it.track }))
 }
@@ -175,6 +179,26 @@ internal fun parseSearch(root: JSONObject): Pair<List<Artist>, List<Album>> {
     return artists to albums
 }
 
+/** `getStarred2` → 收藏的单曲 */
+internal fun parseStarred(root: JSONObject): List<Track> {
+    val arr = root.optJSONObject("starred2")?.optJSONArray("song") ?: return emptyList()
+    return (0 until arr.length()).map { i ->
+        val s = arr.getJSONObject(i)
+        Track(
+            id = s.optString("id"),
+            title = s.optString("title"),
+            artist = s.optString("artist"),
+            albumId = s.optString("albumId"),
+            album = s.optString("album"),
+            disc = s.optInt("discNumber", 1).coerceAtLeast(1),
+            track = s.optInt("track"),
+            seconds = s.optInt("duration"),
+            suffix = s.optString("suffix"),
+            starred = true,
+        )
+    }
+}
+
 /** 服务端返回 `status=ok` 才算成功，否则抛出带服务端消息的异常 */
 internal fun checkStatus(root: JSONObject) {
     if (root.optString("status") != "ok") {
@@ -242,6 +266,16 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
                 mapOf("query" to query, "artistCount" to "20", "albumCount" to "30", "songCount" to "0"),
             ),
         )
+
+    fun starredTracks(): List<Track> = parseStarred(get("getStarred2.view"))
+
+    fun star(trackId: String) {
+        get("star.view", mapOf("id" to trackId))
+    }
+
+    fun unstar(trackId: String) {
+        get("unstar.view", mapOf("id" to trackId))
+    }
 
     fun coverUrl(id: String, size: Int = 400): String =
         restUrl(base, "getCoverArt.view", user, token, salt, extra = mapOf("id" to id, "size" to "$size")).toString()
