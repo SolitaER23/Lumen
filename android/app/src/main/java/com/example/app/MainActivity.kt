@@ -409,6 +409,12 @@ private fun App() {
                                     downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
                                 }
                             },
+                            onShuffle = {
+                                if (tracks.isNotEmpty()) {
+                                    playback.playShuffled(tracks, album.id)
+                                    playback.tick()
+                                }
+                            },
                             onPlay = { start ->
                                 if (tracks.isNotEmpty()) {
                                     playback.play(tracks, start, album.id)

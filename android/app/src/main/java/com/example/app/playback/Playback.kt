@@ -135,6 +135,12 @@ class Playback(private val ctx: Context) {
         index = startIndex
     }
 
+    /** 随机播放整张专辑：洗牌后从头播，队列顺序即随机顺序 */
+    fun playShuffled(tracks: List<Track>, album: String) {
+        if (tracks.isEmpty()) return
+        play(tracks.shuffled(), 0, album)
+    }
+
     fun toggle() {
         if (player.isPlaying) player.pause() else player.play()
     }

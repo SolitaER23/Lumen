@@ -18,13 +18,17 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,11 +73,17 @@ fun AlbumScreen(
     currentTrackId: String?,
     onBack: () -> Unit,
     onPlay: (startIndex: Int) -> Unit,
+    onShuffle: () -> Unit,
     download: AlbumDownload?,
     onDownload: () -> Unit,
     coverModifier: Modifier = Modifier,
 ) {
     // 首帧只画头部，曲目表推到下一帧，避免一次组合太多导致掉帧
+    // 用当前专辑封面取色（Palette 有缓存），失败时回退到全局主题
+    var albumScheme by remember(coverUrl) { mutableStateOf<ColorScheme?>(null) }
+    LaunchedEffect(coverUrl) { albumScheme = schemeFromCover(coverUrl) }
+    val s = albumScheme ?: MaterialTheme.colorScheme
+
     var showList by remember(album.id) { mutableStateOf(false) }
     LaunchedEffect(album.id) { withFrameNanos { }; showList = true }
     val discKeys = remember(tracks) { discsOf(tracks) }
@@ -126,35 +136,73 @@ fun AlbumScreen(
             }
         }
         item {
-            Button(
-                onClick = { onPlay(startIndex) },
-                shape = RoundedCornerShape(percent = 50),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp).height(52.dp),
-            ) {
-                Icon(YoinSymbols.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
-                Spacer(Modifier.width(8.dp))
-                Text("播放全部", fontSize = 15.sp)
+            // 三个按钮：形状 / 颜色各不相同，颜色都从当前专辑封面取色
+            val finished = download != null && download.total > 0 && download.done == download.total
+            val dlLabel = when {
+                download == null || download.total == 0 -> "下载"
+                finished -> "已下载"
+                else -> "下载 ${download.done}/${download.total}"
             }
-        }
-        item {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val finished = download != null && download.total > 0 && download.done == download.total
-                Text(
-                    when {
-                        download == null -> "未下载"
-                        download.total == 0 -> "未下载"
-                        else -> "已下载 ${download.done}/${download.total}"
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = onDownload, enabled = !finished) {
-                    Text(if (finished) "已下载" else "下载整张")
+                // 随机：胶囊 + secondary 色
+                Surface(
+                    onClick = { onShuffle() },
+                    shape = RoundedCornerShape(percent = 50),
+                    color = s.secondary,
+                    modifier = Modifier.weight(1f).height(52.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(YoinSymbols.Shuffle, contentDescription = null, tint = s.onSecondary, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("随机", color = s.onSecondary, fontSize = 13.sp)
+                    }
+                }
+                // 播放：大圆角方块 + primary 色（最显眼）
+                Surface(
+                    onClick = { onPlay(startIndex) },
+                    shape = RoundedCornerShape(18.dp),
+                    color = s.primary,
+                    modifier = Modifier.weight(1.25f).height(56.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(YoinSymbols.PlayFilled, contentDescription = null, tint = s.onPrimary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("播放", color = s.onPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                // 下载：切角形状 + tertiary 容器色
+                Surface(
+                    onClick = { if (!finished) onDownload() },
+                    shape = CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp),
+                    color = s.tertiaryContainer,
+                    modifier = Modifier.weight(1f).height(52.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            if (finished) YoinSymbols.DownloadDone else YoinSymbols.Download,
+                            contentDescription = null,
+                            tint = s.onTertiaryContainer,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(dlLabel, color = s.onTertiaryContainer, fontSize = 12.sp)
+                    }
                 }
             }
         }
