@@ -100,6 +100,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -226,13 +229,6 @@ private fun App() {
     var moodPhase by remember { mutableStateOf("") }
     val navStack = remember { androidx.compose.runtime.mutableStateListOf<NavKey>() }
 
-    /** 去下一页，并把"来处"压栈 */
-    fun navigate(target: NavKey) {
-        navStack.add(NavKey(screen, openAlbum))
-        screen = target.screen
-        openAlbum = target.album
-    }
-
     /** 原路返回（立即执行，手势/动画在外部包一层） */
     fun performBack() {
         val prev = navStack.removeLastOrNull() ?: return
@@ -286,6 +282,28 @@ private fun App() {
     val client = remember(cfg) { SubsonicClient(cfg) }
     val coverOf = remember(client) { { id: String -> client.coverUrl(id) } }
     val scope = rememberCoroutineScope()
+
+    // 进入动画：以最后一次按下位置为原点展开
+    val enterAnim = remember { Animatable(1f) }
+    var enterOriginX by remember { mutableFloatStateOf(0.5f) }
+    var enterOriginY by remember { mutableFloatStateOf(0.5f) }
+    var enterJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+    /** 去下一页，并把"来处"压栈；从点击位置展开新页面 */
+    fun navigate(target: NavKey) {
+        if (target.screen == screen && target.album?.id == openAlbum?.id) return
+        enterJob?.cancel()
+        enterJob = scope.launch {
+            enterAnim.snapTo(0f)
+            navStack.add(NavKey(screen, openAlbum))
+            screen = target.screen
+            openAlbum = target.album
+            enterAnim.animateTo(
+                1f,
+                spring(dampingRatio = 0.84f, stiffness = 340f),
+            )
+        }
+    }
 
     // 手势/按钮共用的返回进度：跟手拖动，松手后补完剩余动画再真正出栈
     val backAnim = remember { Animatable(0f) }
@@ -740,7 +758,25 @@ private fun App() {
     val animatedScheme = com.example.app.ui.rememberAnimatedColorScheme(scheme)
     MaterialTheme(colorScheme = animatedScheme, typography = lumenTypography()) {
         Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
-            Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                if (event.type == PointerEventType.Press) {
+                                    event.changes.firstOrNull()?.position?.let { pos ->
+                                        if (size.width > 0 && size.height > 0) {
+                                            enterOriginX = (pos.x / size.width).coerceIn(0f, 1f)
+                                            enterOriginY = (pos.y / size.height).coerceIn(0f, 1f)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+            ) {
                 com.example.app.ui.ExpressiveBackdrop(Modifier.matchParentSize())
                 // 预测性返回：底层压暗，露出背景；上层内容跟手右移 + 缩放 + 圆角
                 Box(
@@ -763,14 +799,24 @@ private fun App() {
                                 .fillMaxSize()
                                 .graphicsLayer {
                                     val p = backAnim.value
+                                    val e = enterAnim.value
                                     if (isFront) {
-                                        val over = (p - 1f).coerceAtLeast(0f)
-                                        translationX = size.width * (0.24f * p + 1.9f * over)
-                                        alpha = if (p > 1.2f) ((1.4f - p) / 0.2f).coerceIn(0f, 1f) else 1f
-                                        val s = 1f - 0.07f * p.coerceAtMost(1f)
-                                        scaleX = s
-                                        scaleY = s
-                                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+                                        if (p > 0f) {
+                                            val over = (p - 1f).coerceAtLeast(0f)
+                                            translationX = size.width * (0.24f * p + 1.9f * over)
+                                            alpha = if (p > 1.2f) ((1.4f - p) / 0.2f).coerceIn(0f, 1f) else 1f
+                                            val s = 1f - 0.07f * p.coerceAtMost(1f)
+                                            scaleX = s
+                                            scaleY = s
+                                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+                                        } else if (e < 0.999f) {
+                                            // 进入：从点击位置展开
+                                            val s = 0.90f + 0.10f * e
+                                            scaleX = s
+                                            scaleY = s
+                                            alpha = 0.55f + 0.45f * e
+                                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(enterOriginX, enterOriginY)
+                                        }
                                     } else {
                                         val p2 = p.coerceAtMost(1f)
                                         val s = 0.94f + 0.06f * p2
@@ -781,8 +827,14 @@ private fun App() {
                                 }
                                 .clip(
                                     RoundedCornerShape(
-                                        if (isFront) (26.dp * backAnim.value.coerceAtMost(1f)).coerceAtLeast(0.dp)
-                                        else 0.dp,
+                                        when {
+                                            !isFront -> 0.dp
+                                            backAnim.value > 0f ->
+                                                (26.dp * backAnim.value.coerceAtMost(1f)).coerceAtLeast(0.dp)
+                                            enterAnim.value < 1f ->
+                                                (24.dp * (1f - enterAnim.value.coerceIn(0f, 1f))).coerceAtLeast(0.dp)
+                                            else -> 0.dp
+                                        },
                                     ),
                                 ),
                         ) {
