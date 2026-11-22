@@ -178,6 +178,31 @@ private val LumenColors = darkColorScheme(
     outlineVariant = Color(0xFF3A3B40),
 )
 
+private fun loginErrorMessage(e: Exception): String {
+    val message = e.message.orEmpty()
+    val lower = message.lowercase()
+    return when {
+        lower.contains("invalid url port") || lower.contains("invalid url") ->
+            L10n.tf(
+                "服务器地址格式不正确。请包含 http:// 或 https://，端口示例：http://192.168.1.2:4533",
+                "Invalid server address. Include http:// or https:// and the port, e.g. http://192.168.1.2:4533",
+            )
+        e is java.net.UnknownHostException ->
+            L10n.tf("找不到服务器，请检查地址拼写或网络连接", "Server not found. Check the address and network.")
+        e is java.net.ConnectException || lower.contains("failed to connect") ->
+            L10n.tf("无法连接服务器，请确认服务已启动且端口正确", "Cannot connect. Check that the server is running and the port is correct.")
+        e is java.net.SocketTimeoutException || lower.contains("timeout") ->
+            L10n.tf("连接超时，请检查服务器地址与网络后重试", "Connection timed out. Check the server address and network, then retry.")
+        e is javax.net.ssl.SSLHandshakeException ->
+            L10n.tf("HTTPS 证书校验失败，请检查服务器证书或改用受信任的 HTTPS", "HTTPS certificate check failed. Verify the server certificate.")
+        lower.contains("subsonic error 40") || lower.contains("wrong username") || lower.contains("wrong password") ->
+            L10n.tf("用户名或密码错误，请修改后重新连接", "Wrong username or password. Edit and retry.")
+        lower.contains("subsonic error 41") ->
+            L10n.tf("该账号没有访问权限，请检查服务器权限配置", "This account cannot access the library. Check server permissions.")
+        else -> message.ifBlank { L10n.tf("连接失败，请检查地址、用户名和密码", "Connection failed. Check the address, username and password.") }
+    }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -213,6 +238,8 @@ private fun App() {
     var albums by remember { mutableStateOf<List<Album>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var loggedIn by remember { mutableStateOf(false) }
+    var loginNonce by remember { mutableStateOf(0) }
     var openAlbum by remember { mutableStateOf<Album?>(null) }
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     // 0 = 首页, 1 = 专辑页, 2 = 播放页
@@ -302,14 +329,38 @@ private fun App() {
         loading = false
     }
 
-    LaunchedEffect(cfg.complete) {
-        if (cfg.complete) {
-            if (accounts.isEmpty()) {
-                app.lumen.player.data.Accounts.ensure(ctx, cfg)
-                accounts = app.lumen.player.data.Accounts.list(ctx)
-                activeAccountId = app.lumen.player.data.Accounts.activeId(ctx)
+    // 登录尝试与表单状态解耦：每次提交（loginNonce）都重新认证；
+    // 失败后保持登录页并恢复按钮，成功后才进入主界面。
+    LaunchedEffect(loginNonce, cfg) {
+        if (!loggedIn && cfg.complete) {
+            loading = true
+            error = null
+            try {
+                val list = kotlinx.coroutines.withTimeoutOrNull(20_000) {
+                    withContext(Dispatchers.IO) { SubsonicClient(cfg).albums() }
+                }
+                if (list == null) {
+                    error = L10n.tf(
+                        "连接超时，请检查服务器地址与网络后重试",
+                        "Connection timed out. Check the server address and network, then retry.",
+                    )
+                    loggedIn = false
+                } else {
+                    albums = list
+                    libraryVersion += 1
+                    withContext(Dispatchers.IO) { AlbumCache.save(ctx, list) }
+                    app.lumen.player.data.Accounts.ensure(ctx, cfg)
+                    accounts = app.lumen.player.data.Accounts.list(ctx)
+                    activeAccountId = app.lumen.player.data.Accounts.activeId(ctx)
+                    error = null
+                    loggedIn = true
+                }
+            } catch (e: Exception) {
+                error = loginErrorMessage(e)
+                loggedIn = false
+            } finally {
+                loading = false
             }
-            if (albums.isEmpty()) loadAlbums(cfg)
         }
     }
 
@@ -347,14 +398,16 @@ private fun App() {
         return
     }
 
-    if (!cfg.complete) {
+    if (!loggedIn) {
         // 登录页也要套主题，否则用的是 M3 默认浅色 → 深色字压在黑底上看不清
         MaterialTheme(colorScheme = FallbackScheme) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
                 LoginScreen(cfg, loading, error) { c ->
+                    error = null
                     loading = true
                     cfg = c
                     SettingsStore.save(ctx, c)
+                    loginNonce += 1
                 }
             }
         }
@@ -364,8 +417,8 @@ private fun App() {
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {}
-    LaunchedEffect(cfg.complete) {
-        if (Build.VERSION.SDK_INT >= 33 &&
+    LaunchedEffect(loggedIn) {
+        if (loggedIn && Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
@@ -451,6 +504,9 @@ private fun App() {
             }
             app.lumen.player.data.SettingsStore.clear(ctx)
             cfg = ServerConfig("", "", "")
+            loggedIn = false
+            loading = false
+            error = null
             albums = emptyList()
             downloads = emptyList()
             accounts = emptyList()
@@ -604,8 +660,8 @@ private fun App() {
         playback.smartFade = smartFade
     }
     // 冷启动恢复上次队列与进度（保持暂停，不自动播放）
-    LaunchedEffect(cfg.complete, playback) {
-        if (cfg.complete && playback.queue.isEmpty()) {
+    LaunchedEffect(loggedIn, playback) {
+        if (loggedIn && playback.queue.isEmpty()) {
             val saved = withContext(Dispatchers.IO) { app.lumen.player.playback.PlaybackStateStore.load(ctx) }
             if (saved != null && saved.tracks.isNotEmpty()) {
                 playback.restore(saved.tracks, saved.index, saved.positionMs, saved.albumId)
@@ -615,8 +671,8 @@ private fun App() {
         }
     }
     // 登录后就常驻媒体会话服务：这样它能在L10n.t("开始播放")这一刻收到事件并挂出通知/前台服务
-    LaunchedEffect(cfg.complete) {
-        if (cfg.complete) {
+    LaunchedEffect(loggedIn) {
+        if (loggedIn) {
             runCatching { ctx.startService(android.content.Intent(ctx, PlaybackService::class.java)) }
             downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
             runCatching {
@@ -894,6 +950,9 @@ private fun App() {
                             navStack.clear()
                             screen = 0
                             cfg = ServerConfig("", "", "")
+                            loggedIn = false
+                            loading = false
+                            error = null
                         },
                     )
                     key.screen == 2 -> PlayingScreen(

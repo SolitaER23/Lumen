@@ -16,7 +16,7 @@ data class ServerConfig(
     val user: String,
     val password: String,
 ) {
-    val complete: Boolean get() = base.startsWith("http") && user.isNotBlank() && password.isNotBlank()
+    val complete: Boolean get() = base.trim().startsWith("http", ignoreCase = true) && user.isNotBlank() && password.isNotBlank()
 }
 
 /** 外观偏好：MCU 对比度（0=标准，0.5=中，1=高）。 */

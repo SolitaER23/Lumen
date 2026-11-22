@@ -1,4 +1,4 @@
-import java.util.Properties
+﻿import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -26,8 +26,8 @@ android {
         applicationId = "app.lumen.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 138
-        versionName = "0.50.0"
+        versionCode = 139
+        versionName = "0.50.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }
     }

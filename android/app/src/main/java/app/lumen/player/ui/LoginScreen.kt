@@ -78,7 +78,7 @@ fun LoginScreen(
         if (error != null) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
         Button(
             onClick = { onSubmit(ServerConfig(base.trim(), user.trim(), pass)) },
-            enabled = !loading && base.startsWith("http") && user.isNotBlank() && pass.isNotBlank(),
+            enabled = !loading && base.trim().startsWith("http", ignoreCase = true) && user.isNotBlank() && pass.isNotBlank(),
             shape = RoundedCornerShape(percent = 50),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             modifier = Modifier.fillMaxWidth().height(52.dp),
