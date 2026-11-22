@@ -12,6 +12,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
@@ -230,8 +232,8 @@ private fun App() {
         openAlbum = target.album
     }
 
-    /** 原路返回 */
-    fun goBack() {
+    /** 原路返回（立即执行，手势/动画在外部包一层） */
+    fun performBack() {
         val prev = navStack.removeLastOrNull() ?: return
         screen = prev.screen
         openAlbum = prev.album
@@ -283,6 +285,19 @@ private fun App() {
     val client = remember(cfg) { SubsonicClient(cfg) }
     val coverOf = remember(client) { { id: String -> client.coverUrl(id) } }
     val scope = rememberCoroutineScope()
+
+    // 手势/按钮共用的返回进度：跟手拖动，松手后补完剩余动画再真正出栈
+    val backAnim = remember { Animatable(0f) }
+    fun goBack() {
+        if (navStack.isEmpty()) return
+        scope.launch {
+            if (backAnim.value < 0.999f) {
+                backAnim.animateTo(1f, tween(210, easing = FastOutSlowInEasing))
+            }
+            performBack()
+            backAnim.snapTo(0f)
+        }
+    }
 
     fun toggleStar(track: Track) {
         scope.launch {
@@ -426,13 +441,16 @@ private fun App() {
         }
     }
 
-    var backProgress by remember { mutableStateOf(0f) }
     PredictiveBackHandler(enabled = screen > 0) { progress ->
         try {
-            progress.collect { backProgress = it.progress }
+            progress.collect { backAnim.snapTo(it.progress) }
+            // 手势结束：补完剩余位移再出栈，保证与手指连续
+            if (backAnim.value < 1f) {
+                backAnim.animateTo(1f, tween(140, easing = FastOutSlowInEasing))
+            }
             // 手势返回必须走页面栈，否则从「专辑歌曲列表」会直接跳回首页/艺人页
             when {
-                navStack.isNotEmpty() -> goBack()
+                navStack.isNotEmpty() -> performBack()
                 // 从底栏直接进播放页时没有专辑上下文，返回应回首页
                 screen == 2 && openAlbum != null -> screen = 1
                 else -> {
@@ -440,10 +458,10 @@ private fun App() {
                     openAlbum = null
                 }
             }
+            backAnim.snapTo(0f)
         } catch (_: CancellationException) {
-            // 手势取消：留在原页
-        } finally {
-            backProgress = 0f
+            // 手势取消：回到原位
+            backAnim.animateTo(0f, tween(220, easing = FastOutSlowInEasing))
         }
     }
 
@@ -459,15 +477,26 @@ private fun App() {
     val animatedScheme = com.example.app.ui.rememberAnimatedColorScheme(scheme)
     MaterialTheme(colorScheme = animatedScheme, typography = lumenTypography()) {
         Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
-            Box(
-                Modifier.fillMaxSize().graphicsLayer {
-                    val s = 1f - 0.06f * backProgress
-                    scaleX = s
-                    scaleY = s
-                    alpha = 1f - 0.12f * backProgress
-                },
-            ) {
+            Box(Modifier.fillMaxSize()) {
                 com.example.app.ui.ExpressiveBackdrop(Modifier.matchParentSize())
+                // 预测性返回：底层压暗，露出背景；上层内容跟手右移 + 缩放 + 圆角
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.32f * backAnim.value)),
+                )
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            translationX = size.width * 0.24f * backAnim.value
+                            val s = 1f - 0.07f * backAnim.value
+                            scaleX = s
+                            scaleY = s
+                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+                        }
+                        .clip(RoundedCornerShape((26.dp * backAnim.value).coerceAtLeast(0.dp))),
+                ) {
                 run {
                 AnimatedContent(
                     targetState = NavKey(screen, openAlbum),
@@ -725,6 +754,31 @@ private fun App() {
                     }
                 }
                 }
+                }
+                }
+
+                // 跟手的返回指示：越拖越清晰
+                if (backAnim.value > 0.02f) {
+                    Box(
+                        Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 12.dp)
+                            .graphicsLayer {
+                                alpha = backAnim.value
+                                translationX = -20.dp.toPx() * (1f - backAnim.value)
+                            }
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            YoinSymbols.Back,
+                            contentDescription = "返回",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                 }
                 }
 
