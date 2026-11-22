@@ -1,4 +1,4 @@
-﻿package app.lumen.player.ui
+package app.lumen.player.ui
 
 import app.lumen.player.util.L10n
 import androidx.compose.animation.AnimatedVisibility
@@ -74,7 +74,6 @@ private val OSS_GROUPS = listOf(
         listOf(
             OssItem("AndroidX Media3 / ExoPlayer", "1.5.0", L10n.t("音频播放、队列与转码兜底"), "Apache-2.0", "© The Android Open Source Project"),
             OssItem("Coil", "2.7.0", L10n.t("封面与图片加载缓存"), "Apache-2.0", "© Coil Contributors"),
-            OssItem("AndroidX Palette", "1.0.0", L10n.t("封面主色提取"), "Apache-2.0", "© The Android Open Source Project"),
         ),
     ),
     OssGroup(
@@ -90,7 +89,7 @@ private val OSS_GROUPS = listOf(
     OssGroup(
         L10n.t("端侧音乐理解"),
         listOf(
-            OssItem("TensorFlow Lite", "2.16.1", L10n.t("YAMNet 推理运行时"), "Apache-2.0", "© The TensorFlow Authors"),
+            OssItem("LiteRT", "1.4.0", L10n.t("YAMNet 推理运行时"), "Apache-2.0", "© The TensorFlow Authors"),
             OssItem("YAMNet", "TensorFlow Models", L10n.t("预训练音频事件分类模型"), "Apache-2.0", "© 2019 The TensorFlow Authors"),
         ),
     ),
@@ -108,7 +107,7 @@ private val OSS_GROUPS = listOf(
 private data class LicenseDoc(val title: String, val file: String, val note: String)
 
 private val LICENSE_DOCS = listOf(
-    LicenseDoc("Apache License 2.0", "Apache-2.0.txt", L10n.t("Kotlin、Compose、Media3、OkHttp、Retrofit、Gson、Coil、TFLite、YAMNet、MCU 等")),
+    LicenseDoc("Apache License 2.0", "Apache-2.0.txt", L10n.t("Kotlin、Compose、Media3、OkHttp、Retrofit、Gson、Coil、LiteRT、YAMNet、MCU 等")),
     LicenseDoc("MIT License", "MIT.txt", L10n.t("Yoin Symbols、Navidrome Stat，以及 Lumen 自身")),
     LicenseDoc("SIL Open Font License 1.1", "OFL-1.1.txt", L10n.t("Google Sans Flex 字体")),
 )
@@ -216,8 +215,8 @@ fun LicensesScreen(onBack: () -> Unit) {
                     LicenseNote(
                         L10n.tf("端侧音频理解", "On-device audio understanding"),
                         L10n.tf(
-                            "心情分析由 YAMNet 与本地 DSP 完成，推理通过 TensorFlow Lite 在设备端执行；YAMNet 模型未修改，音频不会上传。分析结果仅用于动态背景、配色与节拍，不改变音频文件。",
-                            "Mood analysis runs YAMNet and local DSP with TensorFlow Lite entirely on device. The YAMNet model is unmodified and audio is never uploaded. Results only drive the animated background, palette and beat response; audio files are never modified.",
+                            "心情分析由 YAMNet 与本地 DSP 完成，推理通过 LiteRT 1.4.0 在设备端执行；YAMNet 模型未修改，音频不会上传。分析结果仅用于动态背景、配色与节拍，不改变音频文件。",
+                            "Mood analysis runs YAMNet and local DSP with LiteRT 1.4.0 entirely on device. The YAMNet model is unmodified and audio is never uploaded. Results only drive the animated background, palette and beat response; audio files are never modified.",
                         ),
                     )
                     LicenseNote(

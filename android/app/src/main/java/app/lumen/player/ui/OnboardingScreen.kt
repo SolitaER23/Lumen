@@ -236,6 +236,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
                             GuidePageContent(
                                 page = pages[index],
                                 index = index,
+                                total = pages.size,
                                 accent = accents[index % accents.size],
                                 heroHeight = heroHeight,
                             )
@@ -296,6 +297,7 @@ private fun OnboardingHeader(accent: Color, onSkip: () -> Unit) {
 private fun GuidePageContent(
     page: GuidePage,
     index: Int,
+    total: Int,
     accent: Color,
     heroHeight: Dp,
 ) {
@@ -307,6 +309,7 @@ private fun GuidePageContent(
         Box(Modifier.padding(horizontal = 16.dp)) {
             HeroPanel(
                 index = index,
+                total = total,
                 accent = accent,
                 height = heroHeight,
             )
@@ -401,7 +404,7 @@ private fun GuidePageContent(
 }
 
 @Composable
-private fun HeroPanel(index: Int, accent: Color, height: Dp) {
+private fun HeroPanel(index: Int, total: Int, accent: Color, height: Dp) {
     Box(
         Modifier
             .fillMaxWidth()
@@ -427,7 +430,7 @@ private fun HeroPanel(index: Int, accent: Color, height: Dp) {
             verticalAlignment = Alignment.Top,
         ) {
             Text(
-                "0${index + 1} / 0${4}",
+                "%02d / %02d".format(index + 1, total),
                 color = Color.White.copy(alpha = 0.72f),
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,

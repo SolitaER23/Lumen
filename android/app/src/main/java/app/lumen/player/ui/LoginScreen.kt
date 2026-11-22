@@ -54,6 +54,18 @@ fun LoginScreen(
             singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             modifier = Modifier.fillMaxWidth(),
         )
+        if (base.trim().startsWith("http://", ignoreCase = true)) {
+            Text(
+                L10n.tf(
+                    "HTTP 连接不加密。请仅在可信网络使用，或为服务器配置 HTTPS。",
+                    "HTTP is not encrypted. Use it only on a trusted network, or enable HTTPS on your server.",
+                ),
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 10.sp,
+                lineHeight = 14.sp,
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+            )
+        }
         OutlinedTextField(
             value = user, onValueChange = { user = it }, label = { Text(L10n.t("用户名")) },
             singleLine = true, modifier = Modifier.fillMaxWidth(),

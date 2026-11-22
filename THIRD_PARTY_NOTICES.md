@@ -10,13 +10,13 @@ Lumen 自身以 MIT 许可发布（见根目录 `LICENSE`）。以下组件随�
 | --- | --- | --- | --- | --- |
 | Kotlin / kotlinx.coroutines / kotlinx.serialization | 2.3.20 / 标准库 | Apache-2.0 | Copyright JetBrains s.r.o. and contributors | `Apache-2.0.txt` |
 | Jetpack Compose（UI / Foundation / Material3 / Runtime） | BOM 2024.10.01 | Apache-2.0 | Copyright 2019-2024 The Android Open Source Project | `Apache-2.0.txt` |
-| AndroidX Core / Activity / Lifecycle / WorkManager / Palette | core-ktx 1.15.0、activity-compose 1.9.3、lifecycle 2.8.7、work 2.9.1、palette 1.0.0 | Apache-2.0 | Copyright The Android Open Source Project | `Apache-2.0.txt` |
+| AndroidX Core / Activity / Lifecycle / WorkManager | core-ktx 1.15.0、activity-compose 1.9.3、lifecycle 2.8.7、work 2.9.1 | Apache-2.0 | Copyright The Android Open Source Project | `Apache-2.0.txt` |
 | AndroidX Media3 / ExoPlayer | 1.5.0 | Apache-2.0 | Copyright The Android Open Source Project | `Apache-2.0.txt` |
 | OkHttp | 4.12.0 | Apache-2.0 | Copyright Square, Inc. | `Apache-2.0.txt` |
 | Retrofit / converter-gson | 2.11.0 | Apache-2.0 | Copyright Square, Inc. | `Apache-2.0.txt` |
 | Gson | 2.11.0 | Apache-2.0 | Copyright Google LLC | `Apache-2.0.txt` |
 | Coil | 2.7.0 | Apache-2.0 | Copyright Coil Contributors | `Apache-2.0.txt` |
-| TensorFlow Lite | 2.16.1 | Apache-2.0 | Copyright 2024 The TensorFlow Authors | `Apache-2.0.txt` |
+| LiteRT | 1.4.0 | Apache-2.0 | Copyright 2024 The TensorFlow Authors | `Apache-2.0.txt` |
 | YAMNet（模型 `yamnet.tflite`） | TensorFlow Models 版本 | Apache-2.0 | Copyright 2019 The TensorFlow Authors | `Apache-2.0.txt` |
 | Material Color Utilities（vendored Java 源码） | 2025 源码快照 | Apache-2.0 | Copyright 2021-2025 Google LLC | `MCU-Apache-2.0.txt` |
 | Yoin Symbols | 0.2.0 | MIT | Copyright (c) p2o51 | `MIT.txt` |

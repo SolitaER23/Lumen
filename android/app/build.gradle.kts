@@ -1,4 +1,4 @@
-﻿import java.util.Properties
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -26,8 +26,9 @@ android {
         applicationId = "app.lumen.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 137
-        versionName = "0.49.1"
+        versionCode = 138
+        versionName = "0.50.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
@@ -59,9 +60,8 @@ android {
 
     buildTypes {
         release {
-            // 有 keystore.properties / 环境变量时用正式签名，否则退回本地 debug 签名
-            signingConfig = if (hasReleaseKey) signingConfigs.getByName("release")
-            else signingConfigs.getByName("debug")
+            // 正式分发只允许 release 证书；缺少密钥时产出未签名 APK，绝不回退 debug 签名
+            signingConfig = if (hasReleaseKey) signingConfigs.getByName("release") else null
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -94,11 +94,15 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
-    implementation("org.tensorflow:tensorflow-lite:2.16.1")
+    implementation("com.google.ai.edge.litert:litert:1.4.0")
+    implementation("com.google.ai.edge.litert:litert-api:1.4.0")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     implementation("io.github.p2o51:yoin-symbols:0.2.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
 }

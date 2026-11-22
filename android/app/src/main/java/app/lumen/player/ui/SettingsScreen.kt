@@ -390,6 +390,12 @@ fun SettingsScreen(
                     )
                     AboutRow(L10n.tf("使用引导", "Walkthrough"), L10n.tf("重新查看", "View again"), onClick = onOpenGuide)
                     AboutRow(L10n.t("开源信息"), L10n.t("技术栈与许可"), onClick = onOpenLicenses, chevron = true)
+                    AboutRow(
+                        L10n.tf("检查更新", "Check for updates"),
+                        L10n.tf("B 站发布", "Bilibili"),
+                        onClick = { ExternalLinks.open(ctx, ExternalLinks.BILIBILI_URL) },
+                        chevron = true,
+                    )
                     FeedbackBlock()
                     AiCodedBadge(Modifier.padding(top = 14.dp))
                 }
@@ -766,6 +772,21 @@ private fun FeedbackBlock() {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 10.sp,
         )
+        TextButton(
+            onClick = {
+                val clipboard = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(
+                    android.content.ClipData.newPlainText(
+                        "Lumen diagnostics",
+                        app.lumen.player.data.Diagnostics.summary(ctx),
+                    ),
+                )
+                android.widget.Toast.makeText(ctx, L10n.t("诊断信息已复制"), android.widget.Toast.LENGTH_SHORT).show()
+            },
+            contentPadding = PaddingValues(0.dp),
+        ) {
+            Text(L10n.tf("复制诊断信息", "Copy diagnostics"), fontSize = 11.sp)
+        }
     }
 }
 

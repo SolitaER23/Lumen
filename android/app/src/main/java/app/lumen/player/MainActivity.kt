@@ -1,10 +1,16 @@
 package app.lumen.player
 
 import app.lumen.player.util.L10n
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
@@ -222,6 +228,8 @@ private fun App() {
     var radioError by remember { mutableStateOf<String?>(null) }
     var langMode by remember { mutableStateOf(app.lumen.player.util.L10n.mode(ctx)) }
     var showOnboarding by remember { mutableStateOf(!app.lumen.player.data.Onboarding.completed(ctx)) }
+    var legalAccepted by remember { mutableStateOf(app.lumen.player.data.Legal.accepted(ctx)) }
+    var legalDoc by remember { mutableStateOf<String?>(null) }
     var libraryVersion by remember { mutableIntStateOf(0) }
     var downloads by remember { mutableStateOf<List<AlbumDownload>>(emptyList()) }
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
@@ -304,6 +312,25 @@ private fun App() {
     }
 
 
+    if (!legalAccepted) {
+        MaterialTheme(colorScheme = FallbackScheme) {
+            when (legalDoc) {
+                "terms" -> app.lumen.player.ui.TermsScreen(onBack = { legalDoc = null })
+                "privacy" -> app.lumen.player.ui.PrivacyScreen(onBack = { legalDoc = null })
+                else -> app.lumen.player.ui.ConsentScreen(
+                    onOpenTerms = { legalDoc = "terms" },
+                    onOpenPrivacy = { legalDoc = "privacy" },
+                    onAccept = {
+                        app.lumen.player.data.Legal.accept(ctx)
+                        legalAccepted = true
+                    },
+                    onDecline = { (ctx as? android.app.Activity)?.finish() },
+                )
+            }
+        }
+        return
+    }
+
     if (showOnboarding) {
         MaterialTheme(colorScheme = FallbackScheme) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
@@ -330,6 +357,18 @@ private fun App() {
             }
         }
         return
+    }
+
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) {}
+    LaunchedEffect(cfg.complete) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     val client = remember(cfg) { SubsonicClient(cfg) }
@@ -384,6 +423,7 @@ private fun App() {
         activeAccountId = app.lumen.player.data.Accounts.activeId(ctx)
         if (accounts.isEmpty()) {
             app.lumen.player.data.Onboarding.reset(ctx)
+            app.lumen.player.data.Legal.reset(ctx)
             app.lumen.player.data.SettingsStore.clear(ctx)
             cfg = ServerConfig("", "", "")
         } else {
