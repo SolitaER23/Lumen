@@ -1600,15 +1600,9 @@ private fun RecentList(
         return
     }
     val ctx = LocalContext.current
-    var order by remember { mutableStateOf(loadRecentOrder(ctx)) }
-    var showOrderSheet by remember { mutableStateOf(false) }
+    // 固定顺序：最近播放、最近添加、已下载
+    val order = remember { listOf(1, 0, 2) }
     var selected by rememberSaveable { mutableIntStateOf(order.firstOrNull() ?: 0) }
-
-    fun persist(newOrder: List<Int>) {
-        order = newOrder
-        ctx.getSharedPreferences("lumen_recent", android.content.Context.MODE_PRIVATE)
-            .edit().putString("order", newOrder.joinToString(",")).apply()
-    }
 
     LaunchedEffect(order) {
         if (selected !in order) selected = order.firstOrNull() ?: 0
@@ -1636,17 +1630,7 @@ private fun RecentList(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Medium,
                     )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        "调整顺序",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(percent = 50))
-                            .clickable { showOrderSheet = true }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    )
-                }
+                                    }
             }
 
             // 三个分区横向并排，点选后下方展示该分区原有内容
@@ -1732,61 +1716,7 @@ private fun RecentList(
             }
         }
 
-        if (showOrderSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showOrderSheet = false },
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            ) {
-                Text(
-                    "调整分区顺序",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                )
-                Spacer(Modifier.height(4.dp))
-                order.forEachIndexed { index, section ->
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            sections[section] ?: "",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 15.sp,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            "↑",
-                            color = if (index > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            fontSize = 20.sp,
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .clickable(enabled = index > 0) {
-                                    persist(order.toMutableList().also {
-                                        val a = it[index]; it[index] = it[index - 1]; it[index - 1] = a
-                                    })
-                                }
-                                .padding(horizontal = 12.dp, vertical = 4.dp),
-                        )
-                        Text(
-                            "↓",
-                            color = if (index < order.lastIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            fontSize = 20.sp,
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .clickable(enabled = index < order.lastIndex) {
-                                    persist(order.toMutableList().also {
-                                        val a = it[index]; it[index] = it[index + 1]; it[index + 1] = a
-                                    })
-                                }
-                                .padding(horizontal = 12.dp, vertical = 4.dp),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(28.dp))
-            }
-        }
+
     }
 }
 
