@@ -19,6 +19,18 @@
 
 ---
 
+## [0.35.1] - 2026-11-22
+
+### 开源合规审计与许可信息
+- 新增根目录 `LICENSE`（MIT，Copyright (c) 2026 Lumen contributors）；
+- 新增 `THIRD_PARTY_NOTICES.md`：列出随 APK 分发的组件名称、版本、许可、版权与对应许可文件；
+- 新增许可全文资产：`assets/licenses/Apache-2.0.txt`、`MIT.txt`、`OFL-1.1.txt`、`CC-BY-4.0.txt`（保留 MCU / OFL 原始文件）；
+- 「开源信息」页升级：每项显示版本与版权，新增「本项目许可」卡与四份可展开的完整许可文本；
+- 明确 CNN14 / PANNs 权重为 CC BY 4.0、本应用分发的是 int8 量化修改版；YAMNet 为 Apache-2.0 未修改；
+- 示例地址改用文档保留网段，避免出现真实内网地址。
+
+### 版本
+- `versionName 0.35.1` / `versionCode 105`。
 ## [0.35.0] - 2026-11-22
 
 ### 设置页重排与信息层级

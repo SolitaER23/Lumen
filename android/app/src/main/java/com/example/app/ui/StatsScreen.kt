@@ -178,7 +178,7 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "填写自建的 navidrome-stat 地址（例：http://192.0.2.15:39421）与部署时设置的 STATS_API_TOKEN。",
+            "填写自建的 navidrome-stat 地址（例：http://192.0.2.10:39421）与部署时设置的 STATS_API_TOKEN。",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
         )
@@ -187,7 +187,7 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
             value = base,
             onValueChange = { base = it },
             label = { Text("服务地址") },
-            placeholder = { Text("http://192.0.2.15:39421") },
+            placeholder = { Text("http://192.0.2.10:39421") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )

@@ -47,3 +47,10 @@ android/app/src/main/java/com/example/app/
   ui/SettingsScreen.kt   设置
   ui/Palette.kt          封面取色
 ```
+## 许可
+
+- Lumen 自身以 **MIT License** 发布，正式文本见根目录 `LICENSE`。
+- 随 APK 分发的第三方组件、版本、版权与许可全文见 `THIRD_PARTY_NOTICES.md` 与 `android/app/src/main/assets/licenses/`。
+- 应用内「设置 → 关于 → 开源信息」可直接展开查看 Apache-2.0、MIT、OFL-1.1、CC BY 4.0 的完整文本。
+- 预训练模型：YAMNet（Apache-2.0，未修改）、CNN14 / PANNs（CC BY 4.0，Lumen 量化为 int8 ONNX，属修改版本）。
+- Navidrome（GPL-3.0）、Navidrome Stat（MIT）仅通过网络协议对接，代码未打包进本应用。
