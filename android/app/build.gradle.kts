@@ -1,9 +1,22 @@
-﻿plugins {
+﻿import java.util.Properties
+
+plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization") version "2.3.20"
 }
+
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+}
+
+fun signingValue(env: String, key: String): String? =
+    System.getenv(env) ?: keystoreProps.getProperty(key)
+
+val releaseStorePath = signingValue("LUMEN_KEYSTORE_FILE", "storeFile")
+val hasReleaseKey = !releaseStorePath.isNullOrBlank() && rootProject.file(releaseStorePath).exists()
 
 android {
     namespace = "com.example.app"
@@ -13,8 +26,8 @@ android {
         applicationId = "com.example.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 113
-        versionName = "0.35.9"
+        versionCode = 114
+        versionName = "0.36.0"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
@@ -33,9 +46,22 @@ android {
     }
     kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = rootProject.file(releaseStorePath!!)
+                storePassword = signingValue("LUMEN_KEYSTORE_PASSWORD", "storePassword")
+                keyAlias = signingValue("LUMEN_KEY_ALIAS", "keyAlias")
+                keyPassword = signingValue("LUMEN_KEY_PASSWORD", "keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            // 有 keystore.properties / 环境变量时用正式签名，否则退回本地 debug 签名
+            signingConfig = if (hasReleaseKey) signingConfigs.getByName("release")
+            else signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

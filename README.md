@@ -40,7 +40,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Windows 下把 `./gradlew` 换成 `gradlew.bat`。
 
-> 仓库中的 release 构建默认使用本机 debug 签名，仅供个人安装；正式分发请配置自己的 release keystore。
+> 仓库中的 release 构建默认使用本机 debug 签名，仅供个人安装。正式分发时在 ndroid/keystore.properties 或环境变量中提供：
+> LUMEN_KEYSTORE_FILE、LUMEN_KEYSTORE_PASSWORD、LUMEN_KEY_ALIAS、LUMEN_KEY_PASSWORD。
 
 ## 测试
 

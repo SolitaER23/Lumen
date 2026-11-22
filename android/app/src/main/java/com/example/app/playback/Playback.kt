@@ -275,6 +275,22 @@ class Playback(private val ctx: Context) {
         player.shuffleModeEnabled = mode == PlayMode.SHUFFLE
     }
 
+    /** 切换账号等场景：停止播放并清空队列，避免旧账号的曲目/进度串到新账号。 */
+    fun stopAndClear() {
+        cancelFade(true)
+        runCatching {
+            player.stop()
+            player.clearMediaItems()
+        }
+        queue = emptyList()
+        index = -1
+        albumId = null
+        positionMs = 0L
+        durationMs = 0L
+        playing = false
+        runCatching { PlaybackStateStore.clear(ctx) }
+    }
+
     fun saveState() {
         runCatching { PlaybackStateStore.save(ctx, queue, index, albumId, positionMs) }
     }

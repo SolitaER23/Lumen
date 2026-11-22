@@ -21,7 +21,7 @@ import kotlin.math.sqrt
  * 拉流 → MediaCodec 解码 → 16kHz 单声道 → YAMNet(tflite) + CNN14(int8 QDQ onnx) + DSP
  * → 逐类重标定 → Russell 坐标 → 标签。
  */
-class MoodAnalyzer(private val ctx: Context) {
+class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
 
     companion object {
         private const val SR = 16000
@@ -33,6 +33,12 @@ class MoodAnalyzer(private val ctx: Context) {
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
+
+    // 模型较重：一次分析多首时复用同一份解释器/Session
+    private var yamnetInterpreter: Interpreter? = null
+    private var ortEnv: OrtEnvironment? = null
+    private var cnnSession: OrtSession? = null
+    private var cnnScoresName: String? = null
 
     fun analyze(trackId: String, url: String, onPhase: (String, Float) -> Unit = { _, _ -> }): MoodResult {
         com.example.app.util.Logx.i("LumenMood", "start analysis $trackId")
@@ -168,6 +174,7 @@ class MoodAnalyzer(private val ctx: Context) {
     // ---------------- YAMNet (TFLite, CPU) ----------------
 
     private fun loadYamnet(): Interpreter {
+        yamnetInterpreter?.let { return it }
         val dst = File(ctx.filesDir, "yamnet.tflite")
         val afd = ctx.assets.openFd("mood/yamnet.tflite")
         if (!dst.exists() || dst.length() != afd.declaredLength) {
@@ -180,6 +187,7 @@ class MoodAnalyzer(private val ctx: Context) {
             setUseXNNPACK(false)
         }
         val interp = Interpreter(dst, options)
+        yamnetInterpreter = interp
         com.example.app.util.Logx.i(
             "LumenMood",
             "YAMNet loaded: in=" + interp.getInputTensor(0).shape().toList() +
@@ -190,7 +198,7 @@ class MoodAnalyzer(private val ctx: Context) {
 
     private fun runYamnet(pcm: FloatArray, onProgress: (Float) -> Unit): FloatArray? {
         return runCatching {
-            val interp = loadYamnet()
+            val interp = yamnetInterpreter ?: loadYamnet()
             val inputShape = interp.getInputTensor(0).shape()
             // YAMNet 输入是 1-D [15600]（不是 [1,15600]）
             val win = inputShape.firstOrNull { it > 0 } ?: YAMNET_WINDOW
@@ -211,7 +219,6 @@ class MoodAnalyzer(private val ctx: Context) {
                 pos += win
                 onProgress((pos.toFloat() / pcm.size).coerceIn(0f, 1f))
             }
-            runCatching { interp.close() }
             com.example.app.util.Logx.i("LumenMood", "yamnet frames=$frames win=$win classes=$classes")
             if (frames == 0) null else FloatArray(classes) { sums[it] / frames }
         }.onFailure { android.util.Log.e("LumenMood", "yamnet exception", it) }.getOrNull()
@@ -237,15 +244,18 @@ class MoodAnalyzer(private val ctx: Context) {
     private fun runCnn14(pcm: FloatArray, onProgress: (Float) -> Unit): FloatArray? {
         return runCatching {
             val model = ensureCnn14File()
-            val env = OrtEnvironment.getEnvironment()
-            val opts = OrtSession.SessionOptions().apply {
-                setIntraOpNumThreads(2)
-                setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+            val env = ortEnv ?: OrtEnvironment.getEnvironment().also { ortEnv = it }
+            val session = cnnSession ?: run {
+                val opts = OrtSession.SessionOptions().apply {
+                    setIntraOpNumThreads(2)
+                    setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+                }
+                env.createSession(model.absolutePath, opts).also { cnnSession = it }
             }
-            val session = env.createSession(model.absolutePath, opts)
             val inputName = session.inputNames.first()
-            val outputNames = session.outputNames.toList()
-            val scoresName = outputNames.first { it.contains("score", ignoreCase = true) }
+            val scoresName = cnnScoresName ?: session.outputNames.toList()
+                .first { it.contains("score", ignoreCase = true) }
+                .also { cnnScoresName = it }
             val win = CNN14_WINDOW
             val input = FloatArray(win)
             val scores = FloatArray(527)
@@ -270,7 +280,6 @@ class MoodAnalyzer(private val ctx: Context) {
                 pos += win
                 onProgress((pos.toFloat() / pcm.size).coerceIn(0f, 1f))
             }
-            runCatching { session.close() }
             if (frames == 0) null else FloatArray(527) { scores[it] / frames }
         }.onFailure { android.util.Log.e("LumenMood", "cnn14 exception", it) }.getOrNull()
     }
@@ -442,5 +451,12 @@ class MoodAnalyzer(private val ctx: Context) {
             }
             len = len shl 1
         }
+    }
+
+    override fun close() {
+        runCatching { yamnetInterpreter?.close() }
+        yamnetInterpreter = null
+        runCatching { cnnSession?.close() }
+        cnnSession = null
     }
 }

@@ -227,6 +227,8 @@ private fun App() {
     var lyrics by remember { mutableStateOf<List<LyricLine>?>(null) }
     var lyricsTrackId by remember { mutableStateOf<String?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
+    // 歌词 LRU：最多缓存 40 首，避免来回切歌重复请求
+    val lyricsCache = remember { LinkedHashMap<String, List<LyricLine>?>() }
     var showLyrics by remember { mutableStateOf(true) }
     var rating by remember { mutableFloatStateOf(0f) }
     var scrobbledId by remember { mutableStateOf<String?>(null) }
@@ -244,8 +246,8 @@ private fun App() {
     }
 
 
-    suspend fun loadAlbums(c: ServerConfig) {
-        if (albums.isEmpty()) {
+    suspend fun loadAlbums(c: ServerConfig, useCache: Boolean = true) {
+        if (useCache && albums.isEmpty()) {
             val cached = withContext(Dispatchers.IO) { AlbumCache.load(ctx) }
             if (cached.isNotEmpty()) albums = cached
         }
@@ -299,19 +301,26 @@ private fun App() {
     val scope = rememberCoroutineScope()
 
     fun reloadForAccount(c: ServerConfig) {
+        // 先停播并清空队列，避免旧账号的曲目/进度串到新账号
+        com.example.app.playback.PlaybackEngine.get(ctx).stopAndClear()
         albums = emptyList()
         starred = emptyList()
         starredIds = emptySet()
         albumTracksCache.clear()
+        homeCache.artists = emptyList()
+        homeCache.newest = emptyList()
+        homeCache.recentTracks = emptyList()
         openAlbum = null
         selectedArtist = null
         navStack.clear()
         screen = 0
         homeTab = 0
         scope.launch {
-            loadAlbums(c)
+            loadAlbums(c, useCache = false)
+            downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
             runCatching {
-                val list = withContext(Dispatchers.IO) { client.starredTracks() }
+                val fresh = com.example.app.data.SubsonicClient(c)
+                val list = withContext(Dispatchers.IO) { fresh.starredTracks() }
                 starred = list
                 starredIds = list.map { it.id }.toSet()
             }
@@ -454,11 +463,21 @@ private fun App() {
                     "LumenMood",
                     "load mood id=${tr.id} found=${mood != null} beats=${mood?.beatsMs?.size ?: -1} tempo=${mood?.tempo ?: -1f}",
                 )
-                lyricsLoading = true
-                runCatching {
-                    lyrics = withContext(Dispatchers.IO) { client.lyrics(tr.id, tr.title, tr.artist) }
+                val cachedLyrics = lyricsCache[tr.id]
+                if (lyricsCache.containsKey(tr.id)) {
+                    lyrics = cachedLyrics
+                    lyricsLoading = false
+                } else {
+                    lyricsLoading = true
+                    runCatching {
+                        lyrics = withContext(Dispatchers.IO) { client.lyrics(tr.id, tr.title, tr.artist) }
+                    }
+                    lyricsCache[tr.id] = lyrics
+                    if (lyricsCache.size > 40) {
+                        lyricsCache.keys.firstOrNull()?.let { lyricsCache.remove(it) }
+                    }
+                    lyricsLoading = false
                 }
-                lyricsLoading = false
             }
         }
     }
@@ -791,11 +810,12 @@ private fun App() {
                             val list = albumTracksCache[album.id].orEmpty()
                             if (list.isNotEmpty()) {
                                 withContext(Dispatchers.IO) {
-                                    val analyzer = com.example.app.data.MoodAnalyzer(ctx)
-                                    list.forEach { tr ->
-                                        if (com.example.app.data.MoodStore.get(ctx, tr.id) == null) {
-                                            runCatching { analyzer.analyze(tr.id, streamUrl(client, tr)) { _, _ -> } }
-                                                .onSuccess { com.example.app.data.MoodStore.put(ctx, it) }
+                                    com.example.app.data.MoodAnalyzer(ctx).use { analyzer ->
+                                        list.forEach { tr ->
+                                            if (com.example.app.data.MoodStore.get(ctx, tr.id) == null) {
+                                                runCatching { analyzer.analyze(tr.id, streamUrl(client, tr)) { _, _ -> } }
+                                                    .onSuccess { com.example.app.data.MoodStore.put(ctx, it) }
+                                            }
                                         }
                                     }
                                 }

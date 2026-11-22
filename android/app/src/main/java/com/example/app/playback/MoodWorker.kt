@@ -59,19 +59,20 @@ class MoodWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
             val albums = client.albums()
             val tracks = albums.flatMap { runCatching { client.tracks(it.id) }.getOrDefault(emptyList()) }
             prefs.edit().putInt(KEY_TOTAL, tracks.size).apply()
-            val analyzer = MoodAnalyzer(applicationContext)
-            var done = 0
-            tracks.forEach { t ->
-                if (MoodStore.get(applicationContext, t.id) == null) {
-                    runCatching { analyzer.analyze(t.id, streamUrl(client, t)) { _, _ -> } }
-                        .onSuccess { MoodStore.put(applicationContext, it) }
+            MoodAnalyzer(applicationContext).use { analyzer ->
+                var done = 0
+                tracks.forEach { t ->
+                    if (MoodStore.get(applicationContext, t.id) == null) {
+                        runCatching { analyzer.analyze(t.id, streamUrl(client, t)) { _, _ -> } }
+                            .onSuccess { MoodStore.put(applicationContext, it) }
+                    }
+                    done++
+                    prefs.edit().putInt(KEY_DONE, done).apply()
+                    setProgress(workDataOf("done" to done, "total" to tracks.size))
+                    if (isStopped) return@withContext Result.retry()
                 }
-                done++
-                prefs.edit().putInt(KEY_DONE, done).apply()
-                setProgress(workDataOf("done" to done, "total" to tracks.size))
-                if (isStopped) return@withContext Result.retry()
+                Result.success()
             }
-            Result.success()
         } catch (e: Exception) {
             Result.retry()
         } finally {

@@ -19,6 +19,21 @@
 
 ---
 
+## [0.36.0] - 2026-11-22
+
+### P1 批次：模型复用、账号隔离、歌词缓存、签名配置
+- `MoodAnalyzer` 复用 YAMNet Interpreter 与 CNN14 ONNX Session，并在分析结束 `close()`；整库/整专辑分析不再每首歌重建模型；
+- 多账号切换先 `stopAndClear()`：停止播放、清空队列与恢复状态，并清理首页缓存、重新拉取收藏与下载，避免跨账号数据串用；
+- 歌词增加 40 首 LRU 缓存，来回切歌不再重复请求；
+- release 签名支持 `keystore.properties` / 环境变量注入，未配置时仍回退 debug 签名；
+- 新增 `MoodMathTest`：坐标范围、能量-唤醒度关系、标签集合。
+
+### 暂缓项（有意保留）
+- R8/minify 仍关闭：历史上开启会导致 TFLite JNI 崩溃，需要单独的 keep 规则与多机型验证后再开；
+- `usesCleartextTraffic` 仍开启，以支持局域网 HTTP；已在 SECURITY.md 标注风险。
+
+### 版本
+- `versionName 0.36.0` / `versionCode 114`。
 ## [0.35.9] - 2026-11-22
 
 ### P1/P2 第一批：可分页、日志与协作文档
