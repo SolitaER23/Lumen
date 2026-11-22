@@ -46,4 +46,23 @@ class MoodMathTest {
         val result = MoodMath.fuse(null, dsp(0.1f, 1200f, 3f, 100f), "t")
         assertTrue("unexpected label=${result.label}", result.label in known)
     }
+
+    @Test
+    fun topTagsKeepsHighestScoresOnly() {
+        val scores = FloatArray(521)
+        scores[0] = 0.61f
+        scores[1] = 0.34f
+        scores[2] = 0.01f
+        val tags = MoodMath.topTags(scores, limit = 3)
+        assertEquals(2, tags.size)
+        assertEquals("Speech", tags[0].name)
+        assertTrue(tags[0].score >= tags[1].score)
+        assertTrue(tags.none { it.score < 0.02f })
+    }
+
+    @Test
+    fun labelsCoverWholeYamnetOutput() {
+        assertEquals(521, YAMNET_LABELS.size)
+        assertTrue(YAMNET_LABELS.all { it.isNotBlank() })
+    }
 }

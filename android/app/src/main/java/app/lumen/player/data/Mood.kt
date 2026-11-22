@@ -4,9 +4,14 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import org.json.JSONArray
+import org.json.JSONObject
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+/** 内部音频标签，不面向用户展示。 */
+data class AudioTag(val name: String, val score: Float)
 
 /** 一条心情分析结果（坐标是主数据，label 只是坐标的离散投影）。 */
 data class MoodResult(
@@ -20,6 +25,8 @@ data class MoodResult(
     /** 短时能量包络（0..1），每 envStepMs 一个点。 */
     val env: FloatArray = FloatArray(0),
     val envStepMs: Int = 100,
+    /** YAMNet top-K AudioSet 标签，仅供内部检索/推荐使用。 */
+    val tags: List<AudioTag> = emptyList(),
     val updatedAt: Long = System.currentTimeMillis(),
 )
 
@@ -27,19 +34,20 @@ object MoodStore {
     private const val DB = "moods.db"
     private const val TABLE = "moods"
 
-    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 5) {
+    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 6) {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS $TABLE (" +
                     "track_id TEXT PRIMARY KEY, valence REAL, arousal REAL, label TEXT, tempo REAL, " +
-                    "beats TEXT, env TEXT, env_step INTEGER, updated INTEGER)",
+                    "beats TEXT, env TEXT, env_step INTEGER, updated INTEGER, tags TEXT)",
             )
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            // 历史 schema 可能缺列（早期升级路径不一致），直接重建；心情结果可重新分析
-            db.execSQL("DROP TABLE IF EXISTS $TABLE")
-            onCreate(db)
+            // v6 只增加内部标签列，保留已有分析结果
+            if (oldVersion < 6) {
+                runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN tags TEXT") }
+            }
         }
 
         override fun onOpen(db: SQLiteDatabase) {
@@ -68,6 +76,26 @@ object MoodStore {
     private fun decodeFloats(s: String?): FloatArray =
         if (s.isNullOrBlank()) FloatArray(0) else s.split(',').mapNotNull { it.toFloatOrNull() }.toFloatArray()
 
+    private fun encodeTags(tags: List<AudioTag>): String {
+        if (tags.isEmpty()) return ""
+        val arr = JSONArray()
+        tags.forEach { tag ->
+            arr.put(JSONObject().put("n", tag.name).put("s", tag.score.toDouble()))
+        }
+        return arr.toString()
+    }
+
+    private fun decodeTags(raw: String?): List<AudioTag> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                AudioTag(o.optString("n"), o.optDouble("s", 0.0).toFloat())
+            }
+        }.getOrDefault(emptyList())
+    }
+
     fun put(ctx: Context, r: MoodResult) {
         val v = ContentValues().apply {
             put("track_id", r.trackId)
@@ -79,6 +107,7 @@ object MoodStore {
             put("env", encodeFloats(r.env))
             put("env_step", r.envStepMs)
             put("updated", r.updatedAt)
+            put("tags", encodeTags(r.tags))
         }
         runCatching { db(ctx).insertWithOnConflict(TABLE, null, v, SQLiteDatabase.CONFLICT_REPLACE) }
             .onFailure { android.util.Log.e("LumenMood", "mood put failed", it) }
@@ -96,6 +125,7 @@ object MoodStore {
                     beatsMs = decodeInts(c.getString(5)),
                     env = decodeFloats(c.getString(6)),
                     envStepMs = if (c.isNull(7)) 100 else c.getInt(7),
+                    tags = decodeTags(if (c.isNull(9)) null else c.getString(9)),
                     updatedAt = c.getLong(8),
                 )
             } else null
@@ -183,6 +213,17 @@ object MoodMath {
         val env: FloatArray = FloatArray(0),
         val envStepMs: Int = 100,
     )
+
+    /** 从 YAMNet 521 类平均分中取 top-K；仅供内部使用，不在 UI 展示。 */
+    fun topTags(yamnet: FloatArray?, limit: Int = 8, minScore: Float = 0.02f): List<AudioTag> {
+        if (yamnet == null) return emptyList()
+        val n = minOf(yamnet.size, YAMNET_LABELS.size)
+        return (0 until n)
+            .map { AudioTag(YAMNET_LABELS[it], yamnet[it]) }
+            .filter { it.score >= minScore }
+            .sortedByDescending { it.score }
+            .take(limit)
+    }
 
     fun fuse(yamnet: FloatArray?, dsp: Dsp, trackId: String): MoodResult {
         val names = listOf("Happy", "Sad", "Tender", "Exciting", "Angry", "Scary")

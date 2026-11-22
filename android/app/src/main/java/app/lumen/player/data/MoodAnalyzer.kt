@@ -47,7 +47,7 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
             onPhase("YAMNet", 0.55f)
             val yamnet = runYamnet(pcm) { onPhase("YAMNet", 0.55f + it * 0.42f) }
             onPhase(L10n.t("融合"), 0.99f)
-            val result = MoodMath.fuse(yamnet, dsp, trackId)
+            val result = MoodMath.fuse(yamnet, dsp, trackId).copy(tags = MoodMath.topTags(yamnet))
             app.lumen.player.util.Logx.i(
                 "LumenMood",
                 "mood $trackId label=${result.label} beats=${result.beatsMs.size} env=${result.env.size} tempo=${"%.0f".format(result.tempo)}",

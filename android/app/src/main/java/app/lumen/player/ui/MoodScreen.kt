@@ -199,7 +199,7 @@ fun MoodScreen(onBack: () -> Unit) {
 
             item {
                 Text(
-                    L10n.t("后台分析需要充电并连接 Wi-Fi，可随时暂停；结果保存在本机数据库，清空后可重新分析。"),
+                    L10n.tf("分析在后台运行，可随时暂停；建议连接 Wi-Fi 以减少流量。结果保存在本机数据库。", "Analysis runs in the background and can be paused anytime. Wi-Fi is recommended to save data. Results are stored locally."),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     lineHeight = 17.sp,
