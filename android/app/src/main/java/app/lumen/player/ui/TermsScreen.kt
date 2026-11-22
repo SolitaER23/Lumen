@@ -1,5 +1,6 @@
 package app.lumen.player.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,8 +45,26 @@ import com.gpo.yoin.symbols.YoinSymbols
 private data class TermBlock(val title: String, val body: List<String>)
 
 @Composable
-fun TermsScreen(onBack: () -> Unit) {
+fun TermsScreen(onBack: () -> Unit, onReachedBottom: () -> Unit = {}) {
     val ctx = LocalContext.current
+    val listState = rememberLazyListState()
+    var reachedBottom by remember { mutableStateOf(false) }
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()
+            info.totalItemsCount > 0 &&
+                last != null &&
+                last.index == info.totalItemsCount - 1 &&
+                last.offset + last.size >= info.viewportEndOffset - info.afterContentPadding - 8 &&
+                listState.canScrollBackward
+        }.distinctUntilChanged().collect { atBottom ->
+            if (atBottom && !reachedBottom) {
+                reachedBottom = true
+                onReachedBottom()
+            }
+        }
+    }
     val blocks = listOf(
         TermBlock(
             "1. 协议范围与接受",
@@ -111,7 +138,10 @@ fun TermsScreen(onBack: () -> Unit) {
         ),
     )
 
+    BackHandler { onBack() }
+
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize().statusBarsPadding(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
     ) {
@@ -219,6 +249,19 @@ fun TermsScreen(onBack: () -> Unit) {
                     }
                 }
             }
+        }
+
+        item {
+            Text(
+                if (reachedBottom) {
+                    L10n.tf("已阅读至协议底部，请返回并继续下一步", "You have read to the bottom. Go back to continue.")
+                } else {
+                    L10n.tf("继续向下滚动，阅读至最底部", "Scroll to the very bottom to finish reading")
+                },
+                color = if (reachedBottom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
+            )
         }
     }
 }

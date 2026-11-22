@@ -56,7 +56,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 ## 关键附件
 
-当前正式直发版本：**0.50.1 / versionCode 139**
+当前正式直发版本：**0.50.2 / versionCode 140**
 
 - [发布计划与状态](docs/release-plan.md)
 - [分发包与校验说明](docs/distribution.md)

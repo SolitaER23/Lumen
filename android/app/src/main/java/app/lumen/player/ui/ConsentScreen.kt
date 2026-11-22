@@ -2,6 +2,10 @@ package app.lumen.player.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,6 +35,8 @@ import app.lumen.player.util.L10n
 
 @Composable
 fun ConsentScreen(
+    termsRead: Boolean,
+    privacyRead: Boolean,
     onOpenTerms: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onAccept: () -> Unit,
@@ -89,18 +95,58 @@ fun ConsentScreen(
                 }
             }
 
-            Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onOpenTerms) { Text(L10n.tf("用户协议", "Terms of Service"), fontSize = 12.sp) }
-                TextButton(onClick = onOpenPrivacy) { Text(L10n.tf("隐私条款", "Privacy Policy"), fontSize = 12.sp) }
+            val remaining = listOfNotNull(
+                L10n.tf("用户协议", "Terms of Service").takeUnless { termsRead },
+                L10n.tf("隐私条款", "Privacy Policy").takeUnless { privacyRead },
+            )
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f),
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ConsentStep(
+                        number = "1",
+                        title = L10n.tf("用户协议", "Terms of Service"),
+                        read = termsRead,
+                        onClick = onOpenTerms,
+                    )
+                    ConsentStep(
+                        number = "2",
+                        title = L10n.tf("隐私条款", "Privacy Policy"),
+                        read = privacyRead,
+                        onClick = onOpenPrivacy,
+                    )
+                }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Text(
+                if (remaining.isEmpty()) {
+                    L10n.tf("两项均已阅读完成，可以同意并进入应用", "Both documents read. You can agree and continue.")
+                } else {
+                    L10n.tf(
+                        "还需完成：${remaining.joinToString("、")}（分别打开并滚动到最底部）",
+                        "Still needed: ${remaining.joinToString(", ")} (open each and scroll to the bottom)",
+                    )
+                },
+                color = if (remaining.isEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                fontSize = 11.sp,
+                lineHeight = 17.sp,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            )
+
+            Spacer(Modifier.height(8.dp))
             Button(
-                onClick = onAccept,
+                onClick = { if (termsRead && privacyRead) onAccept() },
+                enabled = termsRead && privacyRead,
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 shape = CircleShape,
             ) {
-                Text(L10n.tf("同意并继续", "Agree and continue"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    L10n.tf("同意并进入应用", "Agree and enter"),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
             TextButton(
                 onClick = onDecline,
@@ -119,6 +165,56 @@ fun ConsentScreen(
                 modifier = Modifier.padding(top = 4.dp).align(Alignment.CenterHorizontally),
             )
         }
+    }
+}
+
+@Composable
+private fun ConsentStep(
+    number: String,
+    title: String,
+    read: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(
+                    if (read) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceContainerHighest,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                if (read) "✓" else number,
+                color = if (read) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+            Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(
+                if (read) L10n.tf("已阅读至底部", "Read to the bottom")
+                else L10n.tf("打开并滚动到最底部", "Open and scroll to the bottom"),
+                color = if (read) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp,
+            )
+        }
+        Text(
+            if (read) L10n.tf("已完成", "Done") else L10n.tf("去阅读", "Read"),
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 

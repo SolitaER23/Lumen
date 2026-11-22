@@ -257,6 +257,8 @@ private fun App() {
     var showOnboarding by remember { mutableStateOf(!app.lumen.player.data.Onboarding.completed(ctx)) }
     var legalAccepted by remember { mutableStateOf(app.lumen.player.data.Legal.accepted(ctx)) }
     var legalDoc by remember { mutableStateOf<String?>(null) }
+    var termsRead by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var privacyRead by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var libraryVersion by remember { mutableIntStateOf(0) }
     var downloads by remember { mutableStateOf<List<AlbumDownload>>(emptyList()) }
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
@@ -368,14 +370,24 @@ private fun App() {
     if (!legalAccepted) {
         MaterialTheme(colorScheme = FallbackScheme) {
             when (legalDoc) {
-                "terms" -> app.lumen.player.ui.TermsScreen(onBack = { legalDoc = null })
-                "privacy" -> app.lumen.player.ui.PrivacyScreen(onBack = { legalDoc = null })
+                "terms" -> app.lumen.player.ui.TermsScreen(
+                    onBack = { legalDoc = null },
+                    onReachedBottom = { termsRead = true },
+                )
+                "privacy" -> app.lumen.player.ui.PrivacyScreen(
+                    onBack = { legalDoc = null },
+                    onReachedBottom = { privacyRead = true },
+                )
                 else -> app.lumen.player.ui.ConsentScreen(
+                    termsRead = termsRead,
+                    privacyRead = privacyRead,
                     onOpenTerms = { legalDoc = "terms" },
                     onOpenPrivacy = { legalDoc = "privacy" },
                     onAccept = {
-                        app.lumen.player.data.Legal.accept(ctx)
-                        legalAccepted = true
+                        if (termsRead && privacyRead) {
+                            app.lumen.player.data.Legal.accept(ctx)
+                            legalAccepted = true
+                        }
                     },
                     onDecline = { (ctx as? android.app.Activity)?.finish() },
                 )
