@@ -16,17 +16,37 @@ object StatsStore {
 
     fun load(ctx: Context): StatsConfig {
         val p = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        val legacy = p.getString("token", "").orEmpty()
+        val enc = p.getString("token_enc", null)
+        val token = when {
+            enc != null -> SettingsStore.decryptString(ctx, enc).orEmpty()
+            legacy.isNotBlank() -> {
+                // 旧版本明文：迁移为 Keystore 密文后删除明文
+                val migrated = SettingsStore.encryptString(ctx, legacy)
+                if (migrated != null) {
+                    p.edit().putString("token_enc", migrated).remove("token").apply()
+                }
+                legacy
+            }
+            else -> ""
+        }
         return StatsConfig(
             base = p.getString("base", "").orEmpty(),
-            token = p.getString("token", "").orEmpty(),
+            token = token,
         )
     }
 
     fun save(ctx: Context, cfg: StatsConfig) {
-        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+        val editor = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
             .putString("base", cfg.base.trim().trimEnd('/'))
-            .putString("token", cfg.token.trim())
-            .apply()
+        val token = cfg.token.trim()
+        val enc = if (token.isBlank()) null else SettingsStore.encryptString(ctx, token)
+        if (enc != null) {
+            editor.putString("token_enc", enc).remove("token").apply()
+        } else {
+            // Keystore 不可用时退回明文，避免丢配置
+            editor.putString("token", token).remove("token_enc").apply()
+        }
     }
 }
 

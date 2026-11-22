@@ -7,3 +7,14 @@
 /android/app/src/main/jniLibs
 
 /.workbuddy
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
+android/.kotlin/
+
+# Signing material
+keystore.properties
+*.jks
+*.keystore

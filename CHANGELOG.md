@@ -19,6 +19,17 @@
 
 ---
 
+## [0.35.8] - 2026-11-22
+
+### 工程化与安全（P0 第一批）
+- 补充 Gradle Wrapper（`android/gradlew`、`gradlew.bat`、wrapper jar/properties，Gradle 8.11.1）；
+- 新增 GitHub Actions CI：单元测试 + `assembleDebug`；
+- 移除已废弃的 `lumen://neodb` 深链 intent-filter；
+- 统计服务 Token 改用 Keystore 加密存储（`token_enc`），旧明文自动迁移；
+- `.gitignore` 补充 IDE/签名文件，新增 `.gitattributes`（换行与二进制资源）。
+
+### 版本
+- `versionName 0.35.8` / `versionCode 112`。
 ## [0.35.7] - 2026-11-22
 
 ### 关于页：问题反馈 + AI 编码徽标

@@ -104,6 +104,11 @@ object SettingsStore {
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().clear().apply()
     }
 
+    /** 供其他模块复用 Keystore 加密（如统计 Token）。 */
+    fun encryptString(ctx: Context, plain: String): String? = encrypt(ctx, plain)
+
+    fun decryptString(ctx: Context, enc: String): String? = decrypt(ctx, enc)
+
     // ---- Keystore AES-GCM ----
 
     private fun secretKey(): SecretKey {
