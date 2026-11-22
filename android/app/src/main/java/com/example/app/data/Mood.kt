@@ -1,4 +1,4 @@
-﻿package com.example.app.data
+package com.example.app.data
 
 import android.content.ContentValues
 import android.content.Context
@@ -102,6 +102,15 @@ object MoodStore {
     fun count(ctx: Context): Int = runCatching {
         db(ctx).rawQuery("SELECT COUNT(*) FROM $TABLE", null).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
     }.getOrDefault(0)
+
+    /** 各心情标签的分布，用于分析页展示。 */
+    fun distribution(ctx: Context): Map<String, Int> = runCatching {
+        val out = LinkedHashMap<String, Int>()
+        db(ctx).rawQuery("SELECT label, COUNT(*) FROM $TABLE GROUP BY label ORDER BY COUNT(*) DESC", null).use { c ->
+            while (c.moveToNext()) out[c.getString(0) ?: "Unknown"] = c.getInt(1)
+        }
+        out
+    }.getOrDefault(emptyMap())
 
     fun clear(ctx: Context) {
         runCatching { db(ctx).delete(TABLE, null, null) }

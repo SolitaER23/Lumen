@@ -1,4 +1,4 @@
-package com.example.app
+﻿package com.example.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -133,6 +133,8 @@ import com.example.app.ui.AlbumScreen
 import com.example.app.ui.ArtistScreen
 import com.example.app.ui.SearchScreen
 import com.example.app.ui.FallbackScheme
+import com.example.app.ui.LicensesScreen
+import com.example.app.ui.MoodScreen
 import com.example.app.ui.PlayingScreen
 import com.example.app.ui.DownloadsScreen
 import com.example.app.ui.SettingsScreen
@@ -187,6 +189,8 @@ private fun streamUrl(client: SubsonicClient, t: Track): String =
 private fun App() {
     val ctx = LocalContext.current
     var cfg by remember { mutableStateOf(SettingsStore.load(ctx)) }
+    var accounts by remember { mutableStateOf<List<com.example.app.data.Account>>(emptyList()) }
+    var activeAccountId by remember { mutableStateOf<String?>(null) }
     var albums by remember { mutableStateOf<List<Album>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -261,7 +265,14 @@ private fun App() {
     }
 
     LaunchedEffect(cfg.complete) {
-        if (cfg.complete && albums.isEmpty()) loadAlbums(cfg)
+        if (cfg.complete) {
+            if (accounts.isEmpty()) {
+                com.example.app.data.Accounts.ensure(ctx, cfg)
+                accounts = com.example.app.data.Accounts.list(ctx)
+                activeAccountId = com.example.app.data.Accounts.activeId(ctx)
+            }
+            if (albums.isEmpty()) loadAlbums(cfg)
+        }
     }
 
 
@@ -282,6 +293,52 @@ private fun App() {
     val client = remember(cfg) { SubsonicClient(cfg) }
     val coverOf = remember(client) { { id: String -> client.coverUrl(id) } }
     val scope = rememberCoroutineScope()
+
+    fun reloadForAccount(c: ServerConfig) {
+        albums = emptyList()
+        starred = emptyList()
+        starredIds = emptySet()
+        albumTracksCache.clear()
+        openAlbum = null
+        selectedArtist = null
+        navStack.clear()
+        screen = 0
+        homeTab = 0
+        scope.launch {
+            loadAlbums(c)
+            runCatching {
+                val list = withContext(Dispatchers.IO) { client.starredTracks() }
+                starred = list
+                starredIds = list.map { it.id }.toSet()
+            }
+        }
+    }
+
+    fun switchAccount(account: com.example.app.data.Account) {
+        val c = com.example.app.data.Accounts.activate(ctx, account)
+        cfg = c
+        accounts = com.example.app.data.Accounts.list(ctx)
+        activeAccountId = com.example.app.data.Accounts.activeId(ctx)
+        reloadForAccount(c)
+    }
+
+    fun addAccount(base: String, user: String, password: String) {
+        val a = com.example.app.data.Accounts.add(ctx, base, user, password)
+        switchAccount(a)
+    }
+
+    fun removeAccount(account: com.example.app.data.Account) {
+        com.example.app.data.Accounts.remove(ctx, account)
+        accounts = com.example.app.data.Accounts.list(ctx)
+        activeAccountId = com.example.app.data.Accounts.activeId(ctx)
+        if (accounts.isEmpty()) {
+            com.example.app.data.SettingsStore.clear(ctx)
+            cfg = ServerConfig("", "", "")
+        } else {
+            cfg = com.example.app.data.SettingsStore.load(ctx)
+            reloadForAccount(cfg)
+        }
+    }
 
     // 进入动画：以最后一次按下位置为原点展开
     val enterAnim = remember { Animatable(1f) }
@@ -517,6 +574,8 @@ private fun App() {
     val screenContent: @Composable (NavKey) -> Unit = { key ->
                 saveableStates.SaveableStateProvider(stateKeyOf(key)) {
                 when {
+                    key.screen == 9 -> LicensesScreen(onBack = { goBack() })
+                    key.screen == 8 -> MoodScreen(onBack = { goBack() })
                     key.screen == 7 -> com.example.app.ui.StatsScreen(
                         initial = com.example.app.data.StatsStore.load(ctx),
                         onBack = { goBack() },
@@ -555,6 +614,14 @@ private fun App() {
                         downloadCount = downloads.sumOf { it.total },
                         downloadBytes = downloads.sumOf { it.bytes },
                         onManageDownloads = { navigate(NavKey(4, null)) },
+                        accounts = accounts,
+                        activeAccountId = activeAccountId,
+                        onSwitchAccount = { switchAccount(it) },
+                        onAddAccount = { base, user, password -> addAccount(base, user, password) },
+                        onRemoveAccount = { removeAccount(it) },
+                        onOpenMood = { navigate(NavKey(8, null)) },
+                        onOpenLicenses = { navigate(NavKey(9, null)) },
+                        versionName = BuildConfig.VERSION_NAME,
                         contrast = contrast,
                         onContrast = { v ->
                             contrast = v

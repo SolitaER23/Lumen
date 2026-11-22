@@ -46,8 +46,8 @@ object SettingsStore {
     private const val PREF_PASSWORD_ENC = "password_enc"
     private const val PREF_PASSWORD_LEGACY = "password"
 
-    fun load(ctx: Context): ServerConfig {
-        val p = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+    fun load(ctx: Context, file: String = FILE): ServerConfig {
+        val p = ctx.getSharedPreferences(file, Context.MODE_PRIVATE)
         val enc = p.getString(PREF_PASSWORD_ENC, null)
         val password = when {
             enc != null -> decrypt(ctx, enc).orEmpty()
@@ -73,8 +73,8 @@ object SettingsStore {
         )
     }
 
-    fun save(ctx: Context, cfg: ServerConfig) {
-        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+    fun save(ctx: Context, cfg: ServerConfig, file: String = FILE) {
+        ctx.getSharedPreferences(file, Context.MODE_PRIVATE).edit()
             .putString("base", cfg.base.trim().trimEnd('/'))
             .putString("user", cfg.user.trim())
             .putString(PREF_PASSWORD_ENC, encrypt(ctx, cfg.password))

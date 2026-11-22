@@ -1,5 +1,10 @@
 ﻿package com.example.app.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,10 +22,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,9 +43,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.app.data.Account
 import com.example.app.data.ServerConfig
 import com.gpo.yoin.symbols.YoinSymbols
 import kotlinx.coroutines.Dispatchers
@@ -44,7 +56,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** 设置页：连接、外观、心情分析、缓存、下载、账号与关于。 */
+/** 设置页：账号、外观、心情分析、存储、关于。 */
 @Composable
 fun SettingsScreen(
     cfg: ServerConfig,
@@ -57,10 +69,20 @@ fun SettingsScreen(
     onClearCache: () -> Unit,
     contrast: Float = 0f,
     onContrast: (Float) -> Unit = {},
+    accounts: List<Account> = emptyList(),
+    activeAccountId: String? = null,
+    onSwitchAccount: (Account) -> Unit = {},
+    onAddAccount: (String, String, String) -> Unit = { _, _, _ -> },
+    onRemoveAccount: (Account) -> Unit = {},
+    onOpenMood: () -> Unit = {},
+    onOpenLicenses: () -> Unit = {},
+    versionName: String = "",
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var cacheBytes by remember { mutableStateOf(0L) }
     var freed by remember { mutableStateOf(false) }
+    var showAccounts by remember { mutableStateOf(false) }
+    var showAdd by remember { mutableStateOf(false) }
 
     LaunchedEffect(freed) {
         cacheBytes = withContext(Dispatchers.IO) {
@@ -84,20 +106,70 @@ fun SettingsScreen(
             }
             Text("设置", color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
             Text(
-                "账户、外观与数据",
+                "账号、外观与数据",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
 
+        // 1. 账号与用户
         item {
-            SettingSection("连接") {
-                SettingRow("服务器", cfg.base)
-                SettingRow("用户名", cfg.user)
+            SettingSection("账号") {
+                CurrentAccountCard(cfg)
+                ExpandRow(
+                    label = "切换用户",
+                    hint = if (accounts.size > 1) "${accounts.size} 个账号" else "仅当前账号",
+                    expanded = showAccounts,
+                    onClick = { showAccounts = !showAccounts },
+                )
+                AnimatedVisibility(
+                    visible = showAccounts,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut(),
+                ) {
+                    Column(Modifier.padding(top = 4.dp)) {
+                        accounts.forEach { account ->
+                            AccountRow(
+                                account = account,
+                                active = account.id == activeAccountId,
+                                removable = accounts.size > 1,
+                                onSwitch = {
+                                    onSwitchAccount(account)
+                                    showAccounts = false
+                                },
+                                onRemove = { onRemoveAccount(account) },
+                            )
+                        }
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { showAdd = true }
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("添加账号", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable(onClick = onLogout)
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                ) {
+                    Text("退出登录", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+                }
             }
         }
 
+        // 2. 外观
         item {
             SettingSection("外观") {
                 Row(
@@ -128,7 +200,7 @@ fun SettingsScreen(
                     }
                 }
                 Text(
-                    "对比度越高，文字与容器越清晰（MCU 动态取色）",
+                    "对比度越高，文字与背景越分明；越低，整体更柔和。默认「高」。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 8.dp),
@@ -136,39 +208,49 @@ fun SettingsScreen(
             }
         }
 
+        // 3. 心情分析
         item {
             SettingSection("心情分析") {
                 var moodDone by remember { mutableStateOf(0) }
                 var moodTotal by remember { mutableStateOf(0) }
                 var moodRunning by remember { mutableStateOf(false) }
+                var moodCount by remember { mutableStateOf(0) }
                 LaunchedEffect(Unit) {
                     while (true) {
                         val (d, t, r) = com.example.app.playback.MoodWorker.progress(ctx)
                         moodDone = d
                         moodTotal = t
                         moodRunning = r
+                        moodCount = com.example.app.data.MoodStore.count(ctx)
                         delay(1500)
                     }
                 }
-                Text(
-                    if (moodTotal == 0) "尚未开始（充电 + Wi-Fi 时后台分析整库）"
-                    else "已分析 $moodDone / $moodTotal 首" + if (moodRunning) " · 进行中" else "",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 13.sp,
-                )
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    PillButton("开始分析", primary = true) { com.example.app.playback.MoodWorker.start(ctx) }
-                    PillButton("暂停") { com.example.app.playback.MoodWorker.cancel(ctx) }
-                    PillButton("清空") { com.example.app.data.MoodStore.clear(ctx) }
+                val percent = if (moodTotal > 0) (moodDone * 100 / moodTotal) else 0
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (moodTotal == 0 && moodCount == 0) "尚未分析"
+                            else if (moodRunning) "正在分析 · $percent%"
+                            else "已分析 $moodCount 首",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 13.sp,
+                        )
+                        Text(
+                            if (moodTotal > 0) "本库 $moodTotal 首 · 充电 + Wi-Fi 时后台进行"
+                            else "在本机提取节奏与情绪，不上传文件",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                    PillButton("管理") { onOpenMood() }
                 }
             }
         }
 
+        // 4. 存储
         item {
-            SettingSection("缓存") {
+            SettingSection("存储") {
                 SettingRow(
                     "清理缓存",
                     "${"%.1f".format(cacheBytes / 1024f / 1024f)} MB · 不含已下载",
@@ -183,12 +265,7 @@ fun SettingsScreen(
                 if (freed) {
                     Text("缓存已清理（下载不受影响）", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                 }
-            }
-        }
-
-        item {
-            SettingSection("离线下载") {
-                SettingRow("已下载", "$downloadCount 首 · ${"%.1f".format(downloadBytes / 1024f / 1024f)} MB") {
+                SettingRow("离线下载", "$downloadCount 首 · ${"%.1f".format(downloadBytes / 1024f / 1024f)} MB") {
                     TextButton(onClick = onManageDownloads) {
                         Text("管理", fontSize = 12.sp)
                     }
@@ -196,30 +273,199 @@ fun SettingsScreen(
             }
         }
 
+        // 5. 关于
         item {
-            SettingSection("账号") {
+            SettingSection("关于") {
+                SettingRow("版本", versionName.ifBlank { "—" })
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .clickable(onClick = onLogout)
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable(onClick = onOpenLicenses)
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("退出登录", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+                    Text("开源信息", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text("技术栈与许可", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text("  ›", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                 }
             }
         }
+    }
 
-        item {
-            SettingSection("关于") {
-                SettingRow("界面", "Jetpack Compose · Material 3")
-                SettingRow("音频", "Media3 ExoPlayer")
-                SettingRow("图标", "yoin-symbols")
-                SettingRow("目标设备", "Pixel 10a · 120Hz")
-            }
+    if (showAdd) {
+        AddAccountDialog(
+            onDismiss = { showAdd = false },
+            onConfirm = { base, user, pass ->
+                showAdd = false
+                onAddAccount(base, user, pass)
+            },
+        )
+    }
+}
+
+@Composable
+private fun CurrentAccountCard(cfg: ServerConfig) {
+    val initial = cfg.user.firstOrNull()?.uppercase() ?: "?"
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(initial, color = MaterialTheme.colorScheme.onPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        }
+        Column(Modifier.padding(start = 12.dp).weight(1f)) {
+            Text(cfg.user, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(
+                cfg.base.removePrefix("https://").removePrefix("http://"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(percent = 50))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                .padding(horizontal = 8.dp, vertical = 3.dp),
+        ) {
+            Text("当前", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp)
         }
     }
+}
+
+@Composable
+private fun ExpandRow(label: String, hint: String, expanded: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+        Spacer(Modifier.weight(1f))
+        Text(hint, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        Text(
+            if (expanded) "  ▾" else "  ▸",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp,
+        )
+    }
+}
+
+@Composable
+private fun AccountRow(
+    account: Account,
+    active: Boolean,
+    removable: Boolean,
+    onSwitch: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onSwitch)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+        )
+        Column(Modifier.padding(start = 10.dp).weight(1f)) {
+            Text(
+                account.label.ifBlank { account.user },
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                account.host,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (removable && !active) {
+            IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    YoinSymbols.Delete,
+                    contentDescription = "移除账号",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        if (active) {
+            Text("当前", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp)
+        }
+    }
+}
+
+@Composable
+private fun AddAccountDialog(onDismiss: () -> Unit, onConfirm: (String, String, String) -> Unit) {
+    var base by remember { mutableStateOf("http://") }
+    var user by remember { mutableStateOf("") }
+    var pass by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("添加账号") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = base,
+                    onValueChange = { base = it },
+                    label = { Text("服务器地址", fontSize = 12.sp) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = user,
+                    onValueChange = { user = it },
+                    label = { Text("用户名", fontSize = 12.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = pass,
+                    onValueChange = { pass = it },
+                    label = { Text("密码", fontSize = 12.sp) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = base.startsWith("http") && user.isNotBlank() && pass.isNotBlank(),
+                onClick = { onConfirm(base, user, pass) },
+            ) { Text("添加并切换") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
 }
 
 @Composable
