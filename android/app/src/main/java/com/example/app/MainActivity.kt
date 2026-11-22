@@ -136,6 +136,14 @@ import com.example.app.ui.SearchScreen
 import com.example.app.ui.FallbackScheme
 import com.example.app.ui.LicensesScreen
 import com.example.app.ui.MoodScreen
+import com.example.app.ui.HomeCard
+import com.example.app.ui.HomeText
+import com.example.app.ui.HomeSub
+import com.example.app.ui.HomeAccent
+import com.example.app.ui.YoinBar
+import com.example.app.ui.HomeCache
+import com.example.app.ui.LoginScreen
+import com.example.app.ui.lumenTypography
 import com.example.app.ui.PlayingScreen
 import com.example.app.ui.DownloadsScreen
 import com.example.app.ui.SettingsScreen
@@ -999,89 +1007,6 @@ private fun App() {
     }
 }
 
-@Composable
-private fun LoginScreen(
-    initial: ServerConfig,
-    loading: Boolean,
-    error: String?,
-    onSubmit: (ServerConfig) -> Unit,
-) {
-    var base by remember { mutableStateOf(initial.base.ifBlank { "http://" }) }
-    var user by remember { mutableStateOf(initial.user) }
-    var pass by remember { mutableStateOf(initial.password) }
-
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Text("Lumen", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-        Text("连接曲库", color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = base, onValueChange = { base = it }, label = { Text("服务器地址") },
-            singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = user, onValueChange = { user = it }, label = { Text("用户名") },
-            singleLine = true, modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = pass, onValueChange = { pass = it }, label = { Text("密码") },
-            singleLine = true, visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        if (error != null) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-        Button(
-            onClick = { onSubmit(ServerConfig(base.trim(), user.trim(), pass)) },
-            enabled = !loading && base.startsWith("http") && user.isNotBlank() && pass.isNotBlank(),
-            shape = RoundedCornerShape(percent = 50),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-        ) {
-            if (loading) CircularProgressIndicator(Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
-            else Text("连接并同步", fontSize = 15.sp)
-        }
-    }
-}
-
-/** Google Sans Flex（OFL 1.1）：拉丁与数字用自定义字体，中文自动回退系统思源黑体。 */
-private val LumenFontFamily = androidx.compose.ui.text.font.FontFamily(
-    androidx.compose.ui.text.font.Font(R.font.google_sans_flex_regular, androidx.compose.ui.text.font.FontWeight.Normal),
-    androidx.compose.ui.text.font.Font(R.font.google_sans_flex_medium, androidx.compose.ui.text.font.FontWeight.Medium),
-    androidx.compose.ui.text.font.Font(R.font.google_sans_flex_semibold, androidx.compose.ui.text.font.FontWeight.SemiBold),
-)
-
-/** 把默认 Typography 的每个层级都换成 Google Sans Flex。 */
-private fun lumenTypography(): androidx.compose.material3.Typography {
-    val base = androidx.compose.material3.Typography()
-    fun androidx.compose.ui.text.TextStyle.gsf() = copy(fontFamily = LumenFontFamily)
-    return androidx.compose.material3.Typography(
-        displayLarge = base.displayLarge.gsf(),
-        displayMedium = base.displayMedium.gsf(),
-        displaySmall = base.displaySmall.gsf(),
-        headlineLarge = base.headlineLarge.gsf(),
-        headlineMedium = base.headlineMedium.gsf(),
-        headlineSmall = base.headlineSmall.gsf(),
-        titleLarge = base.titleLarge.gsf(),
-        titleMedium = base.titleMedium.gsf(),
-        titleSmall = base.titleSmall.gsf(),
-        bodyLarge = base.bodyLarge.gsf(),
-        bodyMedium = base.bodyMedium.gsf(),
-        bodySmall = base.bodySmall.gsf(),
-        labelLarge = base.labelLarge.gsf(),
-        labelMedium = base.labelMedium.gsf(),
-        labelSmall = base.labelSmall.gsf(),
-    )
-}
-
-class HomeCache {
-    var artists by androidx.compose.runtime.mutableStateOf<List<Artist>>(emptyList())
-    var newest by androidx.compose.runtime.mutableStateOf<List<Album>>(emptyList())
-    var recent by androidx.compose.runtime.mutableStateOf<List<Album>>(emptyList())
-    var recentTracks by androidx.compose.runtime.mutableStateOf<List<Track>>(emptyList())
-}
-
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeScreen(
@@ -1525,10 +1450,6 @@ private fun SectionRow(title: String, trailing: String) {
 
 
 // 首页中性色板（设计稿）：颜色交给封面，界面只用灰阶 + 一种强调色
-private val HomeCard = androidx.compose.ui.graphics.Color(0xFF2A2B31)
-private val HomeText = androidx.compose.ui.graphics.Color(0xFFF5F5F7)
-private val HomeSub = androidx.compose.ui.graphics.Color(0xFF8B8B94)
-private val HomeAccent = androidx.compose.ui.graphics.Color(0xFFE5484D)
 private val HomeBg = androidx.compose.ui.graphics.Color(0xFF202126)
 
 /** 首页专用的中性灰阶配色：颜色交给封面，界面只用灰阶 + 一种强调色。 */
@@ -2064,98 +1985,5 @@ private fun AlbumCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-    }
-}
-@Composable
-private fun YoinBar(
-    modifier: Modifier = Modifier,
-    pulseKey: Int = 0,
-    title: String,
-    artist: String,
-    coverUrl: String,
-    playing: Boolean,
-    enabled: Boolean,
-    onHome: () -> Unit,
-    onOpenPlayer: () -> Unit,
-    onToggle: () -> Unit,
-) {
-    val pulse = remember { androidx.compose.animation.core.Animatable(1f) }
-    LaunchedEffect(pulseKey) {
-        pulse.snapTo(1.02f)
-        pulse.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 480f))
-    }
-    Row(
-        modifier.fillMaxWidth().graphicsLayer {
-            scaleX = pulse.value
-            scaleY = pulse.value
-        }.padding(horizontal = 12.dp).height(68.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-
-        // 迷你播放条：独立浮层，深灰底、白字、白色圆形播放键
-        Row(
-            Modifier
-                .weight(1f)
-                .height(62.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(HomeCard)
-                .clickable(enabled = enabled, onClick = onOpenPlayer)
-                .padding(start = 8.dp, end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (enabled) {
-                AsyncImage(
-                    model = coverUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)),
-                )
-                Spacer(Modifier.width(10.dp))
-                AnimatedContent(
-                    targetState = title,
-                    transitionSpec = {
-                        (slideInHorizontally { it } + fadeIn()) togetherWith
-                            (slideOutHorizontally { -it } + fadeOut())
-                    },
-                    label = "track",
-                    modifier = Modifier.weight(1f),
-                ) { t ->
-                    Column(Modifier.fillMaxWidth()) {
-                        Text(
-                            t, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                            color = HomeText,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            artist, fontSize = 11.sp, color = HomeSub,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            } else {
-                Text(
-                    "还没有播放",
-                    color = HomeSub,
-                    fontSize = 13.sp,
-                    modifier = Modifier.weight(1f).padding(start = 12.dp),
-                )
-            }
-            Box(
-                Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(androidx.compose.ui.graphics.Color.White)
-                    .clickable(enabled = enabled, onClick = onToggle),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
-                    contentDescription = if (playing) "暂停" else "播放",
-                    tint = androidx.compose.ui.graphics.Color(0xFF202126),
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-        }
     }
 }

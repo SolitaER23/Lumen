@@ -19,6 +19,15 @@
 
 ---
 
+## [0.37.1] - 2026-11-22
+
+### MainActivity 拆分（第一批）
+- 抽出 `ui/LoginScreen.kt`、`ui/Theme.kt`（字体与 Typography）、`ui/HomeCache.kt`、`ui/HomeColors.kt`、`ui/YoinBar.kt`；
+- `MainActivity` 减少约 170 行，只保留应用壳、导航与页面装配；
+- 行为不变，构建、单测与装机启动均通过。
+
+### 版本
+- `versionName 0.37.1` / `versionCode 118`。
 ## [0.37.0] - 2026-11-22
 
 ### R8 开启 + 本机数据清除
