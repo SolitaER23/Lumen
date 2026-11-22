@@ -42,7 +42,7 @@ object MusicPulse {
         env = mood?.env ?: FloatArray(0)
         envStep = mood?.envStepMs ?: 100
         if (beats.isNotEmpty()) {
-            android.util.Log.i(
+            com.example.app.util.Logx.i(
                 "LumenPulse",
                 "sync $id beats=${beats.size} env=${env.size} step=$envStep tempo=${"%.0f".format(tempoBpm)}",
             )
@@ -87,7 +87,7 @@ object MusicPulse {
                 beatIdx++
                 if (beatLogs < 5) {
                     beatLogs++
-                    android.util.Log.i("LumenPulse", "beat @${beats[beatIdx - 1]}ms level=${"%.2f".format(level)}")
+                    com.example.app.util.Logx.i("LumenPulse", "beat @${beats[beatIdx - 1]}ms level=${"%.2f".format(level)}")
                 }
             }
             beat *= 0.86f

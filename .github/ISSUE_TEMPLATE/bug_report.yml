@@ -1,0 +1,55 @@
+name: Bug 报告
+description: 播放、界面或连接问题
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先确认使用最新版本，并移除日志中的服务器地址、账号与 Token。
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 设置 → 关于 → 版本
+      placeholder: "0.35.9 / 112"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 设备与系统
+      placeholder: "Pixel 10a / Android 16"
+    validations:
+      required: true
+  - type: dropdown
+    id: server
+    attributes:
+      label: 服务器
+      options:
+        - Navidrome（HTTP）
+        - Navidrome（HTTPS）
+        - 其他 OpenSubsonic 服务
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开…
+        2. 播放…
+        3. 返回…
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或截图
+      description: 请先脱敏（地址、账号、Token）
+      render: text

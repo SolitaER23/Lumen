@@ -35,7 +35,7 @@ class MoodAnalyzer(private val ctx: Context) {
         .build()
 
     fun analyze(trackId: String, url: String, onPhase: (String, Float) -> Unit = { _, _ -> }): MoodResult {
-        android.util.Log.i("LumenMood", "start analysis $trackId")
+        com.example.app.util.Logx.i("LumenMood", "start analysis $trackId")
         val temp = File(ctx.cacheDir, "mood_$trackId.mp3")
         try {
             onPhase("下载", 0f)
@@ -50,7 +50,7 @@ class MoodAnalyzer(private val ctx: Context) {
             val cnn14 = runCnn14(pcm) { onPhase("CNN14", 0.66f + it * 0.33f) }
             onPhase("融合", 0.99f)
             val result = MoodMath.fuse(yamnet, cnn14, dsp, trackId)
-            android.util.Log.i(
+            com.example.app.util.Logx.i(
                 "LumenMood",
                 "mood $trackId label=${result.label} beats=${result.beatsMs.size} env=${result.env.size} tempo=${"%.0f".format(result.tempo)}",
             )
@@ -180,7 +180,7 @@ class MoodAnalyzer(private val ctx: Context) {
             setUseXNNPACK(false)
         }
         val interp = Interpreter(dst, options)
-        android.util.Log.i(
+        com.example.app.util.Logx.i(
             "LumenMood",
             "YAMNet loaded: in=" + interp.getInputTensor(0).shape().toList() +
                 " outs=" + (0 until interp.outputTensorCount).map { interp.getOutputTensor(it).shape().toList() },
@@ -212,7 +212,7 @@ class MoodAnalyzer(private val ctx: Context) {
                 onProgress((pos.toFloat() / pcm.size).coerceIn(0f, 1f))
             }
             runCatching { interp.close() }
-            android.util.Log.i("LumenMood", "yamnet frames=$frames win=$win classes=$classes")
+            com.example.app.util.Logx.i("LumenMood", "yamnet frames=$frames win=$win classes=$classes")
             if (frames == 0) null else FloatArray(classes) { sums[it] / frames }
         }.onFailure { android.util.Log.e("LumenMood", "yamnet exception", it) }.getOrNull()
     }

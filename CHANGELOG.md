@@ -19,6 +19,16 @@
 
 ---
 
+## [0.35.9] - 2026-11-22
+
+### P1/P2 第一批：可分页、日志与协作文档
+- 专辑列表改为 `getAlbumList2` 分页循环，修复超过 500 张专辑时静默截断的问题（MoodWorker 同步受益）；
+- Release 构建下 Info/Debug 日志静默（新增 `util/Logx`），避免曲目/专辑 ID 与数据库结构写入 logcat；
+- README 重写：当前功能、Wrapper 构建、测试命令、目录与已知限制；
+- 新增 `CONTRIBUTING.md`、`SECURITY.md`、PR 模板与 Bug/Feature Issue 模板。
+
+### 版本
+- `versionName 0.35.9` / `versionCode 113`。
 ## [0.35.8] - 2026-11-22
 
 ### 工程化与安全（P0 第一批）

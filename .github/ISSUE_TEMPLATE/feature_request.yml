@@ -1,0 +1,31 @@
+name: 功能建议
+description: 想法、改进或新能力
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决什么问题
+      placeholder: 例如：切歌时希望…
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望的做法
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案或其他播放器怎么做的
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 影响范围
+      options:
+        - label: 播放 / 下载
+        - label: 首页 / 最近 / 收藏
+        - label: 设置 / 多账号
+        - label: 主题与动效
+        - label: 仅文档

@@ -94,7 +94,7 @@ fun moodTintedSeed(coverSeed: Int, mood: MoodResult): Int {
     val chromaK = (0.15 + 0.30 * strength.toDouble()).coerceIn(0.0, 0.45)
     val chroma = cover.chroma * (1.0 - chromaK) + moodHct.chroma * chromaK
     val seed = Hct.from(rotated.hue, chroma, cover.tone).toInt()
-    android.util.Log.i(
+    com.example.app.util.Logx.i(
         "LumenMood",
         "tint coverHue=%.0f moodHue=%.0f harm=%.0f outHue=%.0f chroma %.1f→%.1f (k=%.2f) amount=%.2f".format(
             cover.hue,

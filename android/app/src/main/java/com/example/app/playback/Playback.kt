@@ -34,7 +34,7 @@ class Playback(private val ctx: Context) {
     private val debug = com.example.app.BuildConfig.DEBUG
 
     private fun logd(msg: String) { if (debug) android.util.Log.d("Lumen", msg) }
-    private fun logi(msg: String) { if (debug) android.util.Log.i("Lumen", msg) }
+    private fun logi(msg: String) { if (debug) com.example.app.util.Logx.i("Lumen", msg) }
     private fun logw(msg: String) { if (debug) android.util.Log.w("Lumen", msg) }
     /** 播放地址提供者：Activity 登录后注入（要区分 m4a 转码） */
     var urlFor: (Track) -> String = { "" }
@@ -96,7 +96,7 @@ class Playback(private val ctx: Context) {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
-                android.util.Log.i("LumenPlay", "isPlaying=$isPlaying state=${player.playbackState} pwr=${player.playWhenReady}")
+                com.example.app.util.Logx.i("LumenPlay", "isPlaying=$isPlaying state=${player.playbackState} pwr=${player.playWhenReady}")
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -307,7 +307,7 @@ class Playback(private val ctx: Context) {
         index = idx
         positionMs = progressMs.coerceAtLeast(0L)
         resumePosition = progressMs.coerceAtLeast(0L)
-        android.util.Log.i("LumenMood", "restore hint idx=$idx pos=$progressMs state=${player.playbackState}")
+        com.example.app.util.Logx.i("LumenMood", "restore hint idx=$idx pos=$progressMs state=${player.playbackState}")
     }
 
     fun next() {

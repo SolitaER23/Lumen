@@ -450,7 +450,7 @@ private fun App() {
                 rating = Ratings.get(ctx, tr.id)
                 scrobbledId = null
                 mood = com.example.app.data.MoodStore.get(ctx, tr.id)
-                android.util.Log.i(
+                com.example.app.util.Logx.i(
                     "LumenMood",
                     "load mood id=${tr.id} found=${mood != null} beats=${mood?.beatsMs?.size ?: -1} tempo=${mood?.tempo ?: -1f}",
                 )
@@ -483,7 +483,7 @@ private fun App() {
             nowPlayingId = tr.id
             withContext(Dispatchers.IO) {
                 val r = runCatching { client.scrobble(tr.id, submission = false) }
-                android.util.Log.i("LumenScrobble", "nowPlaying ${tr.id} ok=${r.isSuccess} err=${r.exceptionOrNull()?.message}")
+                com.example.app.util.Logx.i("LumenScrobble", "nowPlaying ${tr.id} ok=${r.isSuccess} err=${r.exceptionOrNull()?.message}")
             }
         }
     }
@@ -496,7 +496,7 @@ private fun App() {
             scrobbledId = tr.id
             withContext(Dispatchers.IO) {
                 val r = runCatching { client.scrobble(tr.id, submission = true) }
-                android.util.Log.i("LumenScrobble", "submit ${tr.id} ok=${r.isSuccess} err=${r.exceptionOrNull()?.message}")
+                com.example.app.util.Logx.i("LumenScrobble", "submit ${tr.id} ok=${r.isSuccess} err=${r.exceptionOrNull()?.message}")
             }
         }
     }
@@ -772,7 +772,7 @@ private fun App() {
                             LaunchedEffect(album.id) {
                                 val fetched = try {
                                     withContext(Dispatchers.IO) { client.tracks(album.id) }.also {
-                                        android.util.Log.i(
+                                        com.example.app.util.Logx.i(
                                             "LumenAlbum",
                                             "album=${album.id} tracks=${it.size} discs=${it.map { t -> t.disc }.distinct()}",
                                         )

@@ -276,8 +276,27 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
 
     fun ping(): Boolean = get("ping.view").optString("status") == "ok"
 
-    fun albums(pageSize: Int = 500): List<Album> =
-        parseAlbumList(get("getAlbumList2.view", mapOf("type" to "alphabeticalByName", "size" to "$pageSize")))
+    /** 分页拉取全部专辑（服务端单页上限通常为 500）。 */
+    fun albums(pageSize: Int = 500): List<Album> {
+        val out = ArrayList<Album>()
+        var offset = 0
+        while (offset < 20000) {
+            val page = parseAlbumList(
+                get(
+                    "getAlbumList2.view",
+                    mapOf(
+                        "type" to "alphabeticalByName",
+                        "size" to "$pageSize",
+                        "offset" to "$offset",
+                    ),
+                ),
+            )
+            out += page
+            if (page.size < pageSize) break
+            offset += pageSize
+        }
+        return out
+    }
 
     /** 单曲元数据（下载记录补封面/播放用） */
     fun song(trackId: String): Track? {

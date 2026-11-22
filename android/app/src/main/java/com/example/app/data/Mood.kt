@@ -47,7 +47,7 @@ object MoodStore {
                     while (c.moveToNext()) cols.add(c.getString(1))
                 }
             }
-            android.util.Log.i("LumenMood", "db v=${db.version} cols=$cols")
+            com.example.app.util.Logx.i("LumenMood", "db v=${db.version} cols=$cols")
         }
     }
 
