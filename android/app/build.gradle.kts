@@ -26,8 +26,8 @@ android {
         applicationId = "app.lumen.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 124
-        versionName = "0.40.0"
+        versionCode = 125
+        versionName = "0.41.0"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
