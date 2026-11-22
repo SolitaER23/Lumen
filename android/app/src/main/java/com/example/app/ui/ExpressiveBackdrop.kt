@@ -27,8 +27,9 @@ import kotlin.math.sin
  * - 只做渐变绘制，保证滚动/转场流畅。
  */
 @Composable
-fun ExpressiveBackdrop(modifier: Modifier = Modifier) {
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+fun ExpressiveBackdrop(modifier: Modifier = Modifier, drivePulse: Boolean = true) {
+    androidx.compose.runtime.LaunchedEffect(drivePulse) {
+        if (!drivePulse) return@LaunchedEffect
         var last = 0L
         while (true) {
             androidx.compose.runtime.withFrameNanos { now ->

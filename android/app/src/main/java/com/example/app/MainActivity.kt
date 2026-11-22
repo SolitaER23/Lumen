@@ -1,4 +1,4 @@
-﻿package com.example.app
+package com.example.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -82,6 +82,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -290,8 +291,11 @@ private fun App() {
     val backAnim = remember { Animatable(0f) }
     // 返回出栈时跳过 AnimatedContent 的淡入/缩放，避免“上一页刚落地又弹一下”
     var instantNav by remember { mutableStateOf(false) }
+    // 返回手势开始时的“上一页” key，出栈后继续保持组合，避免切换瞬间重建
+    var heldBack by remember { mutableStateOf<NavKey?>(null) }
     fun goBack() {
         if (navStack.isEmpty()) return
+        heldBack = navStack.lastOrNull()
         scope.launch {
             if (backAnim.value < 1.4f) {
                 // 把当前页完全送出屏幕，再无缝切换
@@ -412,6 +416,9 @@ private fun App() {
             }
         }
     }
+    LaunchedEffect(backAnim.value) {
+        if (backAnim.value == 0f) heldBack = null
+    }
     val current = playback.current
 
     // 下载状态：设置/下载管理页才轮询；专辑页只在进入时查一次，避免转场期间每秒重组整个 App
@@ -450,6 +457,7 @@ private fun App() {
     }
 
     PredictiveBackHandler(enabled = screen > 0) { progress ->
+        heldBack = navStack.lastOrNull()
         try {
             progress.collect { backAnim.snapTo(it.progress) }
             // 手势结束：补完剩余位移再出栈，保证与手指连续
@@ -744,68 +752,52 @@ private fun App() {
                             ),
                         ),
                 )
-                // 上一页实时渲染在下方：返回时做视差，不是静态截图
-                if (backAnim.value > 0.01f && navStack.isNotEmpty()) {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                val p = backAnim.value.coerceAtMost(1f)
-                                val s = 0.94f + 0.06f * p
-                                scaleX = s
-                                scaleY = s
-                                translationX = -size.width * 0.05f * (1f - p)
-                            },
-                    ) {
-                        screenContent(navStack.last())
+                // 页面层：始终保留「上一页 + 当前页」两份实时组合；返回时不重建，避免到位后闪一下
+                val pageBack = if (backAnim.value > 0.001f) (heldBack ?: navStack.lastOrNull()) else null
+                val pageKeys = listOfNotNull(pageBack, NavKey(screen, openAlbum)).distinct()
+                pageKeys.forEachIndexed { idx, pageKey ->
+                    val isFront = idx == pageKeys.lastIndex
+                    key(pageKey) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    val p = backAnim.value
+                                    if (isFront) {
+                                        val over = (p - 1f).coerceAtLeast(0f)
+                                        translationX = size.width * (0.24f * p + 1.9f * over)
+                                        alpha = if (p > 1.2f) ((1.4f - p) / 0.2f).coerceIn(0f, 1f) else 1f
+                                        val s = 1f - 0.07f * p.coerceAtMost(1f)
+                                        scaleX = s
+                                        scaleY = s
+                                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+                                    } else {
+                                        val p2 = p.coerceAtMost(1f)
+                                        val s = 0.94f + 0.06f * p2
+                                        scaleX = s
+                                        scaleY = s
+                                        translationX = -size.width * 0.05f * (1f - p2)
+                                    }
+                                }
+                                .clip(
+                                    RoundedCornerShape(
+                                        if (isFront) (26.dp * backAnim.value.coerceAtMost(1f)).coerceAtLeast(0.dp)
+                                        else 0.dp,
+                                    ),
+                                ),
+                        ) {
+                            // 每一页都带自己的背景：从底层升到前景时亮度不变，避免切换瞬间闪一下
+                            if (isFront || backAnim.value > 0.01f) {
+                                com.example.app.ui.ExpressiveBackdrop(
+                                    Modifier.matchParentSize(),
+                                    drivePulse = isFront,
+                                )
+                            }
+                            screenContent(pageKey)
+                        }
                     }
                 }
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            val p = backAnim.value
-                            val over = (p - 1f).coerceAtLeast(0f)
-                            translationX = size.width * (0.24f * p + 1.9f * over)
-                            // 仅在几乎移出屏幕的最后阶段淡出，遮掉换页瞬间的任何差异
-                            alpha = if (p > 1.2f) ((1.4f - p) / 0.2f).coerceIn(0f, 1f) else 1f
-                            val s = 1f - 0.07f * p.coerceAtMost(1f)
-                            scaleX = s
-                            scaleY = s
-                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
-                        }
-                        .clip(RoundedCornerShape((26.dp * backAnim.value.coerceAtMost(1f)).coerceAtLeast(0.dp))),
-                ) {
-                // 当前页自带一层背景，返回滑动时只在让出的区域露出上一页
-                com.example.app.ui.ExpressiveBackdrop(Modifier.matchParentSize())
-                run {
-                AnimatedContent(
-                    targetState = NavKey(screen, openAlbum),
-                    transitionSpec = {
-                        if (instantNav) {
-                            (androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None)
-                        } else {
-                        val forward = targetState.screen >= initialState.screen
-                        val spec = spring<Float>(dampingRatio = 0.85f, stiffness = 420f)
-                        val enter = fadeIn(tween<Float>(260)) + scaleIn(
-                            initialScale = if (forward) 0.90f else 1.06f,
-                            animationSpec = spec,
-                        )
-                        val exit = fadeOut(tween<Float>(180)) + scaleOut(
-                            targetScale = if (forward) 1.06f else 0.90f,
-                            animationSpec = spec,
-                        )
-                        (enter togetherWith exit).using(androidx.compose.animation.SizeTransform(clip = false))
-                        }
-                    },
-                    label = "screen",
-                    modifier = Modifier.fillMaxSize(),
-                ) { key ->
-                screenContent(key)
-                }
-                }
 
-                }
 
                 // 播放页有自己的控制区，不再显示底栏
                 if (screen != 2) {
