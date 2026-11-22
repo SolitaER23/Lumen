@@ -23,8 +23,8 @@
 adb devices -l                                  # 确认序列号
 .\build.ps1 -Abis arm64-v8a                     # 只编 arm64
 adb -s <serial> install -r .\dist\app-debug.apk
-adb -s <serial> shell am force-stop com.example.app
-adb -s <serial> shell am start -n com.example.app/com.google.androidgamesdk.GameActivity
+adb -s <serial> shell am force-stop app.lumen.player
+adb -s <serial> shell am start -n app.lumen.player/com.google.androidgamesdk.GameActivity
 adb -s <serial> logcat -d | Select-String "app::"     # 日志 tag 是模块路径：app::app / app::audio / ...
 adb -s <serial> exec-out screencap -p > shot.png
 ```

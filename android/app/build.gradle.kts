@@ -19,15 +19,15 @@ val releaseStorePath = signingValue("LUMEN_KEYSTORE_FILE", "storeFile")
 val hasReleaseKey = !releaseStorePath.isNullOrBlank() && rootProject.file(releaseStorePath).exists()
 
 android {
-    namespace = "com.example.app"
+    namespace = "app.lumen.player"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.app"
+        applicationId = "app.lumen.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 119
-        versionName = "0.37.2"
+        versionCode = 120
+        versionName = "0.38.0"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 

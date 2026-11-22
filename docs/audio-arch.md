@@ -268,7 +268,7 @@ I app::audio: stream: ranged=true len=7056044
   `getFilesDir()/settings.json`（JNI 取路径；桌面退回临时目录），密码 AES-GCM 加密。
 * 启动未登录时显示一次性登录界面（服务器/账号/密码），连上后自动关闭；
   右上角「已登录」标识可查看用户名 / 退出登录。
-* 校验：`settings saved to "/data/user/0/com.example.app/files/settings.json"`，
+* 校验：`settings saved to "/data/user/0/app.lumen.player/files/settings.json"`，
   重启后 `settings loaded` → `navidrome: 120 张专辑`，源码里已搜不到服务器/口令字符串。
 
 **B. 预取下一首**

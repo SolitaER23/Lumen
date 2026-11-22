@@ -6,9 +6,9 @@
 -keepclasseswithmembers class * {
     @retrofit2.http.* <methods>;
 }
--keep interface com.example.app.data.SubsonicApi { *; }
+-keep interface app.lumen.player.data.SubsonicApi { *; }
 -keep class com.google.gson.** { *; }
--keep class com.example.app.data.** { *; }
+-keep class app.lumen.player.data.** { *; }
 
 # Kotlinx serialization
 -keepattributes RuntimeVisibleAnnotations
@@ -23,5 +23,5 @@
 -dontwarn ai.onnxruntime.**
 
 # WorkManager reflective worker construction
--keep class com.example.app.playback.MoodWorker { *; }
+-keep class app.lumen.player.playback.MoodWorker { *; }
 -keep class * extends androidx.work.ListenableWorker { <init>(...); }

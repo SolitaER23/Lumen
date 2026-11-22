@@ -55,7 +55,7 @@ cd android
 ## 目录
 
 ```
-android/app/src/main/java/com/example/app/
+android/app/src/main/java/app/lumen/player/
   MainActivity.kt        应用壳、导航与页面装配
   data/                  配置/账号、Subsonic、缓存、心情、统计、历史
   playback/              ExoPlayer、下载服务、后台分析 Worker

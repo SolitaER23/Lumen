@@ -19,6 +19,15 @@
 
 ---
 
+## [0.38.0] - 2026-11-22
+
+### 包名迁移
+- `namespace` 与 `applicationId` 从 `com.example.app` 迁移到 `app.lumen.player`；
+- Kotlin 包路径、测试、ProGuard keep 规则、文档与 CI 中的包名引用同步更新；
+- 这是新的应用身份：**不会继承旧版本的账号、播放历史、评分、心情库、下载**；旧版 `com.example.app`（0.37.2）仍保留在设备上，可继续查看旧数据。
+
+### 版本
+- `versionName 0.38.0` / `versionCode 120`。
 ## [0.37.2] - 2026-11-22
 
 ### MainActivity 拆分完成 + 历史脱敏
@@ -816,7 +825,7 @@
   首页与覆盖层（设置/确认面板）上则做压暗，读起来像"应用被退出"。
 - **覆盖**：确认面板 → 设置页 → 播放页 → 专辑页 → 首页（退出）；KEYCODE_BACK 在桥装上后
   不再重复处理，避免双重返回。
-- 平台胶水：`android/app/src/main/java/com/example/app/BackBridge.java`（约 70 行，只做
+- 平台胶水：`android/app/src/main/java/app/lumen/player/BackBridge.java`（约 70 行，只做
   回调转发，无业务逻辑）；Rust 侧 `src/back.rs` 收进度、`safe_area::install_back_bridge()` 安装。
 ## [0.4.9] - 2026-11-20
 
