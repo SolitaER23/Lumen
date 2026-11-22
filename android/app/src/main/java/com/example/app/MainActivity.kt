@@ -293,8 +293,9 @@ private fun App() {
     fun goBack() {
         if (navStack.isEmpty()) return
         scope.launch {
-            if (backAnim.value < 0.999f) {
-                backAnim.animateTo(1f, tween(210, easing = FastOutSlowInEasing))
+            if (backAnim.value < 1.4f) {
+                // 把当前页完全送出屏幕，再无缝切换
+                backAnim.animateTo(1.4f, tween(200, easing = FastOutSlowInEasing))
             }
             instantNav = true
             performBack()
@@ -450,8 +451,8 @@ private fun App() {
         try {
             progress.collect { backAnim.snapTo(it.progress) }
             // 手势结束：补完剩余位移再出栈，保证与手指连续
-            if (backAnim.value < 1f) {
-                backAnim.animateTo(1f, tween(140, easing = FastOutSlowInEasing))
+            if (backAnim.value < 1.4f) {
+                backAnim.animateTo(1.4f, tween(170, easing = FastOutSlowInEasing))
             }
             // 出栈瞬间跳过 AnimatedContent 过渡，避免新页面再缩放闪一下
             instantNav = true
@@ -733,7 +734,11 @@ private fun App() {
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.32f * backAnim.value)),
+                        .background(
+                            androidx.compose.ui.graphics.Color.Black.copy(
+                                alpha = 0.32f * backAnim.value.coerceAtMost(1f),
+                            ),
+                        ),
                 )
                 // 上一页实时渲染在下方：返回时做视差，不是静态截图
                 if (backAnim.value > 0.01f && navStack.isNotEmpty()) {
@@ -741,7 +746,7 @@ private fun App() {
                         Modifier
                             .fillMaxSize()
                             .graphicsLayer {
-                                val p = backAnim.value
+                                val p = backAnim.value.coerceAtMost(1f)
                                 val s = 0.94f + 0.06f * p
                                 scaleX = s
                                 scaleY = s
@@ -755,13 +760,15 @@ private fun App() {
                     Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            translationX = size.width * 0.24f * backAnim.value
-                            val s = 1f - 0.07f * backAnim.value
+                            val p = backAnim.value
+                            val over = (p - 1f).coerceAtLeast(0f)
+                            translationX = size.width * (0.24f * p + 1.9f * over)
+                            val s = 1f - 0.07f * p.coerceAtMost(1f)
                             scaleX = s
                             scaleY = s
                             transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
                         }
-                        .clip(RoundedCornerShape((26.dp * backAnim.value).coerceAtLeast(0.dp))),
+                        .clip(RoundedCornerShape((26.dp * backAnim.value.coerceAtMost(1f)).coerceAtLeast(0.dp))),
                 ) {
                 // 当前页自带一层背景，返回滑动时只在让出的区域露出上一页
                 com.example.app.ui.ExpressiveBackdrop(Modifier.matchParentSize())
