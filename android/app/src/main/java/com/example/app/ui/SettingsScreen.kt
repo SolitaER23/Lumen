@@ -1,8 +1,5 @@
-package com.example.app.ui
+﻿package com.example.app.ui
 
-import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,7 +44,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** 设置页：连接、外观、心情分析、缓存、下载、NeoDB、账号与关于。 */
+/** 设置页：连接、外观、心情分析、缓存、下载、账号与关于。 */
 @Composable
 fun SettingsScreen(
     cfg: ServerConfig,
@@ -194,97 +191,6 @@ fun SettingsScreen(
                 SettingRow("已下载", "$downloadCount 首 · ${"%.1f".format(downloadBytes / 1024f / 1024f)} MB") {
                     TextButton(onClick = onManageDownloads) {
                         Text("管理", fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-
-        item {
-            SettingSection("NeoDB") {
-                var neodbInstance by remember { mutableStateOf(com.example.app.data.Neodb.config.instance) }
-                var neodbClientId by remember { mutableStateOf(com.example.app.data.Neodb.config.clientId) }
-                var neodbSecret by remember { mutableStateOf(com.example.app.data.Neodb.config.clientSecret) }
-                Text(
-                    if (com.example.app.data.Neodb.loggedIn)
-                        "已连接：${com.example.app.data.Neodb.username.ifBlank { "NeoDB" }}"
-                    else "未连接（用于查看专辑评分与短评）",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 13.sp,
-                )
-                Spacer(Modifier.height(4.dp))
-                androidx.compose.material3.OutlinedTextField(
-                    value = neodbInstance,
-                    onValueChange = { neodbInstance = it },
-                    label = { Text("实例地址", fontSize = 12.sp) },
-                    singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                )
-                androidx.compose.material3.OutlinedTextField(
-                    value = neodbClientId,
-                    onValueChange = { neodbClientId = it },
-                    label = { Text("Client ID", fontSize = 12.sp) },
-                    singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                )
-                androidx.compose.material3.OutlinedTextField(
-                    value = neodbSecret,
-                    onValueChange = { neodbSecret = it },
-                    label = { Text("Client Secret（可选）", fontSize = 12.sp) },
-                    singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                )
-                var neodbToken by remember { mutableStateOf("") }
-                androidx.compose.material3.OutlinedTextField(
-                    value = neodbToken,
-                    onValueChange = { neodbToken = it },
-                    label = { Text("访问令牌（可直接登录）", fontSize = 12.sp) },
-                    singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                )
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    PillButton("用令牌登录") {
-                        com.example.app.data.Neodb.loginWithToken(ctx, neodbToken) { ok, msg ->
-                            Toast.makeText(
-                                ctx,
-                                if (ok) "NeoDB 登录成功" else "令牌登录失败：${msg ?: "未知错误"}",
-                                Toast.LENGTH_LONG,
-                            ).show()
-                        }
-                    }
-                }
-                Text(
-                    "回调地址请填：lumen://neodb",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    PillButton("连接 NeoDB", primary = true) {
-                        com.example.app.data.Neodb.saveConfig(
-                            ctx,
-                            com.example.app.data.Neodb.Config(neodbInstance, neodbClientId, neodbSecret),
-                        )
-                        val url = com.example.app.data.Neodb.authorizeUrl(ctx)
-                        if (url == null) {
-                            Toast.makeText(ctx, "请先填写 Client ID（在 NeoDB 注册 OAuth 应用后获得）", Toast.LENGTH_LONG).show()
-                        } else {
-                            runCatching {
-                                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                            }
-                        }
-                    }
-                    if (com.example.app.data.Neodb.loggedIn) {
-                        PillButton("断开连接") { com.example.app.data.Neodb.logout(ctx) }
                     }
                 }
             }

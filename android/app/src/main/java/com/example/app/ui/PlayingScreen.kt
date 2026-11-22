@@ -1,4 +1,4 @@
-﻿package com.example.app.ui
+package com.example.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
@@ -113,12 +113,6 @@ fun PlayingScreen(
     lyricsLoading: Boolean = false,
     showLyrics: Boolean = false,
     onToggleLyrics: () -> Unit = {},
-    showNeodb: Boolean = false,
-    onShowNeodb: () -> Unit = {},
-    onShowLyrics: () -> Unit = {},
-    neodbState: com.example.app.data.Neodb.UiState = com.example.app.data.Neodb.UiState.NotLoggedIn,
-    onNeodbLogin: () -> Unit = {},
-    onNeodbRetry: () -> Unit = {},
     onSeekPlay: (Long) -> Unit = {},
     mood: com.example.app.data.MoodResult? = null,
     moodAnalyzing: Boolean = false,
@@ -194,15 +188,6 @@ fun PlayingScreen(
                             content = if (starred) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurface,
                             onClick = onToggleStar,
-                        )
-                        PlayerAction(
-                            text = "N",
-                            shape = RoundedCornerShape(percent = 50),
-                            container = if (showNeodb) MaterialTheme.colorScheme.surfaceContainerHighest
-                            else MaterialTheme.colorScheme.surfaceContainerHigh,
-                            content = if (showNeodb) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface,
-                            onClick = onShowNeodb,
                         )
                     }
                 }
@@ -291,7 +276,7 @@ fun PlayingScreen(
                             else MaterialTheme.colorScheme.inversePrimary.copy(alpha = 0.55f),
                             RoundedCornerShape(18.dp),
                         )
-                        .clickable { if (showNeodb) onShowLyrics() else onToggleLyrics() },
+                        .clickable(onClick = onToggleLyrics),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -342,15 +327,7 @@ fun PlayingScreen(
                 )
             }
             Spacer(Modifier.height(6.dp))
-            if (showNeodb) {
-                NeodbPanel(
-                    state = neodbState,
-                    myRating10 = rating,
-                    onLogin = onNeodbLogin,
-                    onRetry = onNeodbRetry,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
-            } else if (showLyrics) {
+            if (showLyrics) {
                 LyricsArea(
                     lines = lyrics,
                     loading = lyricsLoading,
@@ -652,30 +629,7 @@ private fun CircleAction(
         }
     }
 }
-/** NeoDB 入口按钮：与下载/收藏并列的方形按钮。 */
-@Composable
-private fun NeodbAction(active: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(64.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(
-                if (active) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceContainerHigh,
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            "N",
-            color = if (active) MaterialTheme.colorScheme.onPrimary
-            else MaterialTheme.colorScheme.onSurface,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
-/** 播放页右侧的统一操作按钮（下载/收藏/NeoDB 共用一套尺寸与圆角）。 */
+/** 播放页右侧的统一操作按钮（下载/收藏共用一套尺寸与圆角）。 */
 @Composable
 private fun PlayerAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,

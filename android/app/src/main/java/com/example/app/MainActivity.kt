@@ -158,29 +158,8 @@ class MainActivity : ComponentActivity() {
         // Pixel 10a 是 120Hz 面板：明确请求固定源 120Hz，动画期间才不会被降到 60
         window.attributes = window.attributes.apply { preferredRefreshRate = 120f }
 
-        handleNeodbIntent(intent)
         setContent {
             App()
-        }
-    }
-
-    override fun onNewIntent(intent: android.content.Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handleNeodbIntent(intent)
-    }
-
-    private fun handleNeodbIntent(intent: android.content.Intent?) {
-        val uri = intent?.data ?: return
-        if (uri.scheme != "lumen" || uri.host != "neodb") return
-        com.example.app.data.Neodb.completeLogin(this, uri) { ok, msg ->
-            if (!ok) {
-                android.widget.Toast.makeText(
-                    this,
-                    "NeoDB 登录失败：${msg ?: "未知错误"}",
-                    android.widget.Toast.LENGTH_LONG,
-                ).show()
-            }
         }
     }
 }
@@ -236,11 +215,6 @@ private fun App() {
     var lyricsTrackId by remember { mutableStateOf<String?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(true) }
-    var showNeodb by remember { mutableStateOf(false) }
-    var neodbState by remember {
-        mutableStateOf<com.example.app.data.Neodb.UiState>(com.example.app.data.Neodb.UiState.NotLoggedIn)
-    }
-    var neodbRetry by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     var rating by remember { mutableFloatStateOf(0f) }
     var scrobbledId by remember { mutableStateOf<String?>(null) }
     var nowPlayingId by remember { mutableStateOf<String?>(null) }
@@ -358,7 +332,6 @@ private fun App() {
     // 换歌自动加载歌词（播放页下方常驻显示）
     LaunchedEffect(playback.current?.id) {
         val tr = playback.current
-        showNeodb = false
         if (lyricsTrackId != tr?.id) {
             lyrics = null
             lyricsTrackId = tr?.id
@@ -375,19 +348,6 @@ private fun App() {
                     lyrics = withContext(Dispatchers.IO) { client.lyrics(tr.id, tr.title, tr.artist) }
                 }
                 lyricsLoading = false
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) { com.example.app.data.Neodb.load(ctx) }
-
-    // NeoDB 面板数据（登录后按专辑匹配）
-    LaunchedEffect(playback.current?.id, showNeodb, com.example.app.data.Neodb.loggedIn, neodbRetry) {
-        val tr = playback.current
-        if (showNeodb && tr != null) {
-            neodbState = com.example.app.data.Neodb.UiState.Loading
-            neodbState = withContext(Dispatchers.IO) {
-                com.example.app.data.Neodb.loadForPlayer(ctx, tr.albumId, tr.album, tr.artist)
             }
         }
     }
@@ -590,12 +550,6 @@ private fun App() {
                         lyricsLoading = lyricsLoading,
                         showLyrics = showLyrics,
                         onToggleLyrics = { showLyrics = !showLyrics },
-                        showNeodb = showNeodb,
-                        onShowNeodb = { showNeodb = true; showLyrics = false },
-                        onShowLyrics = { showNeodb = false; showLyrics = true },
-                        neodbState = neodbState,
-                        onNeodbLogin = { navigate(NavKey(3, null)) },
-                        onNeodbRetry = { neodbRetry++ },
                         onSeekPlay = { ms ->
                             playback.seekTo(ms)
                             if (!playback.playing) playback.toggle()
