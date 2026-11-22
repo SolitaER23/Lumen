@@ -36,7 +36,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.text.style.TextAlign
 import com.example.app.data.LyricLine
 import androidx.compose.runtime.LaunchedEffect
@@ -494,7 +497,22 @@ private fun LyricsArea(
                 }
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = appear.value },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    0f to Color.Transparent,
+                                    0.16f to Color.Black,
+                                    0.84f to Color.Black,
+                                    1f to Color.Transparent,
+                                ),
+                                blendMode = BlendMode.DstIn,
+                            )
+                        }
+                        .graphicsLayer { alpha = appear.value },
                     contentPadding = PaddingValues(top = vPad, bottom = vPad, start = 24.dp, end = 24.dp),
                 ) {
                     itemsIndexed(lines) { i, line ->
