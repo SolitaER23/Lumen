@@ -19,6 +19,15 @@
 
 ---
 
+## [0.37.2] - 2026-11-22
+
+### MainActivity 拆分完成 + 历史脱敏
+- 将 `HomeScreen` 及其全部首页组件（专辑/艺人/收藏/最近、卡片与行组件、排序）整体迁到 `ui/HomeScreen.kt`；
+- `MainActivity` 从 2132 行降到约 990 行，只保留应用壳、导航、播放页装配与账号逻辑；
+- Git 历史已重写：移除 `.workbuddy`，并把历史中的内网地址、账号名、设备序列号替换为文档网段/占位值；备份 bundle 在 `target/pre-scrub.bundle`（不提交）。
+
+### 版本
+- `versionName 0.37.2` / `versionCode 119`。
 ## [0.37.1] - 2026-11-22
 
 ### MainActivity 拆分（第一批）
