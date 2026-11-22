@@ -205,30 +205,64 @@ fun LicensesScreen(onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        L10n.tf("心情分析仅使用 YAMNet（Apache-2.0）与本地 DSP，不上传音频；已移除 CNN14，分析更快、安装包更小。", "Mood analysis now uses only YAMNet (Apache-2.0) plus on-device DSP. CNN14 was removed: analysis is faster and the APK is smaller."),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    LicenseNote(
+                        L10n.tf("许可范围", "Scope"),
+                        L10n.tf(
+                            "Lumen 客户端以 MIT 许可发布；随 APK 分发的第三方组件均保留其原始许可与版权声明。上表所列许可文本与仓库中的 assets/licenses/ 保持一致。",
+                            "The Lumen client is released under MIT. Every third-party component shipped in the APK retains its original license and copyright notice. The texts listed above match assets/licenses/ in the repository.",
+                        ),
                     )
-                    Text(
-                        L10n.t("YAMNet 模型来自 TensorFlow Models，Apache-2.0，未修改。"),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
+                    LicenseNote(
+                        L10n.tf("端侧音频理解", "On-device audio understanding"),
+                        L10n.tf(
+                            "心情分析由 YAMNet 与本地 DSP 完成，推理通过 TensorFlow Lite 在设备端执行；YAMNet 模型未修改，音频不会上传。分析结果仅用于动态背景、配色与节拍，不改变音频文件。",
+                            "Mood analysis runs YAMNet and local DSP with TensorFlow Lite entirely on device. The YAMNet model is unmodified and audio is never uploaded. Results only drive the animated background, palette and beat response; audio files are never modified.",
+                        ),
                     )
-                    Text(
-                        L10n.t("Navidrome、Subsonic、Navidrome Stat 仅作为服务端/协议被对接，代码未打包进本应用。"),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
+                    LicenseNote(
+                        L10n.tf("服务端与协议", "Server and protocol"),
+                        L10n.tf(
+                            "Navidrome、Subsonic / OpenSubsonic 与 Navidrome Stat 通过公开 HTTP 接口对接，其服务端代码不随本应用分发；Navidrome 的 GPL-3.0 与 Navidrome Stat 的 MIT 义务不涉及本客户端。",
+                            "Navidrome, Subsonic / OpenSubsonic and Navidrome Stat are integrated through public HTTP APIs. Their server code is not distributed with this app, so their GPL-3.0 and MIT obligations do not extend to the client.",
+                        ),
                     )
-                    Text(
-                        L10n.t("以上信息基于各项目公开材料整理，具体条款以对应项目仓库为准。"),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
+                    LicenseNote(
+                        L10n.tf("本地数据", "Local data"),
+                        L10n.tf(
+                            "服务器凭据使用 Android Keystore 加密保存；播放历史、评分与心情结果仅存储在本机，应用不包含统计或分析 SDK，也不会上传曲库与使用数据。",
+                            "Server credentials are encrypted with the Android Keystore. Play history, ratings and mood results stay on device. The app contains no analytics SDK and never uploads library or usage data.",
+                        ),
+                    )
+                    LicenseNote(
+                        L10n.tf("文本效力", "Authoritative texts"),
+                        L10n.tf(
+                            "应用内许可文本依据各上游项目公开发布的材料整理；如与项目仓库存在差异，以对应仓库的 LICENSE / NOTICE 文件为准。",
+                            "In-app license texts are derived from each upstream project's published materials. If a discrepancy exists, the LICENSE / NOTICE files in the corresponding repository prevail.",
+                        ),
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LicenseNote(title: String, body: String) {
+    Column {
+        Text(
+            title,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            body,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(top = 3.dp),
+        )
     }
 }
 
