@@ -165,6 +165,11 @@ class Playback(private val ctx: Context) {
                 player.prepare()
                 player.seekTo(index.coerceAtLeast(0), resumePosition)
             }
+            // 播放到末尾后再次点播放：从当前曲目开头重新开始
+            if (player.playbackState == Player.STATE_ENDED) {
+                player.seekTo(index.coerceAtLeast(0), 0L)
+                positionMs = 0L
+            }
             player.play()
         }
     }
