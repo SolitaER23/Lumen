@@ -1,4 +1,4 @@
-﻿package com.example.app
+package com.example.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -288,14 +288,19 @@ private fun App() {
 
     // 手势/按钮共用的返回进度：跟手拖动，松手后补完剩余动画再真正出栈
     val backAnim = remember { Animatable(0f) }
+    // 返回出栈时跳过 AnimatedContent 的淡入/缩放，避免“上一页刚落地又弹一下”
+    var instantNav by remember { mutableStateOf(false) }
     fun goBack() {
         if (navStack.isEmpty()) return
         scope.launch {
             if (backAnim.value < 0.999f) {
                 backAnim.animateTo(1f, tween(210, easing = FastOutSlowInEasing))
             }
+            instantNav = true
             performBack()
             backAnim.snapTo(0f)
+            androidx.compose.runtime.withFrameNanos { }
+            instantNav = false
         }
     }
 
@@ -448,6 +453,8 @@ private fun App() {
             if (backAnim.value < 1f) {
                 backAnim.animateTo(1f, tween(140, easing = FastOutSlowInEasing))
             }
+            // 出栈瞬间跳过 AnimatedContent 过渡，避免新页面再缩放闪一下
+            instantNav = true
             // 手势返回必须走页面栈，否则从「专辑歌曲列表」会直接跳回首页/艺人页
             when {
                 navStack.isNotEmpty() -> performBack()
@@ -459,6 +466,8 @@ private fun App() {
                 }
             }
             backAnim.snapTo(0f)
+            kotlinx.coroutines.delay(90)
+            instantNav = false
         } catch (_: CancellationException) {
             // 手势取消：回到原位
             backAnim.animateTo(0f, tween(220, easing = FastOutSlowInEasing))
@@ -760,6 +769,9 @@ private fun App() {
                 AnimatedContent(
                     targetState = NavKey(screen, openAlbum),
                     transitionSpec = {
+                        if (instantNav) {
+                            (androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None)
+                        } else {
                         val forward = targetState.screen >= initialState.screen
                         val spec = spring<Float>(dampingRatio = 0.85f, stiffness = 420f)
                         val enter = fadeIn(tween<Float>(260)) + scaleIn(
@@ -771,6 +783,7 @@ private fun App() {
                             animationSpec = spec,
                         )
                         (enter togetherWith exit).using(androidx.compose.animation.SizeTransform(clip = false))
+                        }
                     },
                     label = "screen",
                     modifier = Modifier.fillMaxSize(),
