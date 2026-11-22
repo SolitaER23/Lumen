@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -401,24 +402,30 @@ private fun WavyProgress(
     Canvas(
         modifier
             .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
+            // 点击与拖动共用一套手势：按下即定位，拖动实时跟随，抬起才 seek。
+            // 之前 tap 与 drag 两个 pointerInput 并存，tap 会先消费 down 事件，导致拖动完全失效。
             .pointerInput(Unit) {
-                detectTapGestures { off ->
-                    onSeek((off.x / size.width.toFloat()).coerceIn(0f, 1f))
-                }
-            }
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragStart = { off ->
-                        dragging = true
-                        dragProgress = (off.x / size.width.toFloat()).coerceIn(0f, 1f)
-                    },
-                    onDragEnd = {
-                        onSeek(dragProgress)
-                        dragging = false
-                    },
-                    onDragCancel = { dragging = false },
-                ) { change, _ ->
-                    dragProgress = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    dragging = true
+                    var p = (down.position.x / size.width.toFloat()).coerceIn(0f, 1f)
+                    dragProgress = p
+                    down.consume()
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            change.consume()
+                            break
+                        }
+                        if (change.positionChanged()) {
+                            p = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
+                            dragProgress = p
+                            change.consume()
+                        }
+                    }
+                    onSeek(p)
+                    dragging = false
                 }
             },
     ) {
