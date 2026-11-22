@@ -1,4 +1,4 @@
-﻿package com.example.app.ui
+package com.example.app.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -69,6 +69,8 @@ fun SettingsScreen(
     onClearCache: () -> Unit,
     contrast: Float = 0f,
     onContrast: (Float) -> Unit = {},
+    fadeMs: Long = 260L,
+    onFadeMs: (Long) -> Unit = {},
     accounts: List<Account> = emptyList(),
     activeAccountId: String? = null,
     onSwitchAccount: (Account) -> Unit = {},
@@ -201,6 +203,45 @@ fun SettingsScreen(
                 }
                 Text(
                     "对比度越高，文字与背景越分明；越低，整体更柔和。默认「高」。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Text(
+                    "切歌淡入淡出",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf(0L to "关闭", 150L to "短", 260L to "标准", 420L to "长").forEach { (value, label) ->
+                        val selected = fadeMs == value
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                )
+                                .clickable { onFadeMs(value) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                label,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+                }
+                Text(
+                    "切歌时旧曲淡出、新曲淡入，0 为直接切换。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 8.dp),

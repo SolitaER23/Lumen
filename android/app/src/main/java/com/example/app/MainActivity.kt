@@ -84,6 +84,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -200,6 +201,8 @@ private fun App() {
     var screen by remember { mutableStateOf(0) }
     var scheme by remember { mutableStateOf(FallbackScheme) }
     var contrast by remember { mutableFloatStateOf(com.example.app.data.Appearance.contrast(ctx)) }
+    var fadeMs by remember { mutableLongStateOf(com.example.app.data.Appearance.fadeMs(ctx)) }
+    var libraryVersion by remember { mutableIntStateOf(0) }
     var downloads by remember { mutableStateOf<List<AlbumDownload>>(emptyList()) }
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
     var starred by remember { mutableStateOf<List<Track>>(emptyList()) }
@@ -253,6 +256,7 @@ private fun App() {
             try {
                 albums = withContext(Dispatchers.IO) { SubsonicClient(c).albums() }
                 error = null
+                libraryVersion += 1
                 withContext(Dispatchers.IO) { AlbumCache.save(ctx, albums) }
                 break
             } catch (e: Exception) {
@@ -407,6 +411,9 @@ private fun App() {
             p.transcodeUrl = { t -> client.streamUrl(t.id) + "&format=mp3&maxBitRate=320" }
         }
     }
+    LaunchedEffect(fadeMs) {
+        playback.fadeMs = fadeMs
+    }
     // 冷启动恢复上次队列与进度（保持暂停，不自动播放）
     LaunchedEffect(cfg.complete, playback) {
         if (cfg.complete && playback.queue.isEmpty()) {
@@ -434,6 +441,7 @@ private fun App() {
     // 换歌自动加载歌词（播放页下方常驻显示）
     LaunchedEffect(playback.current?.id) {
         val tr = playback.current
+        libraryVersion += 1
         if (lyricsTrackId != tr?.id) {
             lyrics = null
             lyricsTrackId = tr?.id
@@ -627,6 +635,11 @@ private fun App() {
                             contrast = v
                             com.example.app.data.Appearance.setContrast(ctx, v)
                         },
+                        fadeMs = fadeMs,
+                        onFadeMs = { v ->
+                            fadeMs = v
+                            com.example.app.data.Appearance.setFadeMs(ctx, v)
+                        },
                         onClearCache = {
                             // 只清流媒体/图片缓存；下载曲目的 cache key（URI）保留
                             MediaCache.clearStreamingCache(ctx, Downloads.downloadedUris(ctx))
@@ -734,6 +747,7 @@ private fun App() {
                             onTabChange = { homeTab = it },
                             ratingOf = { id -> Ratings.get(ctx, id) },
                             downloads = downloads,
+                            libraryVersion = libraryVersion,
                             cache = homeCache,
                             onPlayTrack = { tr ->
                                 playback.play(listOf(tr), 0, tr.album)
@@ -1052,6 +1066,7 @@ private fun HomeScreen(
     onOpenPlayer: () -> Unit = {},
     onOpenStats: () -> Unit = {},
     cache: HomeCache = remember { HomeCache() },
+    libraryVersion: Int = 0,
     coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
     var sortIndex by remember(tab) { mutableIntStateOf(0) }
@@ -1072,22 +1087,34 @@ private fun HomeScreen(
     }
 
 
-    LaunchedEffect(tab) {
+    LaunchedEffect(tab, libraryVersion) {
         if (tab == 0) return@LaunchedEffect
-        tabLoading = true
+        val firstLoad = (tab == 1 && artists.isEmpty()) ||
+            (tab == 2 && (newest.isEmpty() || recent.isEmpty()))
+        if (firstLoad) tabLoading = true
         tabError = null
         try {
             when (tab) {
                 1 -> if (artists.isEmpty()) cache.artists = withContext(Dispatchers.IO) { client.artists() }
                 2 -> {
-                    if (newest.isEmpty()) cache.newest = withContext(Dispatchers.IO) { client.newestAlbums() }
-                    if (recent.isEmpty()) cache.recent = withContext(Dispatchers.IO) { client.recentAlbums() }
+                    // 每次进入/有新播放都刷新，保证「最近播放」「最近添加」实时
+                    cache.newest = withContext(Dispatchers.IO) { client.newestAlbums() }
+                    cache.recent = withContext(Dispatchers.IO) { client.recentAlbums() }
                 }
             }
         } catch (e: Exception) {
             tabError = e.message ?: "加载失败"
         } finally {
             tabLoading = false
+        }
+    }
+
+    // 本地先行：切歌后立刻把该专辑提到「最近播放」首位，服务端刷新回来再对齐
+    LaunchedEffect(current?.albumId) {
+        val id = current?.albumId ?: return@LaunchedEffect
+        val al = albums.firstOrNull { it.id == id } ?: return@LaunchedEffect
+        if (cache.recent.firstOrNull()?.id != id) {
+            cache.recent = listOf(al) + cache.recent.filterNot { it.id == id }
         }
     }
 
@@ -1527,6 +1554,16 @@ private fun ArtistGrid(
     }
 }
 
+@Composable
+private fun RecentEmpty(text: String) {
+    Text(
+        text,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecentList(
@@ -1564,13 +1601,17 @@ private fun RecentList(
     }
     val ctx = LocalContext.current
     var order by remember { mutableStateOf(loadRecentOrder(ctx)) }
-    var collapsed by rememberSaveable { mutableStateOf(emptyList<Int>()) }
     var showOrderSheet by remember { mutableStateOf(false) }
+    var selected by rememberSaveable { mutableIntStateOf(order.firstOrNull() ?: 0) }
 
     fun persist(newOrder: List<Int>) {
         order = newOrder
         ctx.getSharedPreferences("lumen_recent", android.content.Context.MODE_PRIVATE)
             .edit().putString("order", newOrder.joinToString(",")).apply()
+    }
+
+    LaunchedEffect(order) {
+        if (selected !in order) selected = order.firstOrNull() ?: 0
     }
 
     val sections = mapOf(
@@ -1607,44 +1648,85 @@ private fun RecentList(
                     )
                 }
             }
-            order.forEach { section ->
-                val isCollapsed = section in collapsed
-                item(key = "h$section") {
-                    SectionHeader(
-                        title = sections[section] ?: "",
-                        count = when (section) {
+
+            // 三个分区横向并排，点选后下方展示该分区原有内容
+            item(key = "switch") {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    order.forEach { section ->
+                        val count = when (section) {
                             0 -> newest.size
                             1 -> recent.size
                             else -> downloads.size
-                        },
-                        collapsed = isCollapsed,
-                        onToggle = {
-                            collapsed = if (isCollapsed) collapsed - section else collapsed + section
-                        },
-                    )
-                }
-                if (!isCollapsed) {
-                    when (section) {
-                        0 -> items(rowsOf(newest), key = { "n${it.firstOrNull()?.id}" }) { row ->
-                            HorizontalAlbumRow(row, coverUrl, onOpen)
                         }
-                        1 -> items(rowsOf(recent), key = { "r${it.firstOrNull()?.id}" }) { row ->
-                            HorizontalAlbumRow(row, coverUrl, onOpen)
-                        }
-                        else -> if (downloads.isEmpty()) {
-                            item(key = "dempty") {
+                        val active = section == selected
+                        val container = if (active) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surfaceContainer
+                        val titleColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                        val countColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurface
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(container)
+                                .clickable { selected = section }
+                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                        ) {
+                            Text(
+                                sections[section] ?: "",
+                                color = titleColor,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Row(verticalAlignment = Alignment.Bottom) {
                                 Text(
-                                    "还没有下载内容",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                                    count.toString(),
+                                    color = countColor,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Light,
+                                )
+                                Text(
+                                    if (section == 2) " 项" else " 张",
+                                    color = titleColor,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(bottom = 4.dp),
                                 )
                             }
-                        } else {
-                            items(rowsOfDownloads(downloads), key = { "d${it.firstOrNull()?.key}" }) { row ->
-                                HorizontalDownloadRow(row, albums, singleTracks, coverUrl, onOpen, onPlayTrack)
-                            }
                         }
+                    }
+                }
+            }
+
+            item { Spacer(Modifier.height(8.dp)) }
+
+            when (selected) {
+                0 -> if (newest.isEmpty()) {
+                    item(key = "nempty") { RecentEmpty("暂无最近添加的专辑") }
+                } else {
+                    items(rowsOf(newest), key = { "n${it.firstOrNull()?.id}" }) { row ->
+                        HorizontalAlbumRow(row, coverUrl, onOpen)
+                    }
+                }
+                1 -> if (recent.isEmpty()) {
+                    item(key = "rempty") { RecentEmpty("暂无最近播放的专辑") }
+                } else {
+                    items(rowsOf(recent), key = { "r${it.firstOrNull()?.id}" }) { row ->
+                        HorizontalAlbumRow(row, coverUrl, onOpen)
+                    }
+                }
+                else -> if (downloads.isEmpty()) {
+                    item(key = "dempty") { RecentEmpty("还没有下载内容") }
+                } else {
+                    items(rowsOfDownloads(downloads), key = { "d${it.firstOrNull()?.key}" }) { row ->
+                        HorizontalDownloadRow(row, albums, singleTracks, coverUrl, onOpen, onPlayTrack)
                     }
                 }
             }

@@ -12,6 +12,13 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.example.app.data.Track
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * 播放控制：ExoPlayer + 512MB 磁盘缓存 + 解码失败自动转码兜底。
@@ -31,6 +38,12 @@ class Playback(private val ctx: Context) {
     private fun logw(msg: String) { if (debug) android.util.Log.w("Lumen", msg) }
     /** 播放地址提供者：Activity 登录后注入（要区分 m4a 转码） */
     var urlFor: (Track) -> String = { "" }
+
+    /** 切歌音量渐变时长（毫秒，0 = 关闭） */
+    var fadeMs: Long = 260L
+
+    private val fadeScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var fadeJob: Job? = null
 
     /** 强制转码地址（解码失败兜底用），默认退回 urlFor */
     var transcodeUrl: (Track) -> String = { urlFor(it) }
@@ -118,6 +131,69 @@ class Playback(private val ctx: Context) {
         })
     }
 
+    private fun cancelFade(restore: Boolean = true) {
+        fadeJob?.cancel()
+        fadeJob = null
+        if (restore) player.volume = 1f
+    }
+
+    private suspend fun rampVolume(target: Float, ms: Long) {
+        val from = player.volume.coerceIn(0f, 1f)
+        val to = target.coerceIn(0f, 1f)
+        if (ms <= 0L) {
+            player.volume = to
+            return
+        }
+        val frames = (ms / 16L).coerceAtLeast(1L)
+        for (i in 1..frames) {
+            player.volume = (from + (to - from) * (i.toFloat() / frames)).coerceIn(0f, 1f)
+            delay(16L)
+        }
+    }
+
+    private suspend fun awaitPlaying(maxMs: Long = 400L) {
+        var waited = 0L
+        while (!player.isPlaying && waited < maxMs) {
+            delay(16L)
+            waited += 16L
+        }
+    }
+
+    private fun startFadeIn(duration: Long = fadeMs) {
+        fadeJob?.cancel()
+        player.volume = 0f
+        fadeJob = fadeScope.launch {
+            awaitPlaying()
+            rampVolume(1f, duration)
+            player.volume = 1f
+            fadeJob = null
+        }
+    }
+
+    /** 切歌：先淡出、切换、再淡入；快速连切时跳过淡出、切换后快速淡入 */
+    private fun switchWithFade(doSwitch: () -> Unit) {
+        if (fadeMs <= 0L || !player.isPlaying) {
+            cancelFade(true)
+            doSwitch()
+            return
+        }
+        if (fadeJob?.isActive == true) {
+            cancelFade(true)
+            doSwitch()
+            startFadeIn(minOf(fadeMs, 140L))
+            return
+        }
+        fadeJob = fadeScope.launch {
+            rampVolume(0f, fadeMs / 2)
+            doSwitch()
+            player.volume = 0f
+            awaitPlaying()
+            rampVolume(1f, fadeMs - fadeMs / 2)
+            player.volume = 1f
+            fadeJob = null
+        }
+    }
+
     fun play(tracks: List<Track>, startIndex: Int, album: String) {
         if (tracks.isEmpty()) return
         queue = tracks
@@ -144,6 +220,7 @@ class Playback(private val ctx: Context) {
         player.setMediaItems(items, startIndex.coerceIn(0, items.lastIndex), 0L)
         player.prepare()
         player.play()
+        startFadeIn()
         index = startIndex
     }
 
@@ -155,6 +232,7 @@ class Playback(private val ctx: Context) {
 
     fun toggle() {
         if (player.isPlaying) {
+            cancelFade(true)
             player.pause()
             saveState()
         } else {
@@ -233,31 +311,35 @@ class Playback(private val ctx: Context) {
     }
 
     fun next() {
-        coverDirection = 1
-        if (player.shuffleModeEnabled) {
-            player.seekToNextMediaItem()
-            player.play()
-            return
-        }
-        val target = nextIndex(queue.size, player.currentMediaItemIndex)
-        if (target != player.currentMediaItemIndex) {
-            player.seekTo(target, 0L)
-            player.play()
-            index = target
+        switchWithFade {
+            coverDirection = 1
+            if (player.shuffleModeEnabled) {
+                player.seekToNextMediaItem()
+                player.play()
+                return@switchWithFade
+            }
+            val target = nextIndex(queue.size, player.currentMediaItemIndex)
+            if (target != player.currentMediaItemIndex) {
+                player.seekTo(target, 0L)
+                player.play()
+                index = target
+            }
         }
     }
 
     fun prev() {
-        coverDirection = -1
-        if (player.shuffleModeEnabled) {
-            player.seekToPreviousMediaItem()
+        switchWithFade {
+            coverDirection = -1
+            if (player.shuffleModeEnabled) {
+                player.seekToPreviousMediaItem()
+                player.play()
+                return@switchWithFade
+            }
+            val target = prevIndex(queue.size, player.currentMediaItemIndex, player.currentPosition)
+            player.seekTo(target, 0L)
             player.play()
-            return
+            index = target
         }
-        val target = prevIndex(queue.size, player.currentMediaItemIndex, player.currentPosition)
-        player.seekTo(target, 0L)
-        player.play()
-        index = target
     }
 
     fun seekTo(ms: Long) {

@@ -1,4 +1,4 @@
-﻿package com.example.app.data
+package com.example.app.data
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
@@ -37,6 +37,15 @@ object Appearance {
     fun setContrast(ctx: Context, value: Float) {
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
             .putFloat(KEY_CONTRAST, value.coerceIn(0f, 1f)).apply()
+    }
+
+    /** 切歌音量渐变时长（毫秒，0 = 关闭）。 */
+    fun fadeMs(ctx: Context): Long =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getLong("fade_ms", 260L)
+
+    fun setFadeMs(ctx: Context, value: Long) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .putLong("fade_ms", value.coerceIn(0L, 2000L)).apply()
     }
 }
 
