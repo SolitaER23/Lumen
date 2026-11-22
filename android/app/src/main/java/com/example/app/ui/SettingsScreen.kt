@@ -84,12 +84,14 @@ fun SettingsScreen(
     onOpenMood: () -> Unit = {},
     onOpenLicenses: () -> Unit = {},
     versionName: String = "",
+    onClearLocalData: () -> Unit = {},
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var cacheBytes by remember { mutableStateOf(0L) }
     var freed by remember { mutableStateOf(false) }
     var showAccounts by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
+    var confirmWipe by remember { mutableStateOf(false) }
 
     LaunchedEffect(freed) {
         cacheBytes = withContext(Dispatchers.IO) {
@@ -172,6 +174,17 @@ fun SettingsScreen(
                         .padding(horizontal = 14.dp, vertical = 14.dp),
                 ) {
                     Text("退出登录", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable { confirmWipe = true }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                ) {
+                    Text("清除本机数据", color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
                 }
             }
         }
@@ -342,6 +355,23 @@ fun SettingsScreen(
                 AiCodedBadge(Modifier.padding(top = 14.dp))
             }
         }
+    }
+
+    if (confirmWipe) {
+        AlertDialog(
+            onDismissRequest = { confirmWipe = false },
+            title = { Text("清除本机数据？") },
+            text = {
+                Text("将删除本机保存的账号、播放历史、评分、心情数据、统计配置、离线下载与缓存，并回到登录页。该操作不可撤销。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmWipe = false
+                    onClearLocalData()
+                }) { Text("清除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirmWipe = false }) { Text("取消") } },
+        )
     }
 
     if (showAdd) {

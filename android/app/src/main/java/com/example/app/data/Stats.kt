@@ -36,6 +36,10 @@ object StatsStore {
         )
     }
 
+    fun clear(ctx: Context) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().clear().apply()
+    }
+
     fun save(ctx: Context, cfg: StatsConfig) {
         val editor = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
             .putString("base", cfg.base.trim().trimEnd('/'))

@@ -26,8 +26,8 @@ android {
         applicationId = "com.example.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 116
-        versionName = "0.36.2"
+        versionCode = 117
+        versionName = "0.37.0"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
@@ -62,7 +62,8 @@ android {
             // 有 keystore.properties / 环境变量时用正式签名，否则退回本地 debug 签名
             signingConfig = if (hasReleaseKey) signingConfigs.getByName("release")
             else signingConfigs.getByName("debug")
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

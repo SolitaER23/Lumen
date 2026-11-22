@@ -18,3 +18,10 @@
 -keep class org.tensorflow.lite.** { *; }
 -keep class org.tensorflow.lite.gpu.** { *; }
 -dontwarn org.tensorflow.lite.**
+# ONNX Runtime JNI
+-keep class ai.onnxruntime.** { *; }
+-dontwarn ai.onnxruntime.**
+
+# WorkManager reflective worker construction
+-keep class com.example.app.playback.MoodWorker { *; }
+-keep class * extends androidx.work.ListenableWorker { <init>(...); }

@@ -353,6 +353,33 @@ private fun App() {
         }
     }
 
+    fun clearLocalData() {
+        scope.launch {
+            com.example.app.playback.PlaybackEngine.get(ctx).stopAndClear()
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    Downloads.summaries(ctx).forEach { Downloads.delete(ctx, it.key) }
+                }
+                runCatching { MediaCache.clearStreamingCache(ctx, emptySet()) }
+                com.example.app.data.Accounts.clearAll(ctx)
+                com.example.app.data.PlayHistory.clear(ctx)
+                com.example.app.data.Ratings.clear(ctx)
+                com.example.app.data.StatsStore.clear(ctx)
+                com.example.app.data.MoodStore.clear(ctx)
+                com.example.app.playback.PlaybackStateStore.clear(ctx)
+            }
+            com.example.app.data.SettingsStore.clear(ctx)
+            cfg = ServerConfig("", "", "")
+            albums = emptyList()
+            downloads = emptyList()
+            accounts = emptyList()
+            activeAccountId = null
+            navStack.clear()
+            screen = 0
+            openAlbum = null
+        }
+    }
+
     // 进入动画：以最后一次按下位置为原点展开
     val enterAnim = remember { Animatable(1f) }
     var enterOriginX by remember { mutableFloatStateOf(0.5f) }
@@ -655,6 +682,7 @@ private fun App() {
                             fadeMs = v
                             com.example.app.data.Appearance.setFadeMs(ctx, v)
                         },
+                        onClearLocalData = { clearLocalData() },
                         onClearCache = {
                             // 只清流媒体/图片缓存；下载曲目的 cache key（URI）保留
                             MediaCache.clearStreamingCache(ctx, Downloads.downloadedUris(ctx))

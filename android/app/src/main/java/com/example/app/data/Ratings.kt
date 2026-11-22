@@ -11,6 +11,11 @@ object Ratings {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getFloat(trackId, 0f)
 
     @Synchronized
+    fun clear(ctx: Context) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
+    }
+
+    @Synchronized
     fun set(ctx: Context, trackId: String, value: Float) {
         val v = (Math.round(value * 10f) / 10f).coerceIn(0f, 10f)
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putFloat(trackId, v).apply()

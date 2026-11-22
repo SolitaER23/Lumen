@@ -34,6 +34,10 @@ object PlayHistory {
             .edit().putString(KEY, arr.toString()).apply()
     }
 
+    fun clear(ctx: Context) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().remove(KEY).apply()
+    }
+
     fun load(ctx: Context): List<Track> {
         val raw = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getString(KEY, null) ?: return emptyList()
         val arr = runCatching { JSONArray(raw) }.getOrNull() ?: return emptyList()

@@ -106,6 +106,14 @@ object Accounts {
         }
     }
 
+    /** 清除全部账号与本机凭据。 */
+    fun clearAll(ctx: Context) {
+        list(ctx).forEach { acc ->
+            ctx.getSharedPreferences(accountFile(acc.id), Context.MODE_PRIVATE).edit().clear().apply()
+        }
+        index(ctx).edit().clear().apply()
+    }
+
     private fun setActive(ctx: Context, id: String) {
         index(ctx).edit().putString("active", id).apply()
     }
