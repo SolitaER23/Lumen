@@ -1,4 +1,4 @@
-﻿package com.example.app.playback
+package com.example.app.playback
 
 import android.content.Context
 import androidx.compose.runtime.getValue
@@ -67,12 +67,16 @@ class Playback(private val ctx: Context) {
         private set
     var durationMs by mutableStateOf(0L)
         private set
+    /** 播放模式：列表循环 / 单曲循环 / 随机播放 */
+    var playMode by mutableStateOf(PlayMode.LIST)
+        private set
     /** 已经为哪一首做过转码兜底（按曲目 id 记，换曲才重置，避免 setMediaItem 触发 transition 后无限重试） */
     private var fallbackTrackId: String? = null
 
     val current: Track? get() = queue.getOrNull(index)
 
     init {
+        applyPlayMode(PlayMode.LIST)
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
@@ -165,6 +169,25 @@ class Playback(private val ctx: Context) {
         }
     }
 
+    fun cyclePlayMode(): PlayMode {
+        val next = when (playMode) {
+            PlayMode.LIST -> PlayMode.ONE
+            PlayMode.ONE -> PlayMode.SHUFFLE
+            PlayMode.SHUFFLE -> PlayMode.LIST
+        }
+        applyPlayMode(next)
+        return next
+    }
+
+    private fun applyPlayMode(mode: PlayMode) {
+        playMode = mode
+        player.repeatMode = when (mode) {
+            PlayMode.ONE -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_ALL
+        }
+        player.shuffleModeEnabled = mode == PlayMode.SHUFFLE
+    }
+
     fun saveState() {
         runCatching { PlaybackStateStore.save(ctx, queue, index, albumId, positionMs) }
     }
@@ -201,6 +224,11 @@ class Playback(private val ctx: Context) {
     }
 
     fun next() {
+        if (player.shuffleModeEnabled) {
+            player.seekToNextMediaItem()
+            player.play()
+            return
+        }
         val target = nextIndex(queue.size, player.currentMediaItemIndex)
         if (target != player.currentMediaItemIndex) {
             player.seekTo(target, 0L)
@@ -210,6 +238,11 @@ class Playback(private val ctx: Context) {
     }
 
     fun prev() {
+        if (player.shuffleModeEnabled) {
+            player.seekToPreviousMediaItem()
+            player.play()
+            return
+        }
         val target = prevIndex(queue.size, player.currentMediaItemIndex, player.currentPosition)
         player.seekTo(target, 0L)
         player.play()
@@ -246,3 +279,6 @@ class Playback(private val ctx: Context) {
     }
 
 }
+
+/** 播放模式：列表循环、单曲循环、随机播放。 */
+enum class PlayMode { LIST, ONE, SHUFFLE }

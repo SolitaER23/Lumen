@@ -113,6 +113,8 @@ fun PlayingScreen(
     lyricsLoading: Boolean = false,
     showLyrics: Boolean = false,
     onToggleLyrics: () -> Unit = {},
+    playMode: com.example.app.playback.PlayMode = com.example.app.playback.PlayMode.LIST,
+    onCyclePlayMode: () -> Unit = {},
     onSeekPlay: (Long) -> Unit = {},
     mood: com.example.app.data.MoodResult? = null,
     moodAnalyzing: Boolean = false,
@@ -188,6 +190,21 @@ fun PlayingScreen(
                             content = if (starred) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurface,
                             onClick = onToggleStar,
+                        )
+                        PlayerAction(
+                            icon = when (playMode) {
+                                com.example.app.playback.PlayMode.ONE -> YoinSymbols.RepeatOne
+                                com.example.app.playback.PlayMode.SHUFFLE -> YoinSymbols.Shuffle
+                                else -> YoinSymbols.Repeat
+                            },
+                            shape = RoundedCornerShape(22.dp),
+                            container = if (playMode == com.example.app.playback.PlayMode.LIST)
+                                MaterialTheme.colorScheme.surfaceContainerHigh
+                            else MaterialTheme.colorScheme.surfaceContainerHighest,
+                            content = if (playMode == com.example.app.playback.PlayMode.LIST)
+                                MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.primary,
+                            onClick = onCyclePlayMode,
                         )
                     }
                 }
