@@ -1,4 +1,4 @@
-﻿package com.example.app
+package com.example.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -430,10 +430,15 @@ private fun App() {
     PredictiveBackHandler(enabled = screen > 0) { progress ->
         try {
             progress.collect { backProgress = it.progress }
+            // 手势返回必须走页面栈，否则从「专辑歌曲列表」会直接跳回首页/艺人页
             when {
+                navStack.isNotEmpty() -> goBack()
                 // 从底栏直接进播放页时没有专辑上下文，返回应回首页
-                screen == 2 -> screen = if (openAlbum != null) 1 else 0
-                else -> { screen = 0; openAlbum = null }
+                screen == 2 && openAlbum != null -> screen = 1
+                else -> {
+                    screen = 0
+                    openAlbum = null
+                }
             }
         } catch (_: CancellationException) {
             // 手势取消：留在原页
@@ -451,7 +456,8 @@ private fun App() {
     val onOpenArtist: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
     val onOpenArtistFromSearch: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
 
-    MaterialTheme(colorScheme = scheme, typography = lumenTypography()) {
+    val animatedScheme = com.example.app.ui.rememberAnimatedColorScheme(scheme)
+    MaterialTheme(colorScheme = animatedScheme, typography = lumenTypography()) {
         Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
             Box(
                 Modifier.fillMaxSize().graphicsLayer {
