@@ -47,6 +47,15 @@ object Appearance {
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
             .putLong("fade_ms", value.coerceIn(0L, 2000L)).apply()
     }
+
+    /** 智能衔接：按当前曲目 BPM 调整淡入淡出时长。 */
+    fun smartFade(ctx: Context): Boolean =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean("smart_fade", true)
+
+    fun setSmartFade(ctx: Context, value: Boolean) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .putBoolean("smart_fade", value).apply()
+    }
 }
 
 object SettingsStore {

@@ -82,6 +82,8 @@ fun SettingsScreen(
     onContrast: (Float) -> Unit = {},
     fadeMs: Long = 260L,
     onFadeMs: (Long) -> Unit = {},
+    smartFade: Boolean = true,
+    onSmartFade: (Boolean) -> Unit = {},
     langMode: String = "system",
     onLangMode: (String) -> Unit = {},
     accounts: List<Account> = emptyList(),
@@ -257,6 +259,24 @@ fun SettingsScreen(
                         labels = listOf(L10n.t("关闭"), L10n.t("短"), L10n.t("标准"), L10n.t("长")),
                         selected = listOf(0L, 150L, 260L, 420L).indexOf(fadeMs).coerceAtLeast(0),
                         onSelect = { index -> onFadeMs(listOf(0L, 150L, 260L, 420L)[index]) },
+                    )
+
+                    SettingLabel(
+                        L10n.tf("智能衔接", "Smart transition"),
+                        L10n.tf("按当前曲目 BPM 调整淡入淡出", "Adjust crossfade to the current BPM"),
+                        Modifier.padding(top = 18.dp),
+                    )
+                    SegmentedControl(
+                        labels = listOf(L10n.t("关闭"), L10n.t("开启")),
+                        selected = if (smartFade) 1 else 0,
+                        onSelect = { index -> onSmartFade(index == 1) },
+                    )
+                    Text(
+                        L10n.tf("开启后按曲目节拍选择一拍长度的淡入淡出；未分析 BPM 的曲目仍使用上面的时长。", "When enabled, the crossfade uses one beat of the current track; tracks without BPM data fall back to the duration above."),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
             }

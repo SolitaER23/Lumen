@@ -42,6 +42,12 @@ class Playback(private val ctx: Context) {
     /** 切歌音量渐变时长（毫秒，0 = 关闭） */
     var fadeMs: Long = 260L
 
+    /** 按当前曲目 BPM 调整淡入淡出；默认开启 */
+    var smartFade: Boolean = true
+
+    private var currentTempo = 0f
+    private var tempoJob: kotlinx.coroutines.Job? = null
+
     private val fadeScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var fadeJob: Job? = null
 
@@ -102,6 +108,7 @@ class Playback(private val ctx: Context) {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 index = player.currentMediaItemIndex
                 if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) coverDirection = 1
+                loadTempo()
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -170,6 +177,28 @@ class Playback(private val ctx: Context) {
         }
     }
 
+    /** 异步读取当前曲目的 BPM，供智能衔接使用。 */
+    private fun loadTempo() {
+        val tr = current ?: return
+        currentTempo = 0f
+        tempoJob?.cancel()
+        tempoJob = fadeScope.launch {
+            val tempo = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { app.lumen.player.data.MoodStore.get(ctx, tr.id)?.tempo ?: 0f }
+                    .getOrDefault(0f)
+            }
+            currentTempo = tempo
+        }
+    }
+
+    /** 智能衔接用 1 拍的长度；没有 BPM 或未开启时退回设置值。 */
+    private fun transitionMs(): Long {
+        if (!smartFade || fadeMs <= 0L) return fadeMs
+        val bpm = currentTempo
+        if (bpm < 30f || bpm > 240f) return fadeMs
+        return (60_000f / bpm).toLong().coerceIn(180L, 700L)
+    }
+
     /** 切歌：先淡出、切换、再淡入；快速连切时跳过淡出、切换后快速淡入 */
     private fun switchWithFade(doSwitch: () -> Unit) {
         if (fadeMs <= 0L || !player.isPlaying) {
@@ -177,18 +206,19 @@ class Playback(private val ctx: Context) {
             doSwitch()
             return
         }
+        val duration = transitionMs()
         if (fadeJob?.isActive == true) {
             cancelFade(true)
             doSwitch()
-            startFadeIn(minOf(fadeMs, 140L))
+            startFadeIn(minOf(duration, 140L))
             return
         }
         fadeJob = fadeScope.launch {
-            rampVolume(0f, fadeMs / 2)
+            rampVolume(0f, duration / 2)
             doSwitch()
             player.volume = 0f
             awaitPlaying()
-            rampVolume(1f, fadeMs - fadeMs / 2)
+            rampVolume(1f, duration - duration / 2)
             player.volume = 1f
             fadeJob = null
         }

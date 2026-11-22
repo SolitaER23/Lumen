@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -70,6 +71,7 @@ fun MoodScreen(onBack: () -> Unit) {
     var running by remember { mutableStateOf(false) }
     var analyzed by remember { mutableIntStateOf(0) }
     var dist by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    var timeline by remember { mutableStateOf<List<app.lumen.player.data.MoodStore.MoodDay>>(emptyList()) }
     var confirmClear by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -77,11 +79,12 @@ fun MoodScreen(onBack: () -> Unit) {
             val (_, t, r) = MoodWorker.progress(ctx)
             total = t
             running = r
-            val (count, distMap) = withContext(Dispatchers.IO) {
-                MoodStore.count(ctx) to MoodStore.distribution(ctx)
+            val (count, distMap, days) = withContext(Dispatchers.IO) {
+                Triple(MoodStore.count(ctx), MoodStore.distribution(ctx), MoodStore.recentDays(ctx))
             }
             analyzed = count
             dist = distMap
+            timeline = days
             delay(1200)
         }
     }
@@ -165,6 +168,14 @@ fun MoodScreen(onBack: () -> Unit) {
                     EffectRow(L10n.t("动态背景"), L10n.t("随节拍与能量轻微呼吸，不打断阅读"), MaterialTheme.colorScheme.primary)
                     EffectRow(L10n.t("界面配色"), L10n.t("情绪决定色温，封面决定主色"), MaterialTheme.colorScheme.tertiary)
                     EffectRow(L10n.t("本机分析"), L10n.t("不修改音频、不上传文件，全部在本机完成"), MaterialTheme.colorScheme.secondary)
+                }
+            }
+
+            if (timeline.any { it.count > 0 }) {
+                item {
+                    SectionCard(L10n.tf("近 7 天", "Last 7 days")) {
+                        MoodTimeline(timeline)
+                    }
                 }
             }
 
@@ -410,6 +421,50 @@ private fun StatusChip(
             Spacer(Modifier.width(6.dp))
         }
         Text(text, color = color, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun MoodTimeline(days: List<app.lumen.player.data.MoodStore.MoodDay>) {
+    val max = days.maxOfOrNull { it.count }?.coerceAtLeast(1) ?: 1
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(136.dp)
+            .padding(top = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        days.forEach { day ->
+            Column(
+                Modifier.weight(1f).fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                Box(
+                    Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.BottomCenter,
+                ) {
+                    val ratio = day.count.toFloat() / max
+                    Box(
+                        Modifier
+                            .width(18.dp)
+                            .height(if (day.count > 0) (6f + 62f * ratio).dp else 0.dp)
+                            .clip(RoundedCornerShape(topStart = 9.dp, topEnd = 9.dp))
+                            .background(
+                                if (day.count > 0) labelColor(day.label ?: "")
+                                else MaterialTheme.colorScheme.surfaceContainerHighest,
+                            ),
+                    )
+                }
+                Text(
+                    day.date,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+        }
     }
 }
 

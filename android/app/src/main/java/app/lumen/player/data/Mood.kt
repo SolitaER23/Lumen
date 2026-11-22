@@ -4,6 +4,9 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /** 一条心情分析结果（坐标是主数据，label 只是坐标的离散投影）。 */
 data class MoodResult(
@@ -115,6 +118,38 @@ object MoodStore {
     fun clear(ctx: Context) {
         runCatching { db(ctx).delete(TABLE, null, null) }
     }
+
+    data class MoodDay(val date: String, val label: String?, val count: Int)
+
+    /** 最近 N 天的分析量，label 为当天占比最高的情绪。 */
+    fun recentDays(ctx: Context, days: Int = 7): List<MoodDay> = runCatching {
+        val today = LocalDate.now()
+        val start = today.minusDays((days - 1).toLong())
+        val since = start.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val counts = LinkedHashMap<String, MutableMap<String, Int>>()
+        db(ctx).rawQuery(
+            "SELECT date(updated/1000,'unixepoch','localtime') AS d, label, COUNT(*) " +
+                "FROM $TABLE WHERE updated>=? GROUP BY d, label",
+            arrayOf(since.toString()),
+        ).use { c ->
+            while (c.moveToNext()) {
+                val d = c.getString(0) ?: continue
+                val label = c.getString(1) ?: "Unknown"
+                counts.getOrPut(d) { LinkedHashMap() }[label] = c.getInt(2)
+            }
+        }
+        val fmt = DateTimeFormatter.ofPattern("MM/dd")
+        (0 until days).map { i ->
+            val date = start.plusDays(i.toLong())
+            val day = counts[date.toString()] ?: emptyMap()
+            val dominant = day.maxByOrNull { it.value }?.key
+            MoodDay(
+                date = date.format(fmt),
+                label = dominant,
+                count = day.values.sum(),
+            )
+        }
+    }.getOrDefault(emptyList())
 }
 
 /** 融合 YAMNet 分数 + DSP，得到 Russell 坐标、标签、tempo 与节拍包络。 */

@@ -214,6 +214,7 @@ private fun App() {
     var scheme by remember { mutableStateOf(FallbackScheme) }
     var contrast by remember { mutableFloatStateOf(app.lumen.player.data.Appearance.contrast(ctx)) }
     var fadeMs by remember { mutableLongStateOf(app.lumen.player.data.Appearance.fadeMs(ctx)) }
+    var smartFade by remember { mutableStateOf(app.lumen.player.data.Appearance.smartFade(ctx)) }
     var langMode by remember { mutableStateOf(app.lumen.player.util.L10n.mode(ctx)) }
     var showOnboarding by remember { mutableStateOf(!app.lumen.player.data.Onboarding.completed(ctx)) }
     var libraryVersion by remember { mutableIntStateOf(0) }
@@ -475,6 +476,9 @@ private fun App() {
     }
     LaunchedEffect(fadeMs) {
         playback.fadeMs = fadeMs
+    }
+    LaunchedEffect(smartFade) {
+        playback.smartFade = smartFade
     }
     // 冷启动恢复上次队列与进度（保持暂停，不自动播放）
     LaunchedEffect(cfg.complete, playback) {
