@@ -215,6 +215,7 @@ private fun App() {
     var contrast by remember { mutableFloatStateOf(app.lumen.player.data.Appearance.contrast(ctx)) }
     var fadeMs by remember { mutableLongStateOf(app.lumen.player.data.Appearance.fadeMs(ctx)) }
     var langMode by remember { mutableStateOf(app.lumen.player.util.L10n.mode(ctx)) }
+    var showOnboarding by remember { mutableStateOf(!app.lumen.player.data.Onboarding.completed(ctx)) }
     var libraryVersion by remember { mutableIntStateOf(0) }
     var downloads by remember { mutableStateOf<List<AlbumDownload>>(emptyList()) }
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
@@ -295,6 +296,20 @@ private fun App() {
     }
 
 
+    if (showOnboarding) {
+        MaterialTheme(colorScheme = FallbackScheme) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+                app.lumen.player.ui.OnboardingScreen(
+                    onDone = {
+                        app.lumen.player.data.Onboarding.complete(ctx)
+                        showOnboarding = false
+                    },
+                )
+            }
+        }
+        return
+    }
+
     if (!cfg.complete) {
         // 登录页也要套主题，否则用的是 M3 默认浅色 → 深色字压在黑底上看不清
         MaterialTheme(colorScheme = FallbackScheme) {
@@ -358,6 +373,7 @@ private fun App() {
         accounts = app.lumen.player.data.Accounts.list(ctx)
         activeAccountId = app.lumen.player.data.Accounts.activeId(ctx)
         if (accounts.isEmpty()) {
+            app.lumen.player.data.Onboarding.reset(ctx)
             app.lumen.player.data.SettingsStore.clear(ctx)
             cfg = ServerConfig("", "", "")
         } else {
@@ -701,6 +717,7 @@ private fun App() {
                             app.lumen.player.data.Appearance.setFadeMs(ctx, v)
                         },
                         onClearLocalData = { clearLocalData() },
+                        onOpenGuide = { showOnboarding = true },
                         onClearCache = {
                             // 只清流媒体/图片缓存；下载曲目的 cache key（URI）保留
                             MediaCache.clearStreamingCache(ctx, Downloads.downloadedUris(ctx))

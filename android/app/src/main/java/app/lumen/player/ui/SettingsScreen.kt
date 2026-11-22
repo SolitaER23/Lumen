@@ -88,6 +88,7 @@ fun SettingsScreen(
     onOpenLicenses: () -> Unit = {},
     versionName: String = "",
     onClearLocalData: () -> Unit = {},
+    onOpenGuide: () -> Unit = {},
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var cacheBytes by remember { mutableStateOf(0L) }
@@ -375,6 +376,26 @@ fun SettingsScreen(
 
             SettingSection(L10n.t("关于")) {
                 SettingRow(L10n.t("版本"), versionName.ifBlank { "—" })
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable(onClick = onOpenGuide)
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        L10n.tf("使用引导", "Walkthrough"),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 14.sp,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        L10n.tf("重新查看", "View again"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                    )
+                }
                 Row(
                     Modifier
                         .fillMaxWidth()
