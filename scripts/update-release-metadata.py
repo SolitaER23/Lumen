@@ -85,6 +85,7 @@ def main() -> int:
                 r"当前正式直发版本：\*\*0\.\d+\.\d+ / versionCode \d+\*\*",
                 f"当前正式直发版本：**{version_name} / versionCode {version_code}**",
             ),
+            (r"`dist/Lumen-\d+\.\d+\.\d+\.apk`", f"`dist/{target.name}`"),
         ],
     )
     replace(

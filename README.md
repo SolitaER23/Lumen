@@ -51,21 +51,24 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 - [隐私条款](docs/privacy-policy.md)
 - [用户协议](docs/terms-of-service.md)
+- 官方在线版本：[隐私条款（B 站）](https://www.bilibili.com/opus/1273580145420009473) · [用户协议（B 站）](https://www.bilibili.com/opus/1273580330098360325)
 - 问题反馈：**bilibili@晓月枫**，[B 站主页](https://space.bilibili.com/20567705)
 - 设置 → 问题反馈 →「复制诊断信息」可生成脱敏信息
 
 ## 关键附件
 
-当前正式直发版本：**0.50.2 / versionCode 140**
+当前正式直发版本：**0.50.4 / versionCode 142**
 
 - [发布计划与状态](docs/release-plan.md)
 - [分发包与校验说明](docs/distribution.md)
 - [用户指南](docs/user-guide.md)
 - [隐私条款](docs/privacy-policy.md)
 - [用户协议](docs/terms-of-service.md)
+- 官方在线版本：[隐私条款（B 站）](https://www.bilibili.com/opus/1273580145420009473) · [用户协议（B 站）](https://www.bilibili.com/opus/1273580330098360325)
 - [兼容性说明](docs/compatibility.md)
 - [Release CI](.github/workflows/release.yml)
-- 分发包：`dist/Lumen-0.50.1.apk`、`dist/SHA256SUMS.txt`
+- 官方更新渠道：[夸克网盘](https://pan.quark.cn/s/f35d0450e4b1?pwd=3GF3)，提取码 `3GF3`
+- 分发包：`dist/Lumen-0.50.4.apk`、`dist/SHA256SUMS.txt`
 - 发布后同步元数据：`python scripts/update-release-metadata.py`
 
 ## 构建

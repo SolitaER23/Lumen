@@ -1,5 +1,7 @@
 # Lumen 用户协议
 
+官方在线版本：https://www.bilibili.com/opus/1273580330098360325
+
 生效日期：2026-11-22  
 适用版本：Lumen Android 0.50.x
 

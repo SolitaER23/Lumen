@@ -4,10 +4,10 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 版本 | `0.50.2` / `versionCode 140` |
-| APK | `Lumen-0.50.2.apk` |
-| 文件大小 | `11,768,098` 字节（约 11.2 MiB） |
-| SHA-256 | `4C9E5FC29754B23516F0B6F87B20BB9591F29358EB4381676113765E18D0E531` |
+| 版本 | `0.50.4` / `versionCode 142` |
+| APK | `Lumen-0.50.4.apk` |
+| 文件大小 | `11,768,306` 字节（约 11.2 MiB） |
+| SHA-256 | `54365FAB75763CEC5834CB7B5FBF2884DDB4B9305C376B8AB0F330ED19566DFC` |
 | 签名证书 DN | `CN=Lumen, OU=Release, O=Lumen, L=Shanghai, ST=Shanghai, C=CN` |
 | 证书 SHA-256 | `c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37` |
 | 最低系统 | Android 8.0（API 26） |
@@ -25,17 +25,23 @@
 校验示例：
 
 ```bash
-sha256sum Lumen-0.50.2.apk
+sha256sum Lumen-0.50.4.apk
 # 应输出 275830DACDD8F33C248F323FB58D3071496EE3E21E23DC5487D7BCD31C11CFA5
 ```
 
 ```bash
-apksigner verify --print-certs Lumen-0.50.2.apk
+apksigner verify --print-certs Lumen-0.50.4.apk
 # 证书 SHA-256 应为 c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37
 ```
 
 ## 更新
 
+**官方更新渠道：夸克网盘**  
+链接：https://pan.quark.cn/s/f35d0450e4b1?pwd=3GF3  
+提取码：`3GF3`
+
+- 仅从上述官方渠道下载新 APK，并核对发布页/SHA-256；
+- 不要使用来源不明的转存或二次打包版本；
 - 必须使用**同一签名证书**的新 APK 覆盖安装；
 - **0.50.0 起更换为正式证书**：早期 debug 签名测试版不能覆盖升级，需要卸载重装；卸载会清除本机账号、历史、评分、心情分析与下载；
 - 更新前建议记录服务器地址与账号；
@@ -56,19 +62,21 @@ apksigner verify --print-certs Lumen-0.50.2.apk
 
 ## 法律文本
 
-- 隐私条款：`docs/privacy-policy.md`
-- 用户协议：`docs/terms-of-service.md`
-- 应用内：首次启动确认页；设置 → 隐私条款；设置 → 关于 → 用户协议入口（条款确认页）
+- 隐私条款：`docs/privacy-policy.md`  
+  官方在线版本：https://www.bilibili.com/opus/1273580145420009473
+- 用户协议：`docs/terms-of-service.md`  
+  官方在线版本：https://www.bilibili.com/opus/1273580330098360325
+- 应用内：首次启动确认页；设置 → 隐私条款；设置 → 关于 → 用户协议入口（条款确认页）；详情页提供“在 B 站查看官方在线版本”
 
 ## 本机安装验证（2026-11-23）
 
 - 设备：Pixel 10a / Android 16（SDK 36，arm64）
-- 已安装：`Lumen-0.50.2.apk`
-- `versionName 0.50.2` / `versionCode 140`
+- 已安装：`Lumen-0.50.4.apk`
+- `versionName 0.50.4` / `versionCode 142`
 - 从设备拉取 `base.apk` 后 `apksigner verify --print-certs`：
   - `CN=Lumen, OU=Release, O=Lumen, L=Shanghai, ST=Shanghai, C=CN`
   - 证书 SHA-256：`c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37`
-- 安装包 SHA-256 与 `dist/Lumen-0.50.2.apk` 完全一致：`4C9E5FC29754B23516F0B6F87B20BB9591F29358EB4381676113765E18D0E531`
+- 安装包 SHA-256 与 `dist/Lumen-0.50.4.apk` 完全一致：`54365FAB75763CEC5834CB7B5FBF2884DDB4B9305C376B8AB0F330ED19566DFC`
 
 ## 维护者：签名与发布
 

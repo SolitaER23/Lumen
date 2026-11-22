@@ -192,6 +192,14 @@ fun PrivacyScreen(onBack: () -> Unit, onReachedBottom: () -> Unit = {}) {
                 fontSize = 11.sp,
                 modifier = Modifier.padding(top = 2.dp),
             )
+            Text(
+                L10n.tf("在 B 站查看官方在线版本 ↗", "View official online version on Bilibili ↗"),
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .clickable { ExternalLinks.open(ctx, ExternalLinks.PRIVACY_URL) },
+            )
         }
 
         blocks.forEachIndexed { index, block ->

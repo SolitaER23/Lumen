@@ -394,9 +394,21 @@ fun SettingsScreen(
                     AboutRow(L10n.tf("用户协议", "Terms of Service"), L10n.tf("查看", "View"), onClick = onOpenTerms, chevron = true)
                     AboutRow(
                         L10n.tf("检查更新", "Check for updates"),
-                        L10n.tf("B 站发布", "Bilibili"),
-                        onClick = { ExternalLinks.open(ctx, ExternalLinks.BILIBILI_URL) },
+                        L10n.tf("夸克网盘 · 3GF3", "Quark · 3GF3"),
+                        onClick = { ExternalLinks.open(ctx, ExternalLinks.UPDATE_URL) },
                         chevron = true,
+                        onLongClick = {
+                            val clipboard = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(
+                                android.content.ClipData.newPlainText("Lumen update code", ExternalLinks.UPDATE_CODE),
+                            )
+                            android.widget.Toast.makeText(
+                                ctx,
+                                L10n.t("提取码已复制"),
+                                android.widget.Toast.LENGTH_SHORT,
+                            ).show()
+                        },
                     )
                     FeedbackBlock()
                     AiCodedBadge(Modifier.padding(top = 14.dp))
