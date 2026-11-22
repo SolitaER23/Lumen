@@ -84,12 +84,6 @@ fun RadioScreen(
         animationSpec = infiniteRepeatable(tween(18000, easing = LinearEasing), RepeatMode.Reverse),
         label = "drift",
     )
-    val float by transition.animateFloat(
-        initialValue = -0.02f,
-        targetValue = 0.02f,
-        animationSpec = infiniteRepeatable(tween(5200, easing = LinearEasing), RepeatMode.Reverse),
-        label = "float",
-    )
     val pulse by transition.animateFloat(
         initialValue = 1f,
         targetValue = 1.06f,
@@ -125,13 +119,7 @@ fun RadioScreen(
             }
 
             item {
-                RadioBanner(
-                    current = current,
-                    vibe = vibe,
-                    loading = loading,
-                    float = float,
-                    modifier = Modifier.padding(top = 14.dp),
-                )
+                AlbumHeading(current = current)
             }
 
             item {
@@ -239,97 +227,25 @@ fun RadioScreen(
 }
 
 @Composable
-private fun RadioBanner(
-    current: Track?,
-    vibe: RadioVibe,
-    loading: Boolean,
-    float: Float,
-    modifier: Modifier = Modifier,
-) {
-    val primary = MaterialTheme.colorScheme.primary
-    val tertiary = MaterialTheme.colorScheme.tertiary
-    val base = MaterialTheme.colorScheme.surfaceContainer
-    Box(
-        modifier
-            .fillMaxWidth()
-            .heightIn(min = 210.dp, max = 280.dp)
-            .graphicsLayer { translationY = float * 24.dp.toPx() }
-            .clip(RoundedCornerShape(36.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        primary.copy(alpha = 0.62f),
-                        tertiary.copy(alpha = 0.34f),
-                        base,
-                    ),
-                ),
-            ),
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.58f)),
-                    ),
-                ),
-        )
-        Canvas(Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            drawCircle(
-                Color.White.copy(alpha = 0.10f),
-                radius = w * 0.42f,
-                center = androidx.compose.ui.geometry.Offset(w * 0.88f, h * 0.18f),
-            )
-            drawCircle(
-                primary.copy(alpha = 0.20f),
-                radius = w * 0.34f,
-                center = androidx.compose.ui.geometry.Offset(w * 0.14f, h * 0.88f),
-            )
-            drawLine(
-                Color.White.copy(alpha = 0.20f),
-                androidx.compose.ui.geometry.Offset(w * 0.62f, h * 0.10f),
-                androidx.compose.ui.geometry.Offset(w * 0.98f, h * 0.74f),
-                strokeWidth = 2.dp.toPx(),
-            )
-        }
-        Column(
-            Modifier.fillMaxSize().padding(22.dp),
-            verticalArrangement = Arrangement.Bottom,
-        ) {
-            Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.22f)) {
-                Text(
-                    vibe.label(),
-                    color = Color.White.copy(alpha = 0.90f),
-                    fontSize = 10.sp,
-                    letterSpacing = 1.2.sp,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                )
-            }
+private fun AlbumHeading(current: Track?) {
+    val albumName = current?.album?.takeIf { it.isNotBlank() }
+        ?: L10n.tf("本地曲库", "Local library")
+    Column(Modifier.fillMaxWidth().padding(top = 22.dp)) {
+        AnimatedContent(
+            targetState = albumName,
+            transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(180)) },
+            label = "radio-album",
+        ) { album ->
             Text(
-                L10n.tf("专辑", "ALBUM"),
-                color = Color.White.copy(alpha = 0.62f),
-                fontSize = 10.sp,
-                letterSpacing = 1.6.sp,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-            Text(
-                current?.album?.takeIf { it.isNotBlank() }
-                    ?: L10n.tf("本地曲库", "Local library"),
-                color = Color.White,
-                fontSize = 32.sp,
-                lineHeight = 37.sp,
-                fontWeight = FontWeight.SemiBold,
+                album,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 42.sp,
+                lineHeight = 46.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = (-0.6).sp,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (loading) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.TopEnd).padding(18.dp).size(22.dp),
-                color = Color.White,
-                strokeWidth = 2.dp,
+                modifier = Modifier.padding(top = 10.dp),
             )
         }
     }

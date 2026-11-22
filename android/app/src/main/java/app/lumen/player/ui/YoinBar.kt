@@ -53,7 +53,7 @@ fun YoinBar(
     coverUrl: String,
     playing: Boolean,
     enabled: Boolean,
-    event: app.lumen.player.data.AudioEvent? = null,
+    eventLabel: String? = null,
     onHome: () -> Unit,
     onOpenPlayer: () -> Unit,
     onToggle: () -> Unit,
@@ -102,7 +102,7 @@ fun YoinBar(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false),
                             )
-                            if (event != null) {
+                            if (eventLabel != null) {
                                 Spacer(Modifier.width(6.dp))
                                 Surface(
                                     shape = CircleShape,
@@ -110,7 +110,7 @@ fun YoinBar(
                                     modifier = Modifier.width(48.dp),
                                 ) {
                                     AnimatedContent(
-                                        targetState = event.label(),
+                                        targetState = eventLabel,
                                         transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(140)) },
                                         label = "audio-event",
                                     ) { label ->

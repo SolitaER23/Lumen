@@ -483,26 +483,30 @@ private fun App() {
             p.transcodeUrl = { t -> client.streamUrl(t.id) + "&format=mp3&maxBitRate=320" }
         }
     }
-    val currentEvent = remember(mood, playback.positionMs, playback.durationMs) {
-        val m = mood
-        if (m == null) {
-            null
-        } else {
-            val pos = playback.positionMs
-            val seg = m.segments.firstOrNull { pos >= it.startMs && pos < it.endMs }
-                ?: m.segments.firstOrNull { pos < it.startMs }
-                ?: m.segments.lastOrNull { pos >= it.endMs }
-            seg?.let { app.lumen.player.data.AudioEvent.fromTags(it.tags) }?.let { return@remember it }
-            val events = m.tags.mapNotNull { app.lumen.player.data.AudioEvent.fromTag(it.name) }.distinct()
-            if (events.isEmpty()) {
-                null
-            } else if (m.segments.isNotEmpty()) {
-                events.first()
-            } else {
-                val p = if (playback.durationMs > 0) (pos.toFloat() / playback.durationMs).coerceIn(0f, 0.999f) else 0f
-                events[(p * events.size).toInt().coerceIn(0, events.lastIndex)]
+    val currentMoment = remember(mood, playback.positionMs, playback.durationMs) {
+        val m = mood ?: return@remember app.lumen.player.data.AudioMoment(null, null)
+        val pos = playback.positionMs
+        val seg = m.segments.firstOrNull { pos >= it.startMs && pos < it.endMs }
+            ?: m.segments.firstOrNull { pos < it.startMs }
+            ?: m.segments.lastOrNull { pos >= it.endMs }
+        val tags: List<String> = when {
+            seg != null -> seg.tags
+            m.segments.isNotEmpty() -> m.segments.firstOrNull()?.tags.orEmpty()
+            else -> {
+                val names = m.tags.map { it.name }
+                if (names.isEmpty()) {
+                    emptyList()
+                } else {
+                    val p = if (playback.durationMs > 0) (pos.toFloat() / playback.durationMs).coerceIn(0f, 0.999f) else 0f
+                    listOf(names[(p * names.size).toInt().coerceIn(0, names.lastIndex)])
+                }
             }
         }
+        val event = app.lumen.player.data.AudioEvent.fromTags(tags)
+        app.lumen.player.data.AudioMoment(
+            event = event,
+            detail = app.lumen.player.data.AudioEvent.detailFor(tags) ?: event?.label(),
+        )
     }
 
     fun startRadio(vibe: app.lumen.player.data.RadioVibe, reseed: Boolean = false) {
@@ -1051,7 +1055,7 @@ private fun App() {
                         }
                     },
             ) {
-                app.lumen.player.ui.ExpressiveBackdrop(Modifier.matchParentSize(), event = currentEvent)
+                app.lumen.player.ui.ExpressiveBackdrop(Modifier.matchParentSize(), event = currentMoment.event)
                 // 预测性返回：底层压暗，露出背景；上层内容跟手右移 + 缩放 + 圆角
                 Box(
                     Modifier
@@ -1117,7 +1121,7 @@ private fun App() {
                                 app.lumen.player.ui.ExpressiveBackdrop(
                                     Modifier.matchParentSize(),
                                     drivePulse = isFront,
-                                    event = currentEvent,
+                                    event = currentMoment.event,
                                 )
                             }
                             screenContent(pageKey)
@@ -1135,7 +1139,7 @@ private fun App() {
                         coverUrl = current?.let { client.coverUrl(it.albumId, 200) } ?: "",
                         playing = playback.playing,
                         enabled = current != null,
-                        event = currentEvent,
+                        eventLabel = currentMoment.detail,
                         onHome = { navStack.clear(); screen = 0; openAlbum = null },
                         onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
                         onToggle = {
