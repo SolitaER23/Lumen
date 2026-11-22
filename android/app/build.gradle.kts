@@ -26,13 +26,13 @@ android {
         applicationId = "app.lumen.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 125
-        versionName = "0.41.0"
+        versionCode = 126
+        versionName = "0.42.0"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
     androidResources {
-        noCompress += listOf("onnx", "tflite")
+        noCompress += listOf("tflite")
     }
 
     buildFeatures {
@@ -94,7 +94,6 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 

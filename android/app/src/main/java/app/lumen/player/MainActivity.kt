@@ -871,7 +871,7 @@ private fun App() {
                                     app.lumen.player.data.MoodAnalyzer(ctx).use { analyzer ->
                                         list.forEach { tr ->
                                             if (app.lumen.player.data.MoodStore.get(ctx, tr.id) == null) {
-                                                runCatching { analyzer.analyze(tr.id, streamUrl(client, tr)) { _, _ -> } }
+                                                runCatching { analyzer.analyze(tr.id, client.streamUrl(tr.id) + "&format=mp3&maxBitRate=96") { _, _ -> } }
                                                     .onSuccess { app.lumen.player.data.MoodStore.put(ctx, it) }
                                             }
                                         }

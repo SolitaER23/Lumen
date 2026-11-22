@@ -18,8 +18,6 @@ Lumen 自身以 MIT 许可发布（见根目录 `LICENSE`）。以下组件随�
 | Coil | 2.7.0 | Apache-2.0 | Copyright Coil Contributors | `Apache-2.0.txt` |
 | TensorFlow Lite | 2.16.1 | Apache-2.0 | Copyright 2024 The TensorFlow Authors | `Apache-2.0.txt` |
 | YAMNet（模型 `yamnet.tflite`） | TensorFlow Models 版本 | Apache-2.0 | Copyright 2019 The TensorFlow Authors | `Apache-2.0.txt` |
-| ONNX Runtime Android | 1.20.0 | MIT | Copyright (c) Microsoft Corporation | `MIT.txt` |
-| CNN14 / PANNs（模型 `cnn14_int8.onnx`） | PANNs 预训练模型（Zenodo 3987831） | CC BY 4.0 | Copyright (c) Qiuqiang Kong et al.；Lumen 将其量化为 int8 ONNX，属修改版本 | `CC-BY-4.0.txt` |
 | Material Color Utilities（vendored Java 源码） | 2025 源码快照 | Apache-2.0 | Copyright 2021-2025 Google LLC | `MCU-Apache-2.0.txt` |
 | Yoin Symbols | 0.2.0 | MIT | Copyright (c) p2o51 | `MIT.txt` |
 | Google Sans Flex（字体） | 字体内嵌版本 | OFL-1.1 | Copyright 2015 The Google Sans Flex Authors | `OFL-1.1.txt` |
@@ -34,7 +32,6 @@ Lumen 自身以 MIT 许可发布（见根目录 `LICENSE`）。以下组件随�
 
 ## 特别说明
 
-- CNN14 预训练模型来自 PANNs（Qiuqiang Kong 等），模型权重在 Zenodo 以 **CC BY 4.0** 发布；Lumen 分发的 `cnn14_int8.onnx` 是量化后的修改版本，已在上表与「开源信息」页注明作者与修改事实。
 - YAMNet 模型来自 TensorFlow Models（Apache-2.0），未修改。
 - Google Sans Flex 以 SIL OFL-1.1 内嵌，未修改字体文件，未单独售卖字体。
 - 本项目不包含任何用户凭据、服务器地址或个人数据；运行期数据仅保存在设备本地。

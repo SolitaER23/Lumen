@@ -117,12 +117,10 @@ object MoodStore {
     }
 }
 
-/** 融合两个模型的分数 + DSP，得到 Russell 坐标、标签、tempo 与节拍包络。 */
+/** 融合 YAMNet 分数 + DSP，得到 Russell 坐标、标签、tempo 与节拍包络。 */
 object MoodMath {
-    // YAMNet(521 类) 与 CNN14(527 类) 的 mood 类索引，顺序统一：
-    // Happy, Sad, Tender, Exciting, Angry, Scary
+    // YAMNet（521 类）的 mood 类索引，顺序：Happy, Sad, Tender, Exciting, Angry, Scary
     val YAMNET_IDX = intArrayOf(271, 272, 273, 274, 275, 276)
-    val CNN14_IDX = intArrayOf(276, 278, 279, 280, 281, 282)
 
     private fun sigmoid(x: Float) = 1f / (1f + kotlin.math.exp(-x))
 
@@ -151,12 +149,10 @@ object MoodMath {
         val envStepMs: Int = 100,
     )
 
-    fun fuse(yamnet: FloatArray?, cnn14: FloatArray?, dsp: Dsp, trackId: String): MoodResult {
+    fun fuse(yamnet: FloatArray?, dsp: Dsp, trackId: String): MoodResult {
         val names = listOf("Happy", "Sad", "Tender", "Exciting", "Angry", "Scary")
         val fused = names.associateWith { name ->
-            val y = calibrate(pick(yamnet, YAMNET_IDX, name))
-            val c = calibrate(pick(cnn14, CNN14_IDX, name))
-            if (yamnet != null && cnn14 != null) (y + c) / 2f else maxOf(y, c)
+            calibrate(pick(yamnet, YAMNET_IDX, name))
         }
         val h = fused["Happy"] ?: 0f
         val s = fused["Sad"] ?: 0f

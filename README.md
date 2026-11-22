@@ -12,7 +12,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - **最近**：最近播放按单曲展示（本地历史），最近添加按专辑，已下载单独一栏
 - **多账号**：设置里保存多个 Navidrome 账号并切换，密码与令牌使用 Android Keystore 加密
 - **Navidrome Stat**：可选接入，展示播放统计
-- **心情分析**：端侧 YAMNet + CNN14 / DSP，结果只保存在本机，用于动态背景与配色
+- **心情分析**：端侧 YAMNet + DSP，结果只保存在本机，用于动态背景与配色
 - **交互**：预测性返回（跟手、上一页实时露出、无闪跳）、从点击位置展开的进入动画、封面交叉溶解、切歌音量淡入淡出
 - **离线**：边下边播缓存、整张专辑/单曲下载、独立的缓存清理
 
@@ -25,7 +25,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 | 音频 | Media3 ExoPlayer（磁盘缓存 + 解码失败自动转码兜底） |
 | 网络 | OkHttp + org.json（Subsonic token + salt 认证） |
 | 图片 | Coil + Material Color Utilities 封面取色 |
-| 端侧模型 | TensorFlow Lite（YAMNet）+ ONNX Runtime（CNN14 int8） |
+| 端侧模型 | TensorFlow Lite（YAMNet） |
 | 构建 | Gradle 8.11.1（Wrapper）+ AGP 8.10.1 + Kotlin 2.3.20 |
 
 ## 首次启动
@@ -69,7 +69,7 @@ android/app/src/main/java/app/lumen/player/
   playback/              ExoPlayer、下载服务、后台分析 Worker
   ui/                    各页面与主题/背景组件
 android/app/src/main/assets/
-  mood/                  端侧模型（约 86 MB）
+  mood/                  YAMNet 模型（约 4.1 MB）
   licenses/              第三方许可全文
 ```
 
@@ -83,4 +83,4 @@ android/app/src/main/assets/
 
 Lumen 以 **MIT License** 发布，见 [LICENSE](LICENSE)。
 
-预训练模型：YAMNet（Apache-2.0，未修改）、CNN14 / PANNs（CC BY 4.0，Lumen 量化为 int8 ONNX，属修改版本）。Navidrome（GPL-3.0）与 Navidrome Stat（MIT）仅通过网络协议对接，代码未打包进本应用。
+预训练模型：YAMNet（Apache-2.0，未修改）；心情分析仅使用 YAMNet 与本地 DSP。Navidrome（GPL-3.0）与 Navidrome Stat（MIT）仅通过网络协议对接，代码未打包进本应用。

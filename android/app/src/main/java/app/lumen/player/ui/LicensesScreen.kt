@@ -92,8 +92,6 @@ private val OSS_GROUPS = listOf(
         listOf(
             OssItem("TensorFlow Lite", "2.16.1", L10n.t("YAMNet 推理运行时"), "Apache-2.0", "© The TensorFlow Authors"),
             OssItem("YAMNet", "TensorFlow Models", L10n.t("预训练音频事件分类模型"), "Apache-2.0", "© 2019 The TensorFlow Authors"),
-            OssItem("ONNX Runtime", "1.20.0", L10n.t("CNN14 推理运行时"), "MIT", "© Microsoft Corporation"),
-            OssItem("CNN14 / PANNs", "Zenodo 3987831", L10n.t("预训练音乐标签模型（int8 量化版）"), "CC BY 4.0", L10n.t("© Qiuqiang Kong et al.，Lumen 量化修改")),
         ),
     ),
     OssGroup(
@@ -111,9 +109,8 @@ private data class LicenseDoc(val title: String, val file: String, val note: Str
 
 private val LICENSE_DOCS = listOf(
     LicenseDoc("Apache License 2.0", "Apache-2.0.txt", L10n.t("Kotlin、Compose、Media3、OkHttp、Retrofit、Gson、Coil、TFLite、YAMNet、MCU 等")),
-    LicenseDoc("MIT License", "MIT.txt", L10n.t("ONNX Runtime、Yoin Symbols、Navidrome Stat，以及 Lumen 自身")),
+    LicenseDoc("MIT License", "MIT.txt", L10n.t("Yoin Symbols、Navidrome Stat，以及 Lumen 自身")),
     LicenseDoc("SIL Open Font License 1.1", "OFL-1.1.txt", L10n.t("Google Sans Flex 字体")),
-    LicenseDoc("Creative Commons Attribution 4.0", "CC-BY-4.0.txt", L10n.t("CNN14 / PANNs 预训练模型权重")),
 )
 
 /** 开源信息页：技术栈、许可与完整许可文本。 */
@@ -210,7 +207,7 @@ fun LicensesScreen(onBack: () -> Unit) {
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        L10n.t("CNN14 预训练模型来自 PANNs（Qiuqiang Kong 等），权重以 CC BY 4.0 发布；本应用分发的 cnn14_int8.onnx 为量化后的修改版本，已注明作者与修改事实。"),
+                        L10n.tf("心情分析仅使用 YAMNet（Apache-2.0）与本地 DSP，不上传音频；已移除 CNN14，分析更快、安装包更小。", "Mood analysis now uses only YAMNet (Apache-2.0) plus on-device DSP. CNN14 was removed: analysis is faster and the APK is smaller."),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                     )
