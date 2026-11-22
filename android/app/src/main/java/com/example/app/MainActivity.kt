@@ -378,7 +378,6 @@ private fun App() {
     // 手势/按钮共用的返回进度：跟手拖动，松手后补完剩余动画再真正出栈
     val backAnim = remember { Animatable(0f) }
     // 返回出栈时跳过 AnimatedContent 的淡入/缩放，避免“上一页刚落地又弹一下”
-    var instantNav by remember { mutableStateOf(false) }
     // 返回手势开始时的“上一页” key，出栈后继续保持组合，避免切换瞬间重建
     var heldBack by remember { mutableStateOf<NavKey?>(null) }
     fun goBack() {
@@ -391,11 +390,9 @@ private fun App() {
             }
             // 等这一帧把“页面已送出”的画面渲染出来，再出栈，避免空白帧
             kotlinx.coroutines.delay(48)
-            instantNav = true
             performBack()
             backAnim.snapTo(0f)
             androidx.compose.runtime.withFrameNanos { }
-            instantNav = false
         }
     }
 
@@ -570,7 +567,6 @@ private fun App() {
             // 等这一帧把“页面已送出”的画面渲染出来，再出栈，避免空白帧
             kotlinx.coroutines.delay(48)
             // 出栈瞬间跳过 AnimatedContent 过渡，避免新页面再缩放闪一下
-            instantNav = true
             // 手势返回必须走页面栈，否则从「专辑歌曲列表」会直接跳回首页/艺人页
             when {
                 navStack.isNotEmpty() -> performBack()
@@ -583,7 +579,6 @@ private fun App() {
             }
             backAnim.snapTo(0f)
             kotlinx.coroutines.delay(90)
-            instantNav = false
         } catch (_: CancellationException) {
             // 手势取消：回到原位
             backAnim.animateTo(0f, tween(220, easing = FastOutSlowInEasing))
@@ -1815,51 +1810,7 @@ private fun rowsOfDownloads(downloads: List<AlbumDownload>): List<List<AlbumDown
     return listOf(downloads.take(half), downloads.drop(half)).filter { it.isNotEmpty() }
 }
 
-/** 分区标题：点击折叠/展开，右侧小三角随状态旋转 */
-@Composable
-private fun SectionHeader(title: String, count: Int, collapsed: Boolean, onToggle: () -> Unit) {
-    val angle by animateFloatAsState(if (collapsed) -90f else 0f, tween(220), label = "chevron")
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onToggle)
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            title,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-        )
-        Spacer(Modifier.width(8.dp))
-        Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-        Spacer(Modifier.weight(1f))
-        val chevronColor = MaterialTheme.colorScheme.onSurfaceVariant
-        Canvas(
-            Modifier
-                .size(18.dp)
-                .graphicsLayer { rotationZ = angle },
-        ) {
-            val cap = androidx.compose.ui.graphics.StrokeCap.Round
-            val stroke = 2.dp.toPx()
-            drawLine(
-                start = androidx.compose.ui.geometry.Offset(size.width * 0.2f, size.height * 0.4f),
-                end = androidx.compose.ui.geometry.Offset(size.width * 0.5f, size.height * 0.7f),
-                color = chevronColor,
-                strokeWidth = stroke,
-                cap = cap,
-            )
-            drawLine(
-                start = androidx.compose.ui.geometry.Offset(size.width * 0.5f, size.height * 0.7f),
-                end = androidx.compose.ui.geometry.Offset(size.width * 0.8f, size.height * 0.4f),
-                color = chevronColor,
-                strokeWidth = stroke,
-                cap = cap,
-            )
-        }
-    }
-}
+
 
 @Composable
 private fun HorizontalDownloadRow(

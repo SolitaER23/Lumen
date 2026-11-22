@@ -26,8 +26,8 @@ android {
         applicationId = "com.example.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 115
-        versionName = "0.36.1"
+        versionCode = 116
+        versionName = "0.36.2"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
@@ -79,9 +79,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.media3:media3-exoplayer:1.5.0")
@@ -95,10 +93,8 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
-    implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
-    implementation("org.tensorflow:tensorflow-lite-gpu:2.16.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     implementation("io.github.p2o51:yoin-symbols:0.2.0")

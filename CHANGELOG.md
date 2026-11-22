@@ -19,6 +19,15 @@
 
 ---
 
+## [0.36.2] - 2026-11-22
+
+### 依赖与死代码清理
+- 移除未使用的依赖：`material-icons-extended`、`androidx.palette`、`tensorflow-lite-gpu`、`ui-tooling-preview`；
+- 删除已无消费者的 `instantNav` 状态与 `SectionHeader` 组件；
+- Release APK 从约 127 MB 降到约 115 MB。
+
+### 版本
+- `versionName 0.36.2` / `versionCode 116`。
 ## [0.36.1] - 2026-11-22
 
 ### P2：主线程 IO、刷新策略与资源编码
