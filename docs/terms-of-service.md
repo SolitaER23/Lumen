@@ -1,7 +1,7 @@
 # Lumen 用户协议
 
 生效日期：2026-11-22  
-适用版本：Lumen Android 0.49.x
+适用版本：Lumen Android 0.50.x
 
 ## 1. 协议范围与接受
 

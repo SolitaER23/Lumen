@@ -1,4 +1,4 @@
-﻿# 变更日志（Changelog）
+# 变更日志（Changelog）
 
 本项目的版本号遵循**语义化版本 SemVer**：`主版本.次版本.修订号`（`MAJOR.MINOR.PATCH`）。
 
@@ -29,6 +29,7 @@
 
 ### 版本
 - `versionName 0.50.1` / `versionCode 139`。
+
 ## [0.50.0] - 2026-11-23
 
 ### 正式直发准备（P0 / P1）

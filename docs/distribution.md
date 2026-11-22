@@ -60,6 +60,16 @@ apksigner verify --print-certs Lumen-0.50.1.apk
 - 用户协议：`docs/terms-of-service.md`
 - 应用内：首次启动确认页；设置 → 隐私条款；设置 → 关于 → 用户协议入口（条款确认页）
 
+## 本机安装验证（2026-11-23）
+
+- 设备：Pixel 10a / Android 16（SDK 36，arm64）
+- 已安装：`Lumen-0.50.1.apk`
+- `versionName 0.50.1` / `versionCode 139`
+- 从设备拉取 `base.apk` 后 `apksigner verify --print-certs`：
+  - `CN=Lumen, OU=Release, O=Lumen, L=Shanghai, ST=Shanghai, C=CN`
+  - 证书 SHA-256：`c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37`
+- 安装包 SHA-256 与 `dist/Lumen-0.50.1.apk` 完全一致：`589D114E43EBF8607BB3268BDBE52AC6DE73167E8522167D2537A494B237C250`
+
 ## 维护者：签名与发布
 
 签名材料（**不要提交到仓库**）：

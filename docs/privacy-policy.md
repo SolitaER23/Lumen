@@ -1,7 +1,7 @@
 # Lumen 隐私条款
 
 生效日期：2026-11-22  
-适用版本：Lumen Android 0.49.x
+适用版本：Lumen Android 0.50.x
 
 ## 1. 适用范围与承诺
 
