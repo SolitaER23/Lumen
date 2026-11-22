@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.playback
 
+import app.lumen.player.util.L10n
 import android.content.Context
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadRequest
@@ -46,7 +47,7 @@ object Downloads {
         DownloadRequest.Builder(id, android.net.Uri.parse(url))
             .setData(key.toByteArray(Charsets.UTF_8))
             .setMimeType("audio/mpeg")
-            // 独立 cache key：既不与在线播放同一 URI 并发冲突，也方便"清缓存"时保留
+            // 独立 cache key：既不与在线播放同一 URI 并发冲突，也方便L10n.t("清缓存")时保留
             .setCustomCacheKey(MediaCache.downloadKey(id))
             .build()
 

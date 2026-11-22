@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
@@ -106,9 +107,9 @@ fun AlbumScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
                 }
-                Text("专辑", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(L10n.t("专辑"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
         item {
@@ -132,7 +133,7 @@ fun AlbumScreen(
                     Spacer(Modifier.height(4.dp))
                     Text(album.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                     Text(
-                        "${album.year} · ${album.songCount} 首",
+                        L10n.tf("${album.year} · ${album.songCount} 首", "${album.year} · ${album.songCount} tracks"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                     )
@@ -143,9 +144,9 @@ fun AlbumScreen(
             // 三个按钮：形状 / 颜色各不相同，颜色都从当前专辑封面取色
             val finished = download != null && download.total > 0 && download.done == download.total
             val dlLabel = when {
-                download == null || download.total == 0 -> "下载"
-                finished -> "已下载"
-                else -> "下载 ${download.done}/${download.total}"
+                download == null || download.total == 0 -> L10n.t("下载")
+                finished -> L10n.t("已下载")
+                else -> L10n.tf("下载 ${download.done}/${download.total}", "Downloading ${download.done}/${download.total}")
             }
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
@@ -166,7 +167,7 @@ fun AlbumScreen(
                     ) {
                         Icon(YoinSymbols.Shuffle, contentDescription = null, tint = s.onSecondary, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("随机", color = s.onSecondary, fontSize = 13.sp)
+                        Text(L10n.t("随机"), color = s.onSecondary, fontSize = 13.sp)
                     }
                 }
                 // 播放：大圆角方块 + primary 色（最显眼）
@@ -183,7 +184,7 @@ fun AlbumScreen(
                     ) {
                         Icon(YoinSymbols.PlayFilled, contentDescription = null, tint = s.onPrimary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("播放", color = s.onPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(L10n.t("播放"), color = s.onPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
                 // 下载：切角形状 + tertiary 容器色

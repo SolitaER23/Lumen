@@ -1,5 +1,6 @@
 package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -108,7 +109,7 @@ fun YoinBar(
                 }
             } else {
                 Text(
-                    "还没有播放",
+                    L10n.t("还没有播放"),
                     color = HomeSub,
                     fontSize = 13.sp,
                     modifier = Modifier.weight(1f).padding(start = 12.dp),
@@ -124,7 +125,7 @@ fun YoinBar(
             ) {
                 Icon(
                     if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
-                    contentDescription = if (playing) "暂停" else "播放",
+                    contentDescription = if (playing) L10n.t("暂停") else L10n.t("播放"),
                     tint = Color(0xFF202126),
                     modifier = Modifier.size(22.dp),
                 )

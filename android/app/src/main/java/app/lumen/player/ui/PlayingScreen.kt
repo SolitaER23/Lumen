@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -138,10 +139,10 @@ fun PlayingScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Text(
-                    "正在播放",
+                    L10n.t("正在播放"),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
@@ -215,7 +216,7 @@ fun PlayingScreen(
             Spacer(Modifier.height(18.dp))
             // 单曲名
             Text(
-                track?.title ?: "未在播放",
+                track?.title ?: L10n.t("未在播放"),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Light,
@@ -249,7 +250,7 @@ fun PlayingScreen(
                 ) {
                     Icon(
                         if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
-                        contentDescription = if (playing) "暂停" else "播放",
+                        contentDescription = if (playing) L10n.t("暂停") else L10n.t("播放"),
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(26.dp),
                     )
@@ -300,7 +301,7 @@ fun PlayingScreen(
                 ) {
                     Icon(
                         YoinSymbols.Lyrics,
-                        contentDescription = "歌词",
+                        contentDescription = L10n.t("歌词"),
                         tint = if (showLyrics) MaterialTheme.colorScheme.surface
                         else MaterialTheme.colorScheme.inversePrimary,
                         modifier = Modifier.size(26.dp),
@@ -317,7 +318,7 @@ fun PlayingScreen(
                 ) {
                     Icon(
                         YoinSymbols.SkipPrevious,
-                        contentDescription = "上一首",
+                        contentDescription = L10n.t("上一首"),
                         tint = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.size(30.dp),
                     )
@@ -333,7 +334,7 @@ fun PlayingScreen(
                 ) {
                     Icon(
                         YoinSymbols.SkipNext,
-                        contentDescription = "下一首",
+                        contentDescription = L10n.t("下一首"),
                         tint = MaterialTheme.colorScheme.onTertiaryContainer,
                         modifier = Modifier.size(30.dp),
                     )
@@ -386,7 +387,7 @@ private fun WavyProgress(
         ),
         label = "phase",
     )
-    // 近似"节奏"：约 130 BPM 的脉动，播放时幅度更大
+    // 近似L10n.t("节奏")：约 130 BPM 的脉动，播放时幅度更大
     val pulse by transition.animateFloat(
         initialValue = 0.55f,
         targetValue = 1f,
@@ -481,7 +482,7 @@ private fun LyricsArea(
                 CircularProgressIndicator()
             }
             lines.isNullOrEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("暂无歌词", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                Text(L10n.t("暂无歌词"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
             else -> {
                 // 上下留白 = 半个视口，配合 scrollToItem 让当前行自然落在视觉中心

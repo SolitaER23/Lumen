@@ -1,5 +1,6 @@
 package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.PredictiveBackHandler
@@ -225,7 +226,7 @@ fun HomeScreen(
                 }
             }
         } catch (e: Exception) {
-            tabError = e.message ?: "加载失败"
+            tabError = e.message ?: L10n.t("加载失败")
         } finally {
             tabLoading = false
         }
@@ -249,10 +250,10 @@ fun HomeScreen(
 
     LaunchedEffect(tab) { showSort = false }
     val sortOptions = when (tab) {
-        1 -> listOf("名称", "专辑数量")
-        2 -> listOf("最近添加", "名称", "发行年份")
-        3 -> listOf("收藏顺序", "名称", "艺人", "我的评分")
-        else -> listOf("字母顺序", "发行年份", "歌曲数量", "艺人")
+        1 -> listOf(L10n.t("名称"), L10n.t("专辑数量"))
+        2 -> listOf(L10n.t("最近添加"), L10n.t("名称"), L10n.t("发行年份"))
+        3 -> listOf(L10n.t("收藏顺序"), L10n.t("名称"), L10n.t("艺人"), L10n.t("我的评分"))
+        else -> listOf(L10n.t("字母顺序"), L10n.t("发行年份"), L10n.t("歌曲数量"), L10n.t("艺人"))
     }
     val sortedAlbums = sortAlbums(albums, sortIndex)
     val sortedArtists = sortArtists(artists, sortIndex)
@@ -265,16 +266,16 @@ fun HomeScreen(
         HomeHeader(
             selected = tab,
             title = when (tab) {
-                1 -> "艺人"
-                2 -> "最近"
-                3 -> "收藏"
-                else -> "专辑"
+                1 -> L10n.t("艺人")
+                2 -> L10n.t("最近")
+                3 -> L10n.t("收藏")
+                else -> L10n.t("专辑")
             },
             subtitle = when (tab) {
-                1 -> "${artists.size} 位艺人 · ${sortOptions.getOrElse(sortIndex) { "名称" }}"
-                2 -> "最近添加 ${newest.size} · 最近播放 ${recentTracks.size}"
-                3 -> "${starred.size} 首单曲 · ${sortOptions.getOrElse(sortIndex) { "收藏顺序" }}"
-                else -> "${albums.size} 张专辑 · ${sortOptions.getOrElse(sortIndex) { "字母顺序" }}"
+                1 -> "${artists.size} 位艺人 · ${sortOptions.getOrElse(sortIndex) { L10n.t("名称") }}"
+                2 -> L10n.tf("最近添加 ${newest.size} · 最近播放 ${recentTracks.size}", "Recently added ${newest.size} · recently played ${recentTracks.size}")
+                3 -> L10n.tf("${starred.size} 首单曲 · ${sortOptions.getOrElse(sortIndex) { L10n.t("收藏顺序") }}", "${starred.size} tracks · ${sortOptions.getOrElse(sortIndex) { L10n.t("收藏顺序") }}")
+                else -> L10n.tf("${albums.size} 张专辑 · ${sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }}", "${albums.size} albums · ${sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }}")
             },
             onTab = onTabChange,
             onSettings = onSettings,
@@ -299,7 +300,7 @@ fun HomeScreen(
                     onClick = onRetry,
                     shape = RoundedCornerShape(percent = 50),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                ) { Text("重试") }
+                ) { Text(L10n.t("重试")) }
             }
             else -> {
                 val pagerState = rememberPagerState(pageCount = { 4 })
@@ -337,7 +338,7 @@ fun HomeScreen(
                             loading = tabLoading && newest.isEmpty(),
                         )
                         else -> Column(Modifier.fillMaxSize()) {
-                            SectionRow("全部专辑", "共 ${albums.size} 张")
+                            SectionRow(L10n.t("全部专辑"), L10n.tf("共 ${albums.size} 张", "${albums.size} total"))
                             Box(Modifier.weight(1f)) {
                                 AlbumGrid(
                                     albums = sortedAlbums,
@@ -365,10 +366,10 @@ fun HomeScreen(
             ) {
                 Text(
                     when (tab) {
-                        1 -> "艺人排序"
-                        2 -> "最近排序"
-                        3 -> "收藏排序"
-                        else -> "专辑排序"
+                        1 -> L10n.t("艺人排序")
+                        2 -> L10n.t("最近排序")
+                        3 -> L10n.t("收藏排序")
+                        else -> L10n.t("专辑排序")
                     },
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 18.sp,
@@ -436,7 +437,7 @@ private fun sortStarred(list: List<Track>, mode: Int, ratingOf: (String) -> Floa
 private fun StarredList(tracks: List<Track>, onPlay: (Int) -> Unit) {
     if (tracks.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("还没有收藏的单曲", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+            Text(L10n.t("还没有收藏的单曲"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
         }
         return
     }
@@ -520,7 +521,7 @@ private fun HomeHeader(
             }
             Spacer(Modifier.width(10.dp))
             HomeCircleButton(onClick = onSearch) {
-                Icon(YoinSymbols.Search, contentDescription = "搜索", tint = HomeText, modifier = Modifier.size(22.dp))
+                Icon(YoinSymbols.Search, contentDescription = L10n.t("搜索"), tint = HomeText, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(10.dp))
             HomeCircleButton(onClick = onSort) {
@@ -537,7 +538,7 @@ private fun HomeHeader(
             }
             Spacer(Modifier.width(10.dp))
             HomeCircleButton(onClick = onSettings) {
-                Icon(YoinSymbols.Settings, contentDescription = "设置", tint = HomeText, modifier = Modifier.size(21.dp))
+                Icon(YoinSymbols.Settings, contentDescription = L10n.t("设置"), tint = HomeText, modifier = Modifier.size(21.dp))
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -550,7 +551,7 @@ private fun HomeHeader(
                 .background(HomeCard)
                 .padding(4.dp),
         ) {
-            listOf("专辑", "艺人", "最近", "收藏").forEachIndexed { i, label ->
+            listOf(L10n.t("专辑"), L10n.t("艺人"), L10n.t("最近"), L10n.t("收藏")).forEachIndexed { i, label ->
                 Box(
                     Modifier
                         .weight(1f)
@@ -718,7 +719,7 @@ private fun RecentTrackRow(
         }
         Icon(
             YoinSymbols.PlayFilled,
-            contentDescription = "播放",
+            contentDescription = L10n.t("播放"),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(18.dp),
         )
@@ -780,9 +781,9 @@ private fun RecentList(
     }
 
     val sections = mapOf(
-        0 to "最近添加",
-        1 to "最近播放",
-        2 to "已下载",
+        0 to L10n.t("最近添加"),
+        1 to L10n.t("最近播放"),
+        2 to L10n.t("已下载"),
     )
 
     Box(Modifier.fillMaxSize()) {
@@ -796,7 +797,7 @@ private fun RecentList(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "最近",
+                        L10n.t("最近"),
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Medium,
@@ -850,9 +851,9 @@ private fun RecentList(
                                 )
                                 Text(
                                     when (section) {
-                                        2 -> " 项"
-                                        1 -> " 首"
-                                        else -> " 张"
+                                        2 -> L10n.t(" 项")
+                                        1 -> L10n.t(" 首")
+                                        else -> L10n.t(" 张")
                                     },
                                     color = titleColor,
                                     fontSize = 10.sp,
@@ -868,21 +869,21 @@ private fun RecentList(
 
             when (selected) {
                 0 -> if (newest.isEmpty()) {
-                    item(key = "nempty") { RecentEmpty("暂无最近添加的专辑") }
+                    item(key = "nempty") { RecentEmpty(L10n.t("暂无最近添加的专辑")) }
                 } else {
                     items(rowsOf(newest), key = { "n${it.firstOrNull()?.id}" }) { row ->
                         HorizontalAlbumRow(row, coverUrl, onOpen)
                     }
                 }
                 1 -> if (recentTracks.isEmpty()) {
-                    item(key = "rempty") { RecentEmpty("暂无最近播放的歌曲") }
+                    item(key = "rempty") { RecentEmpty(L10n.t("暂无最近播放的歌曲")) }
                 } else {
                     items(recentTracks, key = { "r${it.id}" }) { track ->
                         RecentTrackRow(track, coverUrl, onPlayTrack)
                     }
                 }
                 else -> if (downloads.isEmpty()) {
-                    item(key = "dempty") { RecentEmpty("还没有下载内容") }
+                    item(key = "dempty") { RecentEmpty(L10n.t("还没有下载内容")) }
                 } else {
                     items(rowsOfDownloads(downloads), key = { "d${it.firstOrNull()?.key}" }) { row ->
                         HorizontalDownloadRow(row, albums, singleTracks, coverUrl, onOpen, onPlayTrack)
@@ -935,7 +936,7 @@ private fun HorizontalDownloadRow(
                 val subtitle = listOfNotNull(
                     track?.artist?.takeIf { it.isNotBlank() },
                     track?.album?.takeIf { it.isNotBlank() },
-                ).joinToString(" · ").ifBlank { "单曲" }
+                ).joinToString(" · ").ifBlank { L10n.t("单曲") }
                 Column(
                     Modifier
                         .width(148.dp)

@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,15 +47,15 @@ fun DownloadsScreen(
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
                 }
-                Text("离线下载", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(L10n.t("离线下载"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
         item {
             Column(Modifier.padding(horizontal = 20.dp)) {
                 Text(
-                    "已下载 ${summaries.sumOf { it.total }} 首 · ${"%.1f".format(summaries.sumOf { it.bytes } / 1048576.0)} MB",
+                    L10n.tf("已下载 ${summaries.sumOf { it.total }} 首 · ${"%.1f".format(summaries.sumOf { it.bytes } / 1048576.0)} MB", "Downloaded ${summaries.sumOf { it.total }} tracks · ${"%.1f".format(summaries.sumOf { it.bytes } / 1048576.0)} MB"),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                 )
@@ -64,14 +65,14 @@ fun DownloadsScreen(
         if (summaries.isEmpty()) {
             item {
                 Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                    Text("还没有离线内容", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                    Text(L10n.t("还没有离线内容"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                 }
             }
         } else {
             item {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "全部删除",
+                        L10n.t("全部删除"),
                         color = MaterialTheme.colorScheme.error,
                         fontSize = 13.sp,
                         modifier = Modifier.weight(1f).clickable(onClick = onClearAll),
@@ -100,12 +101,12 @@ fun DownloadsScreen(
                         )
                         Text(
                             buildString {
-                                if (s.isSingle) append("单曲 · ")
-                                append("${s.done}/${s.total} 首")
+                                if (s.isSingle) append(L10n.t("单曲 · "))
+                                append(L10n.tf("${s.done}/${s.total} 首", "${s.done}/${s.total} tracks"))
                                 append(" · ")
                                 append("%.1f".format(s.bytes / 1048576.0))
                                 append(" MB")
-                                if (s.failed) append(" · 有失败")
+                                if (s.failed) append(L10n.t(" · 有失败"))
                             },
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
@@ -114,7 +115,7 @@ fun DownloadsScreen(
                     IconButton(onClick = { onDelete(s.key) }) {
                         Icon(
                             YoinSymbols.Delete,
-                            contentDescription = "删除",
+                            contentDescription = L10n.t("删除"),
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(20.dp),
                         )

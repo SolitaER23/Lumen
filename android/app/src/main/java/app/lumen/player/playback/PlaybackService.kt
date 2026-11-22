@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.playback
 
+import app.lumen.player.util.L10n
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -67,7 +68,7 @@ class PlaybackService : MediaSessionService() {
         val nm = getSystemService(NotificationManager::class.java)
         if (nm.getNotificationChannel(CHANNEL) == null) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, "播放控制", NotificationManager.IMPORTANCE_LOW).apply {
+                NotificationChannel(CHANNEL, L10n.t("播放控制"), NotificationManager.IMPORTANCE_LOW).apply {
                     setShowBadge(false)
                 },
             )
@@ -108,15 +109,15 @@ class PlaybackService : MediaSessionService() {
             .setOngoing(p.isPlaying)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setShowWhen(false)
-            .addAction(action(ACTION_PREV, android.R.drawable.ic_media_previous, "上一首"))
+            .addAction(action(ACTION_PREV, android.R.drawable.ic_media_previous, L10n.t("上一首")))
             .addAction(
                 action(
                     ACTION_TOGGLE,
                     if (p.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
-                    if (p.isPlaying) "暂停" else "播放",
+                    if (p.isPlaying) L10n.t("暂停") else L10n.t("播放"),
                 ),
             )
-            .addAction(action(ACTION_NEXT, android.R.drawable.ic_media_next, "下一首"))
+            .addAction(action(ACTION_NEXT, android.R.drawable.ic_media_next, L10n.t("下一首")))
 
         if (token != null) {
             val style: Notification.Style = Notification.MediaStyle()

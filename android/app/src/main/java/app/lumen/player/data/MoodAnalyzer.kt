@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.data
 
+import app.lumen.player.util.L10n
 import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
@@ -44,17 +45,17 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
         app.lumen.player.util.Logx.i("LumenMood", "start analysis $trackId")
         val temp = File(ctx.cacheDir, "mood_$trackId.mp3")
         try {
-            onPhase("下载", 0f)
-            download(url, temp) { onPhase("下载", it * 0.35f) }
-            onPhase("解码", 0.36f)
-            val pcm = decodeAndResample(temp) ?: error("解码失败")
+            onPhase(L10n.t("下载"), 0f)
+            download(url, temp) { onPhase(L10n.t("下载"), it * 0.35f) }
+            onPhase(L10n.t("解码"), 0.36f)
+            val pcm = decodeAndResample(temp) ?: error(L10n.t("解码失败"))
             onPhase("DSP", 0.45f)
             val dsp = dspFeatures(pcm)
             onPhase("YAMNet", 0.50f)
             val yamnet = runYamnet(pcm) { onPhase("YAMNet", 0.50f + it * 0.15f) }
             onPhase("CNN14", 0.66f)
             val cnn14 = runCnn14(pcm) { onPhase("CNN14", 0.66f + it * 0.33f) }
-            onPhase("融合", 0.99f)
+            onPhase(L10n.t("融合"), 0.99f)
             val result = MoodMath.fuse(yamnet, cnn14, dsp, trackId)
             app.lumen.player.util.Logx.i(
                 "LumenMood",

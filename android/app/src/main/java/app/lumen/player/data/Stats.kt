@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.data
 
+import app.lumen.player.util.L10n
 import android.content.Context
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -97,30 +98,30 @@ class StatsClient(private val cfg: StatsConfig) {
         val resp = try {
             http.newCall(req).execute()
         } catch (e: javax.net.ssl.SSLException) {
-            throw StatsException("SSL 证书校验失败（自签证书请改用 http 或受信任证书）")
+            throw StatsException(L10n.t("SSL 证书校验失败（自签证书请改用 http 或受信任证书）"))
         } catch (e: java.net.SocketTimeoutException) {
-            throw StatsException("连接超时：服务器不可达或端口不对")
+            throw StatsException(L10n.t("连接超时：服务器不可达或端口不对"))
         } catch (e: java.net.ConnectException) {
-            throw StatsException("连接被拒绝：检查地址与端口")
+            throw StatsException(L10n.t("连接被拒绝：检查地址与端口"))
         } catch (e: java.net.UnknownHostException) {
-            throw StatsException("域名解析失败：检查地址")
+            throw StatsException(L10n.t("域名解析失败：检查地址"))
         } catch (e: java.io.IOException) {
-            throw StatsException("无法连接服务器（连接被中断或服务未启动）：${e.message ?: ""}".trim())
+            throw StatsException(L10n.tf("无法连接服务器（连接被中断或服务未启动）：${e.message ?: ""}".trim(), "Cannot reach server (interrupted or not running): ${e.message ?: ""}".trim()))
         } catch (e: Exception) {
-            throw StatsException(e.message ?: "网络错误")
+            throw StatsException(e.message ?: L10n.t("网络错误"))
         }
         resp.use {
             val code = resp.code
             val body = resp.body?.string().orEmpty()
             if (!resp.isSuccessful) {
                 when (code) {
-                    401, 403 -> throw StatsException("认证失败（HTTP $code）：STATS_API_TOKEN 不正确或无权访问")
-                    404 -> throw StatsException("接口不存在（404）：地址可能缺少路径前缀，或服务版本过旧")
-                    else -> throw StatsException("服务返回 HTTP $code")
+                    401, 403 -> throw StatsException(L10n.tf("认证失败（HTTP $code）：STATS_API_TOKEN 不正确或无权访问", "Authentication failed (HTTP $code): STATS_API_TOKEN is wrong or not authorized"))
+                    404 -> throw StatsException(L10n.t("接口不存在（404）：地址可能缺少路径前缀，或服务版本过旧"))
+                    else -> throw StatsException(L10n.tf("服务返回 HTTP $code", "Server returned HTTP $code"))
                 }
             }
             val json = runCatching { JSONObject(body) }.getOrNull()
-                ?: throw StatsException("返回的不是 JSON（可能是反向代理的错误页）")
+                ?: throw StatsException(L10n.t("返回的不是 JSON（可能是反向代理的错误页）"))
             return parseDashboard(json)
         }
     }

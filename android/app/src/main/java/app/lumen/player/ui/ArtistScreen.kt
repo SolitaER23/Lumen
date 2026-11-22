@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -78,16 +79,16 @@ fun ArtistScreen(
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
                 }
-                Text("艺人", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(L10n.t("艺人"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
         item {
             // 不显示艺人头像，只留名字与张数
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
                 Text(artist.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 28.sp, fontWeight = FontWeight.Light)
-                Text("${artist.albumCount} 张专辑", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                Text(L10n.tf("${artist.albumCount} 张专辑", "${artist.albumCount} albums"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -128,7 +129,7 @@ fun ArtistScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            "${album.year} · ${album.songCount} 首",
+                            L10n.tf("${album.year} · ${album.songCount} 首", "${album.year} · ${album.songCount} tracks"),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp,
                         )

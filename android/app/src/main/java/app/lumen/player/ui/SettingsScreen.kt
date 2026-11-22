@@ -1,5 +1,6 @@
 package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -76,6 +77,8 @@ fun SettingsScreen(
     onContrast: (Float) -> Unit = {},
     fadeMs: Long = 260L,
     onFadeMs: (Long) -> Unit = {},
+    langMode: String = "system",
+    onLangMode: (String) -> Unit = {},
     accounts: List<Account> = emptyList(),
     activeAccountId: String? = null,
     onSwitchAccount: (Account) -> Unit = {},
@@ -109,13 +112,13 @@ fun SettingsScreen(
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
                 }
-                Text("设置", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(L10n.t("设置"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
-            Text("设置", color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
+            Text(L10n.t("设置"), color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
             Text(
-                "账号、外观与数据",
+                L10n.t("账号、外观与数据"),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 4.dp),
@@ -124,11 +127,11 @@ fun SettingsScreen(
 
         // 1. 账号与用户
         item {
-            SettingSection("账号") {
+            SettingSection(L10n.t("账号")) {
                 CurrentAccountCard(cfg)
                 ExpandRow(
-                    label = "切换用户",
-                    hint = if (accounts.size > 1) "${accounts.size} 个账号" else "仅当前账号",
+                    label = L10n.t("切换用户"),
+                    hint = if (accounts.size > 1) "${accounts.size} 个账号" else L10n.t("仅当前账号"),
                     expanded = showAccounts,
                     onClick = { showAccounts = !showAccounts },
                 )
@@ -160,7 +163,7 @@ fun SettingsScreen(
                                 .padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("添加账号", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
+                            Text(L10n.t("添加账号"), color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
                         }
                     }
                 }
@@ -173,7 +176,7 @@ fun SettingsScreen(
                         .clickable(onClick = onLogout)
                         .padding(horizontal = 14.dp, vertical = 14.dp),
                 ) {
-                    Text("退出登录", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+                    Text(L10n.t("退出登录"), color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(
@@ -184,19 +187,19 @@ fun SettingsScreen(
                         .clickable { confirmWipe = true }
                         .padding(horizontal = 14.dp, vertical = 14.dp),
                 ) {
-                    Text("清除本机数据", color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                    Text(L10n.t("清除本机数据"), color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
                 }
             }
         }
 
         // 2. 外观
         item {
-            SettingSection("外观") {
+            SettingSection(L10n.t("外观")) {
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    listOf(0f to "标准", 0.5f to "中", 1f to "高").forEach { (value, label) ->
+                    listOf(0f to L10n.t("标准"), 0.5f to L10n.t("中"), 1f to L10n.t("高")).forEach { (value, label) ->
                         val selected = kotlin.math.abs(contrast - value) < 0.01f
                         Box(
                             Modifier
@@ -220,13 +223,13 @@ fun SettingsScreen(
                     }
                 }
                 Text(
-                    "对比度越高，文字与背景越分明；越低，整体更柔和。默认「高」。",
+                    L10n.t("对比度越高，文字与背景越分明；越低，整体更柔和。默认「高」。"),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 8.dp),
                 )
                 Text(
-                    "切歌淡入淡出",
+                    L10n.t("切歌淡入淡出"),
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
@@ -235,7 +238,7 @@ fun SettingsScreen(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    listOf(0L to "关闭", 150L to "短", 260L to "标准", 420L to "长").forEach { (value, label) ->
+                    listOf(0L to L10n.t("关闭"), 150L to L10n.t("短"), 260L to L10n.t("标准"), 420L to L10n.t("长")).forEach { (value, label) ->
                         val selected = fadeMs == value
                         Box(
                             Modifier
@@ -259,7 +262,7 @@ fun SettingsScreen(
                     }
                 }
                 Text(
-                    "切歌时旧曲淡出、新曲淡入，0 为直接切换。",
+                    L10n.t("切歌时旧曲淡出、新曲淡入，0 为直接切换。"),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 8.dp),
@@ -269,7 +272,7 @@ fun SettingsScreen(
 
         // 3. 心情分析
         item {
-            SettingSection("心情分析") {
+            SettingSection(L10n.t("心情分析")) {
                 var moodDone by remember { mutableStateOf(0) }
                 var moodTotal by remember { mutableStateOf(0) }
                 var moodRunning by remember { mutableStateOf(false) }
@@ -290,45 +293,45 @@ fun SettingsScreen(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            if (moodTotal == 0 && moodCount == 0) "尚未分析"
-                            else if (moodRunning) "正在分析 · $percent%"
-                            else "已分析 $moodCount 首",
+                            if (moodTotal == 0 && moodCount == 0) L10n.t("尚未分析")
+                            else if (moodRunning) L10n.tf("正在分析 · $percent%", "Analyzing · $percent%")
+                            else L10n.tf("已分析 $moodCount 首", "Analyzed $moodCount tracks"),
                             color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 13.sp,
                         )
                         Text(
-                            if (moodTotal > 0) "本库 $moodTotal 首 · 充电 + Wi-Fi 时后台进行"
-                            else "在本机提取节奏与情绪，不上传文件",
+                            if (moodTotal > 0) L10n.tf("本库 $moodTotal 首 · 充电 + Wi-Fi 时后台进行", "$moodTotal tracks · runs in background while charging on Wi-Fi")
+                            else L10n.t("在本机提取节奏与情绪，不上传文件"),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp,
                             modifier = Modifier.padding(top = 3.dp),
                         )
                     }
-                    PillButton("管理") { onOpenMood() }
+                    PillButton(L10n.t("管理")) { onOpenMood() }
                 }
             }
         }
 
         // 4. 存储
         item {
-            SettingSection("存储") {
+            SettingSection(L10n.t("存储")) {
                 SettingRow(
-                    "清理缓存",
-                    "${"%.1f".format(cacheBytes / 1024f / 1024f)} MB · 不含已下载",
+                    L10n.t("清理缓存"),
+                    L10n.tf("${"%.1f".format(cacheBytes / 1024f / 1024f)} MB · 不含已下载", "${"%.1f".format(cacheBytes / 1024f / 1024f)} MB · excludes downloads"),
                 ) {
                     IconButton(onClick = {
                         onClearCache()
                         freed = !freed
                     }) {
-                        Icon(YoinSymbols.Delete, contentDescription = "清理缓存", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(YoinSymbols.Delete, contentDescription = L10n.t("清理缓存"), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 if (freed) {
-                    Text("缓存已清理（下载不受影响）", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                    Text(L10n.t("缓存已清理（下载不受影响）"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                 }
-                SettingRow("离线下载", "$downloadCount 首 · ${"%.1f".format(downloadBytes / 1024f / 1024f)} MB") {
+                SettingRow(L10n.t("离线下载"), L10n.tf("$downloadCount 首 · ${"%.1f".format(downloadBytes / 1024f / 1024f)} MB", "$downloadCount tracks · ${"%.1f".format(downloadBytes / 1024f / 1024f)} MB")) {
                     TextButton(onClick = onManageDownloads) {
-                        Text("管理", fontSize = 12.sp)
+                        Text(L10n.t("管理"), fontSize = 12.sp)
                     }
                 }
             }
@@ -336,8 +339,42 @@ fun SettingsScreen(
 
         // 5. 关于
         item {
-            SettingSection("关于") {
-                SettingRow("版本", versionName.ifBlank { "—" })
+            SettingSection(L10n.tf("语言", "Language")) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf(
+                        "system" to L10n.tf("跟随系统", "System"),
+                        "zh" to "中文",
+                        "en" to "English",
+                    ).forEach { (mode, label) ->
+                        val selected = langMode == mode
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(50))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                )
+                                .clickable { onLangMode(mode) }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                label,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+                }
+            }
+
+            SettingSection(L10n.t("关于")) {
+                SettingRow(L10n.t("版本"), versionName.ifBlank { "—" })
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -346,9 +383,9 @@ fun SettingsScreen(
                         .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("开源信息", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                    Text(L10n.t("开源信息"), color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("技术栈与许可", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text(L10n.t("技术栈与许可"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     Text("  ›", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                 }
                 FeedbackBlock()
@@ -360,17 +397,17 @@ fun SettingsScreen(
     if (confirmWipe) {
         AlertDialog(
             onDismissRequest = { confirmWipe = false },
-            title = { Text("清除本机数据？") },
+            title = { Text(L10n.t("清除本机数据？")) },
             text = {
-                Text("将删除本机保存的账号、播放历史、评分、心情数据、统计配置、离线下载与缓存，并回到登录页。该操作不可撤销。")
+                Text(L10n.t("将删除本机保存的账号、播放历史、评分、心情数据、统计配置、离线下载与缓存，并回到登录页。该操作不可撤销。"))
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirmWipe = false
                     onClearLocalData()
-                }) { Text("清除", color = MaterialTheme.colorScheme.error) }
+                }) { Text(L10n.t("清除"), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { confirmWipe = false }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = { confirmWipe = false }) { Text(L10n.t("取消")) } },
         )
     }
 
@@ -395,12 +432,12 @@ private fun FeedbackBlock() {
     fun copy() {
         clipboard.setText(AnnotatedString(email))
         copied = true
-        android.widget.Toast.makeText(ctx, "邮箱已复制", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(ctx, L10n.t("邮箱已复制"), android.widget.Toast.LENGTH_SHORT).show()
     }
 
     Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
         Text(
-            "问题反馈",
+            L10n.t("问题反馈"),
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = 14.sp,
         )
@@ -418,7 +455,7 @@ private fun FeedbackBlock() {
                 .padding(vertical = 4.dp),
         )
         Text(
-            if (copied) "已复制到剪贴板" else "长按邮箱复制",
+            if (copied) L10n.t("已复制到剪贴板") else L10n.t("长按邮箱复制"),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 2.dp),
@@ -439,14 +476,14 @@ private fun AiCodedBadge(modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                "AI 编码",
+                L10n.t("AI 编码"),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp,
             )
             Text(
-                "非真人生成",
+                L10n.t("非真人生成"),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
@@ -492,7 +529,7 @@ private fun CurrentAccountCard(cfg: ServerConfig) {
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
                 .padding(horizontal = 8.dp, vertical = 3.dp),
         ) {
-            Text("当前", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp)
+            Text(L10n.t("当前"), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp)
         }
     }
 }
@@ -562,14 +599,14 @@ private fun AccountRow(
             IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
                 Icon(
                     YoinSymbols.Delete,
-                    contentDescription = "移除账号",
+                    contentDescription = L10n.t("移除账号"),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp),
                 )
             }
         }
         if (active) {
-            Text("当前", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp)
+            Text(L10n.t("当前"), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp)
         }
     }
 }
@@ -581,13 +618,13 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onConfirm: (String, String, 
     var pass by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("添加账号") },
+        title = { Text(L10n.t("添加账号")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = base,
                     onValueChange = { base = it },
-                    label = { Text("服务器地址", fontSize = 12.sp) },
+                    label = { Text(L10n.t("服务器地址"), fontSize = 12.sp) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
@@ -595,14 +632,14 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onConfirm: (String, String, 
                 OutlinedTextField(
                     value = user,
                     onValueChange = { user = it },
-                    label = { Text("用户名", fontSize = 12.sp) },
+                    label = { Text(L10n.t("用户名"), fontSize = 12.sp) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = pass,
                     onValueChange = { pass = it },
-                    label = { Text("密码", fontSize = 12.sp) },
+                    label = { Text(L10n.t("密码"), fontSize = 12.sp) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
@@ -613,9 +650,9 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onConfirm: (String, String, 
             TextButton(
                 enabled = base.startsWith("http") && user.isNotBlank() && pass.isNotBlank(),
                 onClick = { onConfirm(base, user, pass) },
-            ) { Text("添加并切换") }
+            ) { Text(L10n.t("添加并切换")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(L10n.t("取消")) } },
     )
 }
 

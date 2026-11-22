@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -76,7 +77,7 @@ fun StatsScreen(
         try {
             data = withContext(Dispatchers.IO) { StatsClient(cfg).dashboard(days) }
         } catch (e: Exception) {
-            error = e.message ?: "请求失败"
+            error = e.message ?: L10n.t("请求失败")
         }
         loading = false
     }
@@ -87,12 +88,12 @@ fun StatsScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
-                Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
+                Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
             }
-            Text("统计", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+            Text(L10n.t("统计"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
             Spacer(Modifier.weight(1f))
             Text(
-                "刷新",
+                L10n.t("刷新"),
                 color = if (cfg.complete && !loading) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 fontSize = 13.sp,
@@ -102,7 +103,7 @@ fun StatsScreen(
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             )
             IconButton(onClick = { editing = !editing }) {
-                Icon(YoinSymbols.Settings, contentDescription = "设置", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(YoinSymbols.Settings, contentDescription = L10n.t("设置"), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
@@ -156,7 +157,7 @@ fun StatsScreen(
                             .padding(horizontal = 18.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("修改连接", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
+                        Text(L10n.t("修改连接"), color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
                     }
                 }
                 data != null -> StatsContent(data!!)
@@ -171,14 +172,14 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
     var token by remember(cfg) { mutableStateOf(cfg.token) }
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Text(
-            "连接统计服务",
+            L10n.t("连接统计服务"),
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = 24.sp,
             fontWeight = FontWeight.Light,
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "填写自建的 navidrome-stat 地址（例：http://192.0.2.10:39421）与部署时设置的 STATS_API_TOKEN。",
+            L10n.t("填写自建的 navidrome-stat 地址（例：http://192.0.2.10:39421）与部署时设置的 STATS_API_TOKEN。"),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
         )
@@ -186,7 +187,7 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
         OutlinedTextField(
             value = base,
             onValueChange = { base = it },
-            label = { Text("服务地址") },
+            label = { Text(L10n.t("服务地址")) },
             placeholder = { Text("http://192.0.2.10:39421") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
@@ -215,7 +216,7 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text("保存并连接", color = MaterialTheme.colorScheme.onPrimary, fontSize = 15.sp)
+            Text(L10n.t("保存并连接"), color = MaterialTheme.colorScheme.onPrimary, fontSize = 15.sp)
         }
         Spacer(Modifier.height(10.dp))
         Box(
@@ -232,9 +233,9 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
                             kotlinx.coroutines.withContext(Dispatchers.IO) {
                                 StatsClient(StatsConfig(base.trim(), token.trim())).dashboard(0)
                             }
-                            "连接正常"
+                            L10n.t("连接正常")
                         } catch (e: Exception) {
-                            e.message ?: "连接失败"
+                            e.message ?: L10n.t("连接失败")
                         }
                         testing = false
                     }
@@ -242,7 +243,7 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                if (testing) "测试中…" else "测试连接",
+                if (testing) L10n.t("测试中…") else L10n.t("测试连接"),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 13.sp,
             )
@@ -254,7 +255,7 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
         if (cfg.base.isNotBlank()) {
             Spacer(Modifier.height(14.dp))
             Text(
-                "清除已保存的配置",
+                L10n.t("清除已保存的配置"),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 modifier = Modifier.clickable { onSave("", "") },
@@ -266,7 +267,7 @@ private fun ConfigForm(cfg: StatsConfig, onSave: (String, String) -> Unit) {
 @Composable
 private fun PeriodRow(days: Int, onChange: (Int) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(7 to "7 天", 30 to "30 天", 0 to "全部").forEach { (value, label) ->
+        listOf(7 to L10n.t("7 天"), 30 to L10n.t("30 天"), 0 to L10n.t("全部")).forEach { (value, label) ->
             val active = days == value
             Box(
                 Modifier
@@ -296,35 +297,35 @@ private fun StatsContent(d: StatsDashboard) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SummaryCard("播放", "${d.plays}", Modifier.weight(1f))
-                SummaryCard("时长", formatHours(d.listenSeconds), Modifier.weight(1f))
+                SummaryCard(L10n.t("播放"), "${d.plays}", Modifier.weight(1f))
+                SummaryCard(L10n.t("时长"), formatHours(d.listenSeconds), Modifier.weight(1f))
             }
         }
         item { Spacer(Modifier.height(10.dp)) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SummaryCard("曲目", "${d.tracks}", Modifier.weight(1f))
-                SummaryCard("客户端", "${d.clients}", Modifier.weight(1f))
+                SummaryCard(L10n.t("曲目"), "${d.tracks}", Modifier.weight(1f))
+                SummaryCard(L10n.t("客户端"), "${d.clients}", Modifier.weight(1f))
             }
         }
         if (d.days.isNotEmpty()) {
-            item { SectionLabel("每日播放") }
+            item { SectionLabel(L10n.t("每日播放")) }
             item { DailyChart(d.days) }
         }
         if (d.artists.isNotEmpty()) {
-            item { SectionLabel("最常听艺人") }
+            item { SectionLabel(L10n.t("最常听艺人")) }
             items(d.artists.take(10)) { artist ->
-                StatRow(title = artist.name, subtitle = null, trailing = "${artist.count} 次")
+                StatRow(title = artist.name, subtitle = null, trailing = L10n.tf("${artist.count} 次", "${artist.count} plays"))
             }
         }
         if (d.albums.isNotEmpty()) {
-            item { SectionLabel("最常听专辑") }
+            item { SectionLabel(L10n.t("最常听专辑")) }
             items(d.albums.take(10)) { album ->
-                StatRow(title = album.name, subtitle = album.artist, trailing = "${album.count} 次")
+                StatRow(title = album.name, subtitle = album.artist, trailing = L10n.tf("${album.count} 次", "${album.count} plays"))
             }
         }
         if (d.history.isNotEmpty()) {
-            item { SectionLabel("最近播放") }
+            item { SectionLabel(L10n.t("最近播放")) }
             items(d.history.take(20)) { h ->
                 StatRow(
                     title = h.title,

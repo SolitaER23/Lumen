@@ -1,5 +1,6 @@
 package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -86,13 +87,13 @@ fun MoodScreen(onBack: () -> Unit) {
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
                 }
-                Text("心情分析", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(L10n.t("心情分析"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
-            Text("心情分析", color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
+            Text(L10n.t("心情分析"), color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
             Text(
-                "在本机提取节奏与情绪，让背景和配色跟着音乐变化",
+                L10n.t("在本机提取节奏与情绪，让背景和配色跟着音乐变化"),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 4.dp),
@@ -117,12 +118,12 @@ fun MoodScreen(onBack: () -> Unit) {
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Text(
-                                "已分析 $analyzed 首",
+                                L10n.tf("已分析 $analyzed 首", "Analyzed $analyzed tracks"),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 13.sp,
                             )
                             Text(
-                                if (total > 0) "本库 $total 首" else "等待首次扫描",
+                                if (total > 0) "本库 $total 首" else L10n.t("等待首次扫描"),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 12.sp,
                                 modifier = Modifier.padding(top = 2.dp),
@@ -132,25 +133,25 @@ fun MoodScreen(onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(18.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MoodPill("开始分析", primary = true) { MoodWorker.start(ctx) }
-                        MoodPill("暂停") { MoodWorker.cancel(ctx) }
-                        MoodPill("清空") { confirmClear = true }
+                        MoodPill(L10n.t("开始分析"), primary = true) { MoodWorker.start(ctx) }
+                        MoodPill(L10n.t("暂停")) { MoodWorker.cancel(ctx) }
+                        MoodPill(L10n.t("清空")) { confirmClear = true }
                     }
                 }
             }
         }
 
         item {
-            SectionCard("它会影响什么") {
-                InfoRow("动态背景", "随节拍与能量轻微呼吸，不打断阅读")
-                InfoRow("界面配色", "情绪决定色温，封面决定主色")
-                InfoRow("歌词与播放", "不修改音频、不上传文件，全部在本机完成")
+            SectionCard(L10n.t("它会影响什么")) {
+                InfoRow(L10n.t("动态背景"), L10n.t("随节拍与能量轻微呼吸，不打断阅读"))
+                InfoRow(L10n.t("界面配色"), L10n.t("情绪决定色温，封面决定主色"))
+                InfoRow(L10n.t("歌词与播放"), L10n.t("不修改音频、不上传文件，全部在本机完成"))
             }
         }
 
         if (dist.isNotEmpty()) {
             item {
-                SectionCard("情绪分布") {
+                SectionCard(L10n.t("情绪分布")) {
                     dist.entries.forEach { (label, n) ->
                         Row(
                             Modifier.fillMaxWidth().padding(vertical = 6.dp),
@@ -163,7 +164,7 @@ fun MoodScreen(onBack: () -> Unit) {
                                 fontSize = 13.sp,
                                 modifier = Modifier.padding(start = 10.dp).weight(1f),
                             )
-                            Text("$n 首", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                            Text(L10n.tf("$n 首", "$n tracks"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         }
                     }
                 }
@@ -172,7 +173,7 @@ fun MoodScreen(onBack: () -> Unit) {
 
         item {
             Text(
-                "后台分析需要充电并连接 Wi-Fi，可随时暂停；结果保存在本机数据库，清空后可重新分析。",
+                L10n.t("后台分析需要充电并连接 Wi-Fi，可随时暂停；结果保存在本机数据库，清空后可重新分析。"),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(top = 18.dp, start = 4.dp, end = 4.dp),
@@ -183,16 +184,16 @@ fun MoodScreen(onBack: () -> Unit) {
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("清空心情数据？") },
-            text = { Text("已分析的情绪与节拍结果会被删除，需要重新分析才能恢复。不会影响下载与播放。") },
+            title = { Text(L10n.t("清空心情数据？")) },
+            text = { Text(L10n.t("已分析的情绪与节拍结果会被删除，需要重新分析才能恢复。不会影响下载与播放。")) },
             confirmButton = {
                 TextButton(onClick = {
                     MoodStore.clear(ctx)
                     confirmClear = false
-                }) { Text("清空", color = MaterialTheme.colorScheme.primary) }
+                }) { Text(L10n.t("清空"), color = MaterialTheme.colorScheme.primary) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmClear = false }) { Text("取消") }
+                TextButton(onClick = { confirmClear = false }) { Text(L10n.t("取消")) }
             },
         )
     }
@@ -232,9 +233,9 @@ private fun ProgressRing(progress: Float, modifier: Modifier = Modifier) {
 @Composable
 private fun StatusPill(running: Boolean, hasData: Boolean, modifier: Modifier = Modifier) {
     val text = when {
-        running -> "进行中"
-        hasData -> "已暂停"
-        else -> "未开始"
+        running -> L10n.t("进行中")
+        hasData -> L10n.t("已暂停")
+        else -> L10n.t("未开始")
     }
     Box(
         modifier
@@ -300,12 +301,12 @@ private fun InfoRow(label: String, value: String) {
 }
 
 private fun labelCn(label: String): String = when (label) {
-    "Happy" -> "愉悦"
-    "Tender" -> "温柔"
-    "Calm" -> "平静"
-    "Angry" -> "激烈"
-    "Tense" -> "紧张"
-    "Sad" -> "伤感"
+    "Happy" -> L10n.t("愉悦")
+    "Tender" -> L10n.t("温柔")
+    "Calm" -> L10n.t("平静")
+    "Angry" -> L10n.t("激烈")
+    "Tense" -> L10n.t("紧张")
+    "Sad" -> L10n.t("伤感")
     else -> label
 }
 

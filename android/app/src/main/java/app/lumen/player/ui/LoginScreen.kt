@@ -1,5 +1,6 @@
 package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -46,19 +47,19 @@ fun LoginScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text("Lumen", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-        Text("连接曲库", color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
+        Text(L10n.t("连接曲库"), color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
-            value = base, onValueChange = { base = it }, label = { Text("服务器地址") },
+            value = base, onValueChange = { base = it }, label = { Text(L10n.t("服务器地址")) },
             singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
-            value = user, onValueChange = { user = it }, label = { Text("用户名") },
+            value = user, onValueChange = { user = it }, label = { Text(L10n.t("用户名")) },
             singleLine = true, modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
-            value = pass, onValueChange = { pass = it }, label = { Text("密码") },
+            value = pass, onValueChange = { pass = it }, label = { Text(L10n.t("密码")) },
             singleLine = true, visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -71,7 +72,7 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth().height(52.dp),
         ) {
             if (loading) CircularProgressIndicator(Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
-            else Text("连接并同步", fontSize = 15.sp)
+            else Text(L10n.t("连接并同步"), fontSize = 15.sp)
         }
     }
 }

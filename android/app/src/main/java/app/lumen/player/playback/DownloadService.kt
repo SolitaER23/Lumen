@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.playback
 
+import app.lumen.player.util.L10n
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -25,14 +26,14 @@ class DownloadService : Media3DownloadService(FOREGROUND_ID) {
         val nm = getSystemService(NotificationManager::class.java)
         if (nm.getNotificationChannel(CHANNEL) == null) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, "离线下载", NotificationManager.IMPORTANCE_LOW),
+                NotificationChannel(CHANNEL, L10n.t("离线下载"), NotificationManager.IMPORTANCE_LOW),
             )
         }
         // 立即进入前台，避免还没开始下载就被系统以 "FGS timeout" 停掉
         runCatching {
             val placeholder = Notification.Builder(this, CHANNEL)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentTitle("Lumen 下载")
+                .setContentTitle(L10n.t("Lumen 下载"))
                 .setOngoing(true)
                 .build()
             startForeground(FOREGROUND_ID, placeholder)

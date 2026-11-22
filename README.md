@@ -28,6 +28,10 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 | 端侧模型 | TensorFlow Lite（YAMNet）+ ONNX Runtime（CNN14 int8） |
 | 构建 | Gradle 8.11.1（Wrapper）+ AGP 8.10.1 + Kotlin 2.3.20 |
 
+## 语言
+
+设置 → 语言 可切换「跟随系统 / 中文 / English」；文案集中在 util/L10n.kt，英文缺失时回退中文。
+
 ## 构建
 
 需要 JDK 17 与 Android SDK 36（platform 36）：

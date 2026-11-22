@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -56,52 +57,52 @@ private data class OssGroup(val title: String, val items: List<OssItem>)
 
 private val OSS_GROUPS = listOf(
     OssGroup(
-        "应用与界面",
+        L10n.t("应用与界面"),
         listOf(
-            OssItem("Kotlin", "2.3.20", "开发语言与协程", "Apache-2.0", "© JetBrains s.r.o. and contributors"),
-            OssItem("Jetpack Compose", "BOM 2024.10.01", "声明式 UI 框架", "Apache-2.0", "© 2019-2024 The Android Open Source Project"),
-            OssItem("Material 3", "Compose BOM 2024.10.01", "组件、动效与设计规范", "Apache-2.0", "© The Android Open Source Project"),
-            OssItem("AndroidX Core / Activity / Lifecycle", "1.15.0 / 1.9.3 / 2.8.7", "系统能力与生命周期", "Apache-2.0", "© The Android Open Source Project"),
-            OssItem("WorkManager", "2.9.1", "充电 + Wi-Fi 时的后台分析任务", "Apache-2.0", "© The Android Open Source Project"),
-            OssItem("Yoin Symbols", "0.2.0", "界面图标", "MIT", "© p2o51"),
-            OssItem("Material Color Utilities", "2025 源码快照", "封面取色与配色方案（vendored）", "Apache-2.0", "© 2021-2025 Google LLC"),
-            OssItem("Google Sans Flex", "内嵌字体", "界面字体", "OFL-1.1", "© 2015 The Google Sans Flex Authors"),
+            OssItem("Kotlin", "2.3.20", L10n.t("开发语言与协程"), "Apache-2.0", "© JetBrains s.r.o. and contributors"),
+            OssItem("Jetpack Compose", "BOM 2024.10.01", L10n.t("声明式 UI 框架"), "Apache-2.0", "© 2019-2024 The Android Open Source Project"),
+            OssItem("Material 3", "Compose BOM 2024.10.01", L10n.t("组件、动效与设计规范"), "Apache-2.0", "© The Android Open Source Project"),
+            OssItem("AndroidX Core / Activity / Lifecycle", "1.15.0 / 1.9.3 / 2.8.7", L10n.t("系统能力与生命周期"), "Apache-2.0", "© The Android Open Source Project"),
+            OssItem("WorkManager", "2.9.1", L10n.t("充电 + Wi-Fi 时的后台分析任务"), "Apache-2.0", "© The Android Open Source Project"),
+            OssItem("Yoin Symbols", "0.2.0", L10n.t("界面图标"), "MIT", "© p2o51"),
+            OssItem("Material Color Utilities", L10n.t("2025 源码快照"), L10n.t("封面取色与配色方案（vendored）"), "Apache-2.0", "© 2021-2025 Google LLC"),
+            OssItem("Google Sans Flex", L10n.t("内嵌字体"), L10n.t("界面字体"), "OFL-1.1", "© 2015 The Google Sans Flex Authors"),
         ),
     ),
     OssGroup(
-        "媒体与图片",
+        L10n.t("媒体与图片"),
         listOf(
-            OssItem("AndroidX Media3 / ExoPlayer", "1.5.0", "音频播放、队列与转码兜底", "Apache-2.0", "© The Android Open Source Project"),
-            OssItem("Coil", "2.7.0", "封面与图片加载缓存", "Apache-2.0", "© Coil Contributors"),
-            OssItem("AndroidX Palette", "1.0.0", "封面主色提取", "Apache-2.0", "© The Android Open Source Project"),
+            OssItem("AndroidX Media3 / ExoPlayer", "1.5.0", L10n.t("音频播放、队列与转码兜底"), "Apache-2.0", "© The Android Open Source Project"),
+            OssItem("Coil", "2.7.0", L10n.t("封面与图片加载缓存"), "Apache-2.0", "© Coil Contributors"),
+            OssItem("AndroidX Palette", "1.0.0", L10n.t("封面主色提取"), "Apache-2.0", "© The Android Open Source Project"),
         ),
     ),
     OssGroup(
-        "网络与数据",
+        L10n.t("网络与数据"),
         listOf(
-            OssItem("Retrofit", "2.11.0", "Subsonic HTTP 接口调用", "Apache-2.0", "© Square, Inc."),
-            OssItem("OkHttp", "4.12.0", "网络传输与连接池", "Apache-2.0", "© Square, Inc."),
-            OssItem("Gson", "2.11.0", "JSON 解析", "Apache-2.0", "© Google LLC"),
-            OssItem("kotlinx.serialization", "1.9.0", "设置与播放状态的序列化", "Apache-2.0", "© JetBrains s.r.o."),
-            OssItem("SQLite（Android 内置）", "系统版本", "心情结果、评分与统计缓存", "Public Domain", "© SQLite Authors"),
+            OssItem("Retrofit", "2.11.0", L10n.t("Subsonic HTTP 接口调用"), "Apache-2.0", "© Square, Inc."),
+            OssItem("OkHttp", "4.12.0", L10n.t("网络传输与连接池"), "Apache-2.0", "© Square, Inc."),
+            OssItem("Gson", "2.11.0", L10n.t("JSON 解析"), "Apache-2.0", "© Google LLC"),
+            OssItem("kotlinx.serialization", "1.9.0", L10n.t("设置与播放状态的序列化"), "Apache-2.0", "© JetBrains s.r.o."),
+            OssItem(L10n.t("SQLite（Android 内置）"), L10n.t("系统版本"), L10n.t("心情结果、评分与统计缓存"), "Public Domain", "© SQLite Authors"),
         ),
     ),
     OssGroup(
-        "端侧音乐理解",
+        L10n.t("端侧音乐理解"),
         listOf(
-            OssItem("TensorFlow Lite", "2.16.1", "YAMNet 推理运行时", "Apache-2.0", "© The TensorFlow Authors"),
-            OssItem("YAMNet", "TensorFlow Models", "预训练音频事件分类模型", "Apache-2.0", "© 2019 The TensorFlow Authors"),
-            OssItem("ONNX Runtime", "1.20.0", "CNN14 推理运行时", "MIT", "© Microsoft Corporation"),
-            OssItem("CNN14 / PANNs", "Zenodo 3987831", "预训练音乐标签模型（int8 量化版）", "CC BY 4.0", "© Qiuqiang Kong et al.，Lumen 量化修改"),
+            OssItem("TensorFlow Lite", "2.16.1", L10n.t("YAMNet 推理运行时"), "Apache-2.0", "© The TensorFlow Authors"),
+            OssItem("YAMNet", "TensorFlow Models", L10n.t("预训练音频事件分类模型"), "Apache-2.0", "© 2019 The TensorFlow Authors"),
+            OssItem("ONNX Runtime", "1.20.0", L10n.t("CNN14 推理运行时"), "MIT", "© Microsoft Corporation"),
+            OssItem("CNN14 / PANNs", "Zenodo 3987831", L10n.t("预训练音乐标签模型（int8 量化版）"), "CC BY 4.0", L10n.t("© Qiuqiang Kong et al.，Lumen 量化修改")),
         ),
     ),
     OssGroup(
-        "服务端与协议",
+        L10n.t("服务端与协议"),
         listOf(
-            OssItem("Navidrome", "自建服务", "自托管音乐服务器（仅协议对接）", "GPL-3.0", "© Navidrome Contributors"),
-            OssItem("Subsonic API", "公开规范", "客户端与服务器通信协议", "公开规范", "—"),
-            OssItem("OpenSubsonic", "公开规范", "扩展字段与歌词接口", "公开规范", "—"),
-            OssItem("Navidrome Stat", "自建服务", "播放统计服务（仅 API 对接）", "MIT", "© StepaniaH"),
+            OssItem("Navidrome", L10n.t("自建服务"), L10n.t("自托管音乐服务器（仅协议对接）"), "GPL-3.0", "© Navidrome Contributors"),
+            OssItem("Subsonic API", L10n.t("公开规范"), L10n.t("客户端与服务器通信协议"), L10n.t("公开规范"), "—"),
+            OssItem("OpenSubsonic", L10n.t("公开规范"), L10n.t("扩展字段与歌词接口"), L10n.t("公开规范"), "—"),
+            OssItem("Navidrome Stat", L10n.t("自建服务"), L10n.t("播放统计服务（仅 API 对接）"), "MIT", "© StepaniaH"),
         ),
     ),
 )
@@ -109,10 +110,10 @@ private val OSS_GROUPS = listOf(
 private data class LicenseDoc(val title: String, val file: String, val note: String)
 
 private val LICENSE_DOCS = listOf(
-    LicenseDoc("Apache License 2.0", "Apache-2.0.txt", "Kotlin、Compose、Media3、OkHttp、Retrofit、Gson、Coil、TFLite、YAMNet、MCU 等"),
-    LicenseDoc("MIT License", "MIT.txt", "ONNX Runtime、Yoin Symbols、Navidrome Stat，以及 Lumen 自身"),
-    LicenseDoc("SIL Open Font License 1.1", "OFL-1.1.txt", "Google Sans Flex 字体"),
-    LicenseDoc("Creative Commons Attribution 4.0", "CC-BY-4.0.txt", "CNN14 / PANNs 预训练模型权重"),
+    LicenseDoc("Apache License 2.0", "Apache-2.0.txt", L10n.t("Kotlin、Compose、Media3、OkHttp、Retrofit、Gson、Coil、TFLite、YAMNet、MCU 等")),
+    LicenseDoc("MIT License", "MIT.txt", L10n.t("ONNX Runtime、Yoin Symbols、Navidrome Stat，以及 Lumen 自身")),
+    LicenseDoc("SIL Open Font License 1.1", "OFL-1.1.txt", L10n.t("Google Sans Flex 字体")),
+    LicenseDoc("Creative Commons Attribution 4.0", "CC-BY-4.0.txt", L10n.t("CNN14 / PANNs 预训练模型权重")),
 )
 
 /** 开源信息页：技术栈、许可与完整许可文本。 */
@@ -125,13 +126,13 @@ fun LicensesScreen(onBack: () -> Unit) {
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
                 }
-                Text("关于", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(L10n.t("关于"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
-            Text("开源信息", color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
+            Text(L10n.t("开源信息"), color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
             Text(
-                "Lumen 以 MIT 许可开源，并站在这些项目之上",
+                L10n.t("Lumen 以 MIT 许可开源，并站在这些项目之上"),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 4.dp),
@@ -139,7 +140,7 @@ fun LicensesScreen(onBack: () -> Unit) {
         }
 
         item {
-            SectionTitle("本项目许可")
+            SectionTitle(L10n.t("本项目许可"))
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surfaceContainer,
@@ -159,7 +160,7 @@ fun LicensesScreen(onBack: () -> Unit) {
                         LicenseChip("MIT")
                     }
                     Text(
-                        "可自由使用、修改与再分发，需保留版权与许可声明。仓库根目录 LICENSE 为正式文本。",
+                        L10n.t("可自由使用、修改与再分发，需保留版权与许可声明。仓库根目录 LICENSE 为正式文本。"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 10.dp),
@@ -187,9 +188,9 @@ fun LicensesScreen(onBack: () -> Unit) {
         }
 
         item {
-            SectionTitle("许可全文")
+            SectionTitle(L10n.t("许可全文"))
             Text(
-                "点击展开完整文本；与仓库 android/app/src/main/assets/licenses/ 下的文件一致。",
+                L10n.t("点击展开完整文本；与仓库 android/app/src/main/assets/licenses/ 下的文件一致。"),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
@@ -201,7 +202,7 @@ fun LicensesScreen(onBack: () -> Unit) {
         }
 
         item {
-            SectionTitle("特别说明")
+            SectionTitle(L10n.t("特别说明"))
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surfaceContainer,
@@ -209,22 +210,22 @@ fun LicensesScreen(onBack: () -> Unit) {
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "CNN14 预训练模型来自 PANNs（Qiuqiang Kong 等），权重以 CC BY 4.0 发布；本应用分发的 cnn14_int8.onnx 为量化后的修改版本，已注明作者与修改事实。",
+                        L10n.t("CNN14 预训练模型来自 PANNs（Qiuqiang Kong 等），权重以 CC BY 4.0 发布；本应用分发的 cnn14_int8.onnx 为量化后的修改版本，已注明作者与修改事实。"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                     )
                     Text(
-                        "YAMNet 模型来自 TensorFlow Models，Apache-2.0，未修改。",
+                        L10n.t("YAMNet 模型来自 TensorFlow Models，Apache-2.0，未修改。"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                     )
                     Text(
-                        "Navidrome、Subsonic、Navidrome Stat 仅作为服务端/协议被对接，代码未打包进本应用。",
+                        L10n.t("Navidrome、Subsonic、Navidrome Stat 仅作为服务端/协议被对接，代码未打包进本应用。"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                     )
                     Text(
-                        "以上信息基于各项目公开材料整理，具体条款以对应项目仓库为准。",
+                        L10n.t("以上信息基于各项目公开材料整理，具体条款以对应项目仓库为准。"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                     )
@@ -242,7 +243,7 @@ private fun LicenseDocCard(doc: LicenseDoc) {
         value = withContext(Dispatchers.IO) {
             runCatching {
                 ctx.assets.open("licenses/${doc.file}").bufferedReader().use { it.readText() }
-            }.getOrDefault("许可文本缺失，请查看仓库中的 assets/licenses/${doc.file}")
+            }.getOrDefault(L10n.tf("许可文本缺失，请查看仓库中的 assets/licenses/${doc.file}", "License text missing; see assets/licenses/${doc.file} in the repo"))
         }
     }
     Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
@@ -269,7 +270,7 @@ private fun LicenseDocCard(doc: LicenseDoc) {
                         )
                     }
                     Text(
-                        if (open) "收起" else "展开",
+                        if (open) L10n.t("收起") else L10n.t("展开"),
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 11.sp,
                     )

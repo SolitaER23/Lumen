@@ -1,5 +1,6 @@
 package app.lumen.player.data
 
+import app.lumen.player.util.L10n
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -267,7 +268,7 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
         val response = try {
             api.call(path, params).execute()
         } catch (e: Exception) {
-            error(e.message ?: "网络错误")
+            error(e.message ?: L10n.t("网络错误"))
         }
         if (!response.isSuccessful) error("HTTP ${response.code()}")
         val json = response.body() ?: error("empty body")

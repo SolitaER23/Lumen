@@ -1,5 +1,6 @@
 ﻿package app.lumen.player.ui
 
+import app.lumen.player.util.L10n
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -95,12 +96,12 @@ fun SearchScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
-                Icon(YoinSymbols.Back, contentDescription = "返回", tint = MaterialTheme.colorScheme.onSurface)
+                Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
             }
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("搜索专辑、艺人") },
+                placeholder = { Text(L10n.t("搜索专辑、艺人")) },
                 singleLine = true,
                 shape = RoundedCornerShape(percent = 50),
                 modifier = Modifier.weight(1f).focusRequester(focus),
@@ -122,7 +123,7 @@ fun SearchScreen(
             if (artists.isNotEmpty()) {
                 item {
                     Text(
-                        "艺人",
+                        L10n.t("艺人"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -157,7 +158,7 @@ fun SearchScreen(
             if (albums.isNotEmpty()) {
                 item {
                     Text(
-                        "专辑",
+                        L10n.t("专辑"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
