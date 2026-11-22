@@ -100,42 +100,7 @@ fun RadioScreen(
         label = "pulse",
     )
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        accent.copy(alpha = 0.14f),
-                        MaterialTheme.colorScheme.surface,
-                        MaterialTheme.colorScheme.surface,
-                    ),
-                ),
-            ),
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            drawCircle(
-                brush = Brush.radialGradient(
-                    listOf(accent.copy(alpha = 0.09f), Color.Transparent),
-                    center = androidx.compose.ui.geometry.Offset(w * (0.15f + 0.1f * drift), h * 0.12f),
-                    radius = w * 0.8f,
-                ),
-                radius = w * 0.8f,
-                center = androidx.compose.ui.geometry.Offset(w * (0.15f + 0.1f * drift), h * 0.12f),
-            )
-            drawCircle(
-                brush = Brush.radialGradient(
-                    listOf(secondary.copy(alpha = 0.07f), Color.Transparent),
-                    center = androidx.compose.ui.geometry.Offset(w * (0.9f - 0.1f * drift), h * 0.65f),
-                    radius = w * 0.7f,
-                ),
-                radius = w * 0.7f,
-                center = androidx.compose.ui.geometry.Offset(w * (0.9f - 0.1f * drift), h * 0.65f),
-            )
-        }
-
+    Box(Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().statusBarsPadding(),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),

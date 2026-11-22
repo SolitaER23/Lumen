@@ -1,5 +1,18 @@
 ﻿package app.lumen.player.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import app.lumen.player.data.AudioEvent
+import app.lumen.player.data.EventGlyph
+import app.lumen.player.data.EventRole
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -27,7 +40,11 @@ import kotlin.math.sin
  * - 只做渐变绘制，保证滚动/转场流畅。
  */
 @Composable
-fun ExpressiveBackdrop(modifier: Modifier = Modifier, drivePulse: Boolean = true) {
+fun ExpressiveBackdrop(
+    modifier: Modifier = Modifier,
+    drivePulse: Boolean = true,
+    event: AudioEvent? = null,
+) {
     androidx.compose.runtime.LaunchedEffect(drivePulse) {
         if (!drivePulse) return@LaunchedEffect
         var last = 0L
@@ -41,6 +58,49 @@ fun ExpressiveBackdrop(modifier: Modifier = Modifier, drivePulse: Boolean = true
         }
     }
     val scheme = MaterialTheme.colorScheme
+    val roleA = event?.role ?: EventRole.PRIMARY
+    val roleB = when (roleA) {
+        EventRole.PRIMARY -> EventRole.SECONDARY
+        EventRole.SECONDARY -> EventRole.TERTIARY
+        EventRole.TERTIARY -> EventRole.PRIMARY
+    }
+    fun roleColor(role: EventRole): Color = when (role) {
+        EventRole.PRIMARY -> scheme.primary
+        EventRole.SECONDARY -> scheme.secondary
+        EventRole.TERTIARY -> scheme.tertiary
+    }
+    val eventColorA by animateColorAsState(roleColor(roleA), tween(900), label = "event-a")
+    val eventColorB by animateColorAsState(roleColor(roleB), tween(900), label = "event-b")
+    val eventAlpha by androidx.compose.animation.core.animateFloatAsState(
+        if (event == null) 0f else 0.16f + 0.16f * event.intensity,
+        tween(900),
+        label = "event-alpha",
+    )
+    // 不同声音类型把光晕放到不同区域，并改变半径；位置也做插值，切换自然
+    val targetX = when (event?.glyph) {
+        app.lumen.player.data.EventGlyph.RINGS -> 0.26f
+        app.lumen.player.data.EventGlyph.BARS -> 0.76f
+        app.lumen.player.data.EventGlyph.ARCS -> 0.50f
+        app.lumen.player.data.EventGlyph.WAVE -> 0.28f
+        app.lumen.player.data.EventGlyph.DOTS -> 0.78f
+        null -> 0.55f
+    }
+    val targetY = when (event?.glyph) {
+        app.lumen.player.data.EventGlyph.RINGS -> 0.34f
+        app.lumen.player.data.EventGlyph.BARS -> 0.66f
+        app.lumen.player.data.EventGlyph.ARCS -> 0.42f
+        app.lumen.player.data.EventGlyph.WAVE -> 0.70f
+        app.lumen.player.data.EventGlyph.DOTS -> 0.28f
+        null -> 0.44f
+    }
+    val eventX by androidx.compose.animation.core.animateFloatAsState(targetX, tween(900), label = "event-x")
+    val eventY by androidx.compose.animation.core.animateFloatAsState(targetY, tween(900), label = "event-y")
+    val eventRadius by androidx.compose.animation.core.animateFloatAsState(
+        if (event == null) 0.72f else 0.60f + 0.22f * event.intensity,
+        tween(900),
+        label = "event-radius",
+    )
+
     val transition = rememberInfiniteTransition(label = "expressive-bg")
 
     val drift by transition.animateFloat(
@@ -131,5 +191,78 @@ fun ExpressiveBackdrop(modifier: Modifier = Modifier, drivePulse: Boolean = true
             color = Color.White,
             alpha = 0.045f * sheen + 0.030f * energy,
         )
+
+        // 当前声音类型：只叠加一层同色系光晕 + 轻量图形，颜色来自现有 scheme token
+        if (eventAlpha > 0.001f) {
+            val ex = w * (eventX + 0.02f * cos(drift * 0.8f).toFloat())
+            val ey = h * (eventY + 0.02f * sin(drift * 0.9f).toFloat())
+            blob(ex, ey, w * eventRadius, eventColorA, eventAlpha)
+        }
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawEventGlyph(
+    glyph: EventGlyph,
+    color: Color,
+    alpha: Float,
+    cx: Float,
+    cy: Float,
+    width: Float,
+) {
+    if (alpha <= 0.001f) return
+    val c = color.copy(alpha = alpha.coerceIn(0f, 1f))
+    val unit = width * 0.20f
+    val stroke = 2.dp.toPx()
+    when (glyph) {
+        EventGlyph.RINGS -> {
+            repeat(3) { i ->
+                drawCircle(
+                    c,
+                    radius = unit * (1.6f - i * 0.35f),
+                    center = Offset(cx, cy),
+                    style = Stroke(stroke, cap = StrokeCap.Round),
+                )
+            }
+        }
+
+        EventGlyph.BARS -> {
+            repeat(7) { i ->
+                val x = cx + (i - 3) * unit * 0.55f
+                val h = unit * (0.7f + (i % 3) * 0.55f)
+                drawLine(c, Offset(x, cy - h), Offset(x, cy + h), strokeWidth = stroke, cap = StrokeCap.Round)
+            }
+        }
+
+        EventGlyph.ARCS -> {
+            repeat(3) { i ->
+                drawArc(
+                    color = c,
+                    startAngle = -60f + i * 18f,
+                    sweepAngle = 120f,
+                    useCenter = false,
+                    topLeft = Offset(cx - unit * (2f - i * 0.3f), cy - unit * (2f - i * 0.3f)),
+                    size = androidx.compose.ui.geometry.Size(unit * (4f - i * 0.6f), unit * (4f - i * 0.6f)),
+                    style = Stroke(stroke, cap = StrokeCap.Round),
+                )
+            }
+        }
+
+        EventGlyph.DOTS -> {
+            val offsets = listOf(-1.2f to -0.7f, 0.2f to -1.1f, 1.3f to -0.2f, -0.6f to 0.9f, 0.8f to 1.0f)
+            offsets.forEach { (dx, dy) ->
+                drawCircle(c, radius = unit * 0.22f, center = Offset(cx + dx * unit, cy + dy * unit))
+            }
+        }
+
+        EventGlyph.WAVE -> {
+            val path = Path()
+            for (i in 0..32) {
+                val t = i / 32f
+                val x = cx - unit * 2.4f + t * unit * 4.8f
+                val y = cy + sin(t * 6.28f + 0.6f) * unit * 0.55f
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(path, c, style = Stroke(stroke, cap = StrokeCap.Round))
+        }
     }
 }

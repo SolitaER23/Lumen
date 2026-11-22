@@ -21,6 +21,8 @@ import kotlin.math.sqrt
  */
 class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
 
+    private data class YamnetResult(val average: FloatArray?, val segments: List<AudioSegment>)
+
     companion object {
         private const val SR = 16000
         private const val YAMNET_WINDOW = 15600 // 0.975s
@@ -45,11 +47,13 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
             onPhase("DSP", 0.45f)
             val dsp = dspFeatures(pcm)
             onPhase("YAMNet", 0.55f)
-            val yamnet = runYamnet(pcm) { onPhase("YAMNet", 0.55f + it * 0.42f) }
+            val yamnetResult = runYamnet(pcm) { onPhase("YAMNet", 0.55f + it * 0.42f) }
             onPhase(L10n.t("融合"), 0.99f)
+            val yamnet = yamnetResult?.average
             val result = MoodMath.fuse(yamnet, dsp, trackId).copy(
                 tags = MoodMath.topTags(yamnet),
                 feature = yamnet?.copyOf() ?: FloatArray(0),
+                segments = yamnetResult?.segments.orEmpty(),
             )
             app.lumen.player.util.Logx.i(
                 "LumenMood",
@@ -191,7 +195,7 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
         return interp
     }
 
-    private fun runYamnet(pcm: FloatArray, onProgress: (Float) -> Unit): FloatArray? {
+    private fun runYamnet(pcm: FloatArray, onProgress: (Float) -> Unit): YamnetResult? {
         return runCatching {
             val interp = yamnetInterpreter ?: loadYamnet()
             val inputShape = interp.getInputTensor(0).shape()
@@ -201,6 +205,8 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
             val classes = interp.getOutputTensor(0).shape().lastOrNull() ?: 521
             val output = Array(1) { FloatArray(classes) }
             val sums = FloatArray(classes)
+            val segmentMs = 12_000
+            val segScores = LinkedHashMap<Int, HashMap<Int, Float>>()
             var frames = 0
             var pos = 0
             // 整首歌均匀采样约 120 个窗口：足够判断情绪，又避免长曲把整首跑满
@@ -213,12 +219,35 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
                 interp.run(input, output)
                 val frame = output[0]
                 for (c in 0 until classes) sums[c] += frame[c]
+
+                val startMs = (pos.toLong() * 1000L / SR).toInt()
+                val bucket = startMs / segmentMs
+                val bucketScores = segScores.getOrPut(bucket) { HashMap() }
+                (0 until classes)
+                    .sortedByDescending { frame[it] }
+                    .take(3)
+                    .forEach { idx ->
+                        bucketScores[idx] = (bucketScores[idx] ?: 0f) + frame[idx]
+                    }
+
                 frames++
                 pos += stride
                 onProgress((pos.toFloat() / pcm.size).coerceIn(0f, 1f))
             }
             app.lumen.player.util.Logx.i("LumenMood", "yamnet frames=$frames win=$win classes=$classes")
-            if (frames == 0) null else FloatArray(classes) { sums[it] / frames }
+            val totalMs = pcm.size * 1000L / SR
+            val segments = segScores.toSortedMap().map { (bucket, scores) ->
+                AudioSegment(
+                    startMs = bucket * segmentMs,
+                    endMs = minOf((bucket + 1) * segmentMs, totalMs.toInt()),
+                    tags = scores.entries
+                        .sortedByDescending { it.value }
+                        .take(4)
+                        .mapNotNull { YAMNET_LABELS.getOrNull(it.key) },
+                )
+            }
+            val average = if (frames == 0) null else FloatArray(classes) { sums[it] / frames }
+            YamnetResult(average, segments)
         }.onFailure { android.util.Log.e("LumenMood", "yamnet exception", it) }.getOrNull()
     }
 

@@ -96,6 +96,7 @@ fun SettingsScreen(
     versionName: String = "",
     onClearLocalData: () -> Unit = {},
     onOpenGuide: () -> Unit = {},
+    onOpenChangelog: () -> Unit = {},
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var cacheBytes by remember { mutableStateOf(0L) }
@@ -129,19 +130,7 @@ fun SettingsScreen(
         }
     }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                        MaterialTheme.colorScheme.surface,
-                        MaterialTheme.colorScheme.surface,
-                    ),
-                ),
-            ),
-    ) {
+    Box(Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().statusBarsPadding(),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
@@ -392,7 +381,12 @@ fun SettingsScreen(
             // 06 关于
             item {
                 ExpressiveSection("06", L10n.t("关于")) {
-                    AboutRow(L10n.t("版本"), "v${versionName.ifBlank { "—" }}", onClick = null)
+                    AboutRow(
+                        L10n.t("版本"),
+                        "v${versionName.ifBlank { "—" }}",
+                        onClick = null,
+                        onLongClick = onOpenChangelog,
+                    )
                     AboutRow(L10n.tf("使用引导", "Walkthrough"), L10n.tf("重新查看", "View again"), onClick = onOpenGuide)
                     AboutRow(L10n.t("开源信息"), L10n.t("技术栈与许可"), onClick = onOpenLicenses, chevron = true)
                     FeedbackBlock()
@@ -690,12 +684,20 @@ private fun AboutRow(
     value: String,
     onClick: (() -> Unit)? = null,
     chevron: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
 ) {
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(
+                if (onLongClick != null) {
+                    Modifier.pointerInput(onLongClick) {
+                        detectTapGestures(onLongPress = { onLongClick() })
+                    }
+                } else Modifier,
+            )
             .padding(vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

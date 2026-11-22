@@ -8,6 +8,9 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -51,6 +54,7 @@ fun YoinBar(
     coverUrl: String,
     playing: Boolean,
     enabled: Boolean,
+    event: app.lumen.player.data.AudioEvent? = null,
     onHome: () -> Unit,
     onOpenPlayer: () -> Unit,
     onToggle: () -> Unit,
@@ -101,10 +105,35 @@ fun YoinBar(
                             color = HomeText,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                        Text(
-                            artist, fontSize = 11.sp, color = HomeSub,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                artist, fontSize = 11.sp, color = HomeSub,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            if (event != null) {
+                                Spacer(Modifier.width(6.dp))
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.20f),
+                                ) {
+                                    AnimatedContent(
+                                        targetState = event.label(),
+                                        transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(140)) },
+                                        label = "audio-event",
+                                    ) { label ->
+                                        Text(
+                                            label,
+                                            color = MaterialTheme.colorScheme.tertiary,
+                                            fontSize = 8.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             } else {

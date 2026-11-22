@@ -13,6 +13,9 @@ import java.time.format.DateTimeFormatter
 /** 内部音频标签，不面向用户展示。 */
 data class AudioTag(val name: String, val score: Float)
 
+/** 分析出的段落：约 12 秒一段，记录该段最突出的 AudioSet 标签。 */
+data class AudioSegment(val startMs: Int, val endMs: Int, val tags: List<String>)
+
 /** 一条心情分析结果（坐标是主数据，label 只是坐标的离散投影）。 */
 data class MoodResult(
     val trackId: String,
@@ -29,6 +32,8 @@ data class MoodResult(
     val tags: List<AudioTag> = emptyList(),
     /** YAMNet 521 维平均分，用于本地氛围电台相似度；旧数据为空。 */
     val feature: FloatArray = FloatArray(0),
+    /** 段落级标签，用于全局背景与迷你播放条的当前声音类型。 */
+    val segments: List<AudioSegment> = emptyList(),
     val updatedAt: Long = System.currentTimeMillis(),
 )
 
@@ -36,12 +41,12 @@ object MoodStore {
     private const val DB = "moods.db"
     private const val TABLE = "moods"
 
-    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 7) {
+    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 8) {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS $TABLE (" +
                     "track_id TEXT PRIMARY KEY, valence REAL, arousal REAL, label TEXT, tempo REAL, " +
-                    "beats TEXT, env TEXT, env_step INTEGER, updated INTEGER, tags TEXT, feature TEXT)",
+                    "beats TEXT, env TEXT, env_step INTEGER, updated INTEGER, tags TEXT, feature TEXT, segments TEXT)",
             )
         }
 
@@ -52,6 +57,9 @@ object MoodStore {
             }
             if (oldVersion < 7) {
                 runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN feature TEXT") }
+            }
+            if (oldVersion < 8) {
+                runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN segments TEXT") }
             }
         }
 
@@ -97,6 +105,36 @@ object MoodStore {
         if (raw.isNullOrBlank()) FloatArray(0)
         else raw.split(',').mapNotNull { it.toFloatOrNull() }.toFloatArray()
 
+    private fun encodeSegments(segments: List<AudioSegment>): String {
+        if (segments.isEmpty()) return ""
+        val arr = JSONArray()
+        segments.forEach { seg ->
+            arr.put(
+                JSONObject()
+                    .put("s", seg.startMs)
+                    .put("e", seg.endMs)
+                    .put("t", JSONArray(seg.tags)),
+            )
+        }
+        return arr.toString()
+    }
+
+    private fun decodeSegments(raw: String?): List<AudioSegment> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val tags = o.optJSONArray("t") ?: JSONArray()
+                AudioSegment(
+                    startMs = o.optInt("s", 0),
+                    endMs = o.optInt("e", 0),
+                    tags = (0 until tags.length()).mapNotNull { j -> tags.optString(j).takeIf { it.isNotBlank() } },
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
     private fun decodeTags(raw: String?): List<AudioTag> {
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching {
@@ -121,6 +159,7 @@ object MoodStore {
             put("updated", r.updatedAt)
             put("tags", encodeTags(r.tags))
             put("feature", encodeFeature(r.feature))
+            put("segments", encodeSegments(r.segments))
         }
         runCatching { db(ctx).insertWithOnConflict(TABLE, null, v, SQLiteDatabase.CONFLICT_REPLACE) }
             .onFailure { android.util.Log.e("LumenMood", "mood put failed", it) }
@@ -140,6 +179,7 @@ object MoodStore {
                     envStepMs = if (c.isNull(7)) 100 else c.getInt(7),
                     tags = decodeTags(if (c.isNull(9)) null else c.getString(9)),
                     feature = decodeFeature(if (c.isNull(10)) null else c.getString(10)),
+                    segments = decodeSegments(if (c.isNull(11)) null else c.getString(11)),
                     updatedAt = c.getLong(8),
                 )
             } else null

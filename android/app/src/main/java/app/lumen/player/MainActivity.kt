@@ -243,6 +243,7 @@ private fun App() {
         6 -> "search"
         7 -> "stats"
         10 -> "radio"
+        11 -> "changelog"
         else -> "s${k.screen}"
     }
     var lyrics by remember { mutableStateOf<List<LyricLine>?>(null) }
@@ -482,6 +483,28 @@ private fun App() {
             p.transcodeUrl = { t -> client.streamUrl(t.id) + "&format=mp3&maxBitRate=320" }
         }
     }
+    val currentEvent = remember(mood, playback.positionMs, playback.durationMs) {
+        val m = mood
+        if (m == null) {
+            null
+        } else {
+            val pos = playback.positionMs
+            val seg = m.segments.firstOrNull { pos >= it.startMs && pos < it.endMs }
+                ?: m.segments.firstOrNull { pos < it.startMs }
+                ?: m.segments.lastOrNull { pos >= it.endMs }
+            seg?.let { app.lumen.player.data.AudioEvent.fromTags(it.tags) }?.let { return@remember it }
+            val events = m.tags.mapNotNull { app.lumen.player.data.AudioEvent.fromTag(it.name) }.distinct()
+            if (events.isEmpty()) {
+                null
+            } else if (m.segments.isNotEmpty()) {
+                events.first()
+            } else {
+                val p = if (playback.durationMs > 0) (pos.toFloat() / playback.durationMs).coerceIn(0f, 0.999f) else 0f
+                events[(p * events.size).toInt().coerceIn(0, events.lastIndex)]
+            }
+        }
+    }
+
     fun startRadio(vibe: app.lumen.player.data.RadioVibe, reseed: Boolean = false) {
         if (radioTracks.isEmpty()) return
         val seedId = if (reseed) null else playback.current?.id
@@ -745,6 +768,9 @@ private fun App() {
                             downloads = emptyList()
                         },
                     )
+                    key.screen == 11 -> app.lumen.player.ui.ChangelogScreen(
+                        onBack = { goBack() },
+                    )
                     key.screen == 10 -> app.lumen.player.ui.RadioScreen(
                         vibe = radioVibe,
                         loading = radioLoading,
@@ -801,6 +827,7 @@ private fun App() {
                         },
                         onClearLocalData = { clearLocalData() },
                         onOpenGuide = { showOnboarding = true },
+                        onOpenChangelog = { navigate(NavKey(11, null)) },
                         onClearCache = {
                             // 只清流媒体/图片缓存；下载曲目的 cache key（URI）保留
                             MediaCache.clearStreamingCache(ctx, Downloads.downloadedUris(ctx))
@@ -1021,7 +1048,7 @@ private fun App() {
                         }
                     },
             ) {
-                app.lumen.player.ui.ExpressiveBackdrop(Modifier.matchParentSize())
+                app.lumen.player.ui.ExpressiveBackdrop(Modifier.matchParentSize(), event = currentEvent)
                 // 预测性返回：底层压暗，露出背景；上层内容跟手右移 + 缩放 + 圆角
                 Box(
                     Modifier
@@ -1087,6 +1114,7 @@ private fun App() {
                                 app.lumen.player.ui.ExpressiveBackdrop(
                                     Modifier.matchParentSize(),
                                     drivePulse = isFront,
+                                    event = currentEvent,
                                 )
                             }
                             screenContent(pageKey)
@@ -1105,6 +1133,7 @@ private fun App() {
                         coverUrl = current?.let { client.coverUrl(it.albumId, 200) } ?: "",
                         playing = playback.playing,
                         enabled = current != null,
+                        event = currentEvent,
                         onHome = { navStack.clear(); screen = 0; openAlbum = null },
                         onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
                         onToggle = {
