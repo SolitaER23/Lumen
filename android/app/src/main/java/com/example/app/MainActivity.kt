@@ -1,4 +1,4 @@
-﻿package com.example.app
+package com.example.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -441,6 +441,7 @@ private fun App() {
     // 换歌自动加载歌词（播放页下方常驻显示）
     LaunchedEffect(playback.current?.id) {
         val tr = playback.current
+        if (tr != null) com.example.app.data.PlayHistory.record(ctx, tr)
         libraryVersion += 1
         if (lyricsTrackId != tr?.id) {
             lyrics = null
@@ -948,7 +949,6 @@ private fun App() {
                             if (current != null) playback.toggle()
                             else if (albums.isNotEmpty()) openAlbum = albums.first()
                         },
-                        onPrev = { playback.prev() },
                     )
                 }
             }
@@ -1036,6 +1036,7 @@ class HomeCache {
     var artists by androidx.compose.runtime.mutableStateOf<List<Artist>>(emptyList())
     var newest by androidx.compose.runtime.mutableStateOf<List<Album>>(emptyList())
     var recent by androidx.compose.runtime.mutableStateOf<List<Album>>(emptyList())
+    var recentTracks by androidx.compose.runtime.mutableStateOf<List<Track>>(emptyList())
 }
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -1069,12 +1070,13 @@ private fun HomeScreen(
     libraryVersion: Int = 0,
     coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
+    val ctx = LocalContext.current
     var sortIndex by remember(tab) { mutableIntStateOf(0) }
     var showSort by remember { mutableStateOf(false) }
     // tab 由上层持有，返回首页时能保持原来的标签
     val artists = cache.artists
     val newest = cache.newest
-    val recent = cache.recent
+    val recentTracks = cache.recentTracks
 
     var tabLoading by remember { mutableStateOf(false) }
     var tabError by remember { mutableStateOf<String?>(null) }
@@ -1090,16 +1092,18 @@ private fun HomeScreen(
     LaunchedEffect(tab, libraryVersion) {
         if (tab == 0) return@LaunchedEffect
         val firstLoad = (tab == 1 && artists.isEmpty()) ||
-            (tab == 2 && (newest.isEmpty() || recent.isEmpty()))
+            (tab == 2 && (newest.isEmpty() || recentTracks.isEmpty()))
         if (firstLoad) tabLoading = true
         tabError = null
         try {
             when (tab) {
                 1 -> if (artists.isEmpty()) cache.artists = withContext(Dispatchers.IO) { client.artists() }
                 2 -> {
-                    // 每次进入/有新播放都刷新，保证「最近播放」「最近添加」实时
+                    // 每次进入/有新播放都刷新；最近播放用本机单曲历史
                     cache.newest = withContext(Dispatchers.IO) { client.newestAlbums() }
-                    cache.recent = withContext(Dispatchers.IO) { client.recentAlbums() }
+                    cache.recentTracks = withContext(Dispatchers.IO) {
+                        com.example.app.data.PlayHistory.load(ctx)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -1109,12 +1113,19 @@ private fun HomeScreen(
         }
     }
 
-    // 本地先行：切歌后立刻把该专辑提到「最近播放」首位，服务端刷新回来再对齐
-    LaunchedEffect(current?.albumId) {
-        val id = current?.albumId ?: return@LaunchedEffect
-        val al = albums.firstOrNull { it.id == id } ?: return@LaunchedEffect
-        if (cache.recent.firstOrNull()?.id != id) {
-            cache.recent = listOf(al) + cache.recent.filterNot { it.id == id }
+
+    // 停留在「最近」时定时静默刷新，外部新增/播放后不需要重进页面
+    LaunchedEffect(tab) {
+        if (tab != 2) return@LaunchedEffect
+        while (true) {
+            delay(30_000L)
+            runCatching {
+                val n = withContext(Dispatchers.IO) { client.newestAlbums() }
+                cache.newest = n
+                cache.recentTracks = withContext(Dispatchers.IO) {
+                    com.example.app.data.PlayHistory.load(ctx)
+                }
+            }
         }
     }
 
@@ -1128,7 +1139,7 @@ private fun HomeScreen(
     val sortedAlbums = sortAlbums(albums, sortIndex)
     val sortedArtists = sortArtists(artists, sortIndex)
     val sortedNewest = sortAlbums(newest, sortIndex)
-    val sortedRecent = sortAlbums(recent, sortIndex)
+
     val sortedStarred = sortStarred(starred, sortIndex, ratingOf)
 
     Box(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -1143,7 +1154,7 @@ private fun HomeScreen(
             },
             subtitle = when (tab) {
                 1 -> "${artists.size} 位艺人 · ${sortOptions.getOrElse(sortIndex) { "名称" }}"
-                2 -> "最近添加 ${newest.size} · 最近播放 ${recent.size}"
+                2 -> "最近添加 ${newest.size} · 最近播放 ${recentTracks.size}"
                 3 -> "${starred.size} 首单曲 · ${sortOptions.getOrElse(sortIndex) { "收藏顺序" }}"
                 else -> "${albums.size} 张专辑 · ${sortOptions.getOrElse(sortIndex) { "字母顺序" }}"
             },
@@ -1198,7 +1209,7 @@ private fun HomeScreen(
                         1 -> ArtistGrid(sortedArtists, onOpenArtist)
                         2 -> RecentList(
                             newest = sortedNewest,
-                            recent = sortedRecent,
+                            recentTracks = recentTracks,
                             client = client,
                             downloads = downloads,
                             albums = albums,
@@ -1555,6 +1566,52 @@ private fun ArtistGrid(
 }
 
 @Composable
+private fun RecentTrackRow(
+    track: Track,
+    coverUrl: (String) -> String,
+    onPlay: (Track) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable { onPlay(track) }
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = coverUrl(track.albumId),
+            contentDescription = track.album,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)),
+        )
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(
+                track.title,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                listOf(track.artist, track.album).filter { it.isNotBlank() }.joinToString(" · "),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Icon(
+            YoinSymbols.PlayFilled,
+            contentDescription = "播放",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+@Composable
 private fun RecentEmpty(text: String) {
     Text(
         text,
@@ -1569,7 +1626,7 @@ private fun RecentEmpty(text: String) {
 private fun RecentList(
     client: SubsonicClient,
     newest: List<Album>,
-    recent: List<Album>,
+    recentTracks: List<Track>,
     downloads: List<AlbumDownload>,
     albums: List<Album>,
     coverUrl: (String) -> String,
@@ -1644,7 +1701,7 @@ private fun RecentList(
                     order.forEach { section ->
                         val count = when (section) {
                             0 -> newest.size
-                            1 -> recent.size
+                            1 -> recentTracks.size
                             else -> downloads.size
                         }
                         val active = section == selected
@@ -1678,7 +1735,11 @@ private fun RecentList(
                                     fontWeight = FontWeight.Light,
                                 )
                                 Text(
-                                    if (section == 2) " 项" else " 张",
+                                    when (section) {
+                                        2 -> " 项"
+                                        1 -> " 首"
+                                        else -> " 张"
+                                    },
                                     color = titleColor,
                                     fontSize = 10.sp,
                                     modifier = Modifier.padding(bottom = 4.dp),
@@ -1699,11 +1760,11 @@ private fun RecentList(
                         HorizontalAlbumRow(row, coverUrl, onOpen)
                     }
                 }
-                1 -> if (recent.isEmpty()) {
-                    item(key = "rempty") { RecentEmpty("暂无最近播放的专辑") }
+                1 -> if (recentTracks.isEmpty()) {
+                    item(key = "rempty") { RecentEmpty("暂无最近播放的歌曲") }
                 } else {
-                    items(rowsOf(recent), key = { "r${it.firstOrNull()?.id}" }) { row ->
-                        HorizontalAlbumRow(row, coverUrl, onOpen)
+                    items(recentTracks, key = { "r${it.id}" }) { track ->
+                        RecentTrackRow(track, coverUrl, onPlayTrack)
                     }
                 }
                 else -> if (downloads.isEmpty()) {
@@ -2018,7 +2079,6 @@ private fun YoinBar(
     onHome: () -> Unit,
     onOpenPlayer: () -> Unit,
     onToggle: () -> Unit,
-    onPrev: () -> Unit = {},
 ) {
     val pulse = remember { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(pulseKey) {
@@ -2080,14 +2140,6 @@ private fun YoinBar(
                     color = HomeSub,
                     fontSize = 13.sp,
                     modifier = Modifier.weight(1f).padding(start = 12.dp),
-                )
-            }
-            IconButton(onClick = onPrev, enabled = enabled, modifier = Modifier.size(38.dp)) {
-                Icon(
-                    YoinSymbols.SkipPrevious,
-                    contentDescription = "上一首",
-                    tint = if (enabled) HomeSub else HomeSub.copy(alpha = 0.4f),
-                    modifier = Modifier.size(22.dp),
                 )
             }
             Box(

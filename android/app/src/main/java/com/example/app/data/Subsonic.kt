@@ -297,6 +297,20 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
         )
     }
 
+    /** 单张专辑元数据（播放新歌时补进「最近播放」用）。 */
+    fun album(albumId: String): Album? {
+        val a = runCatching { get("getAlbum.view", mapOf("id" to albumId)) }.getOrNull()
+            ?.optJSONObject("album") ?: return null
+        return Album(
+            id = a.optString("id"),
+            name = a.optString("name"),
+            artist = a.optString("artist"),
+            coverId = a.optString("coverArt"),
+            songCount = a.optInt("songCount"),
+            year = a.optInt("year"),
+        )
+    }
+
     fun tracks(albumId: String): List<Track> =
         parseAlbumDetail(get("getAlbum.view", mapOf("id" to albumId)), albumId)
 
