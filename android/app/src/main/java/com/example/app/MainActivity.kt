@@ -1,4 +1,4 @@
-package com.example.app
+﻿package com.example.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -295,8 +295,10 @@ private fun App() {
         scope.launch {
             if (backAnim.value < 1.4f) {
                 // 把当前页完全送出屏幕，再无缝切换
-                backAnim.animateTo(1.4f, tween(200, easing = FastOutSlowInEasing))
+                backAnim.animateTo(1.4f, tween(260, easing = FastOutSlowInEasing))
             }
+            // 等这一帧把“页面已送出”的画面渲染出来，再出栈，避免空白帧
+            kotlinx.coroutines.delay(48)
             instantNav = true
             performBack()
             backAnim.snapTo(0f)
@@ -452,8 +454,10 @@ private fun App() {
             progress.collect { backAnim.snapTo(it.progress) }
             // 手势结束：补完剩余位移再出栈，保证与手指连续
             if (backAnim.value < 1.4f) {
-                backAnim.animateTo(1.4f, tween(170, easing = FastOutSlowInEasing))
+                backAnim.animateTo(1.4f, tween(230, easing = FastOutSlowInEasing))
             }
+            // 等这一帧把“页面已送出”的画面渲染出来，再出栈，避免空白帧
+            kotlinx.coroutines.delay(48)
             // 出栈瞬间跳过 AnimatedContent 过渡，避免新页面再缩放闪一下
             instantNav = true
             // 手势返回必须走页面栈，否则从「专辑歌曲列表」会直接跳回首页/艺人页
@@ -763,6 +767,8 @@ private fun App() {
                             val p = backAnim.value
                             val over = (p - 1f).coerceAtLeast(0f)
                             translationX = size.width * (0.24f * p + 1.9f * over)
+                            // 仅在几乎移出屏幕的最后阶段淡出，遮掉换页瞬间的任何差异
+                            alpha = if (p > 1.2f) ((1.4f - p) / 0.2f).coerceIn(0f, 1f) else 1f
                             val s = 1f - 0.07f * p.coerceAtMost(1f)
                             scaleX = s
                             scaleY = s

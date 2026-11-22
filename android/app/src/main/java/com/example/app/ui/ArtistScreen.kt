@@ -54,12 +54,18 @@ fun ArtistScreen(
     onBack: () -> Unit,
     onOpenAlbum: (Album) -> Unit,
 ) {
-    var albums by remember(artist.id) { mutableStateOf<List<Album>?>(null) }
+    // 内存缓存：返回手势时上一页会被实时重新组合，命中缓存可避免出现一帧加载态
+    var albums by remember(artist.id) {
+        mutableStateOf(ArtistAlbumCache.get(artist.id))
+    }
     var error by remember(artist.id) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(artist.id) {
+        if (albums != null) return@LaunchedEffect
         try {
-            albums = withContext(Dispatchers.IO) { client.artistDetail(artist.id)?.second ?: emptyList() }
+            val loaded = withContext(Dispatchers.IO) { client.artistDetail(artist.id)?.second ?: emptyList() }
+            albums = loaded
+            ArtistAlbumCache.put(artist.id, loaded)
         } catch (e: Exception) {
             error = e.message
         }
@@ -131,5 +137,14 @@ fun ArtistScreen(
                 Spacer(Modifier.height(8.dp))
             }
         }
+    }
+}
+
+/** 艺人专辑列表的内存缓存，避免返回/重新进入时出现加载态闪烁。 */
+object ArtistAlbumCache {
+    private val map = HashMap<String, List<Album>>()
+    fun get(artistId: String): List<Album>? = map[artistId]
+    fun put(artistId: String, albums: List<Album>) {
+        map[artistId] = albums
     }
 }
