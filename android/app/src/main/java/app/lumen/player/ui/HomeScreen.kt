@@ -32,6 +32,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
@@ -184,6 +185,7 @@ fun HomeScreen(
     durationMs: Long = 0,
     onToggle: () -> Unit = {},
     onOpenPlayer: () -> Unit = {},
+    onOpenRadio: () -> Unit = {},
     onOpenStats: () -> Unit = {},
     cache: HomeCache = remember { HomeCache() },
     libraryVersion: Int = 0,
@@ -278,6 +280,7 @@ fun HomeScreen(
                 else -> L10n.tf("${albums.size} 张专辑 · ${sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }}", "${albums.size} albums · ${sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }}")
             },
             onTab = onTabChange,
+            onOpenRadio = onOpenRadio,
             onSettings = onSettings,
             onSort = { showSort = true },
             onSearch = onSearch,
@@ -490,11 +493,13 @@ private fun HomeHeader(
     title: String,
     subtitle: String,
     onTab: (Int) -> Unit,
+    onOpenRadio: () -> Unit = {},
     onSettings: () -> Unit,
     onSort: () -> Unit,
     onSearch: () -> Unit,
     onStats: () -> Unit = {},
 ) {
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -558,7 +563,15 @@ private fun HomeHeader(
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(percent = 50))
                         .background(if (i == selected) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Transparent)
-                        .clickable { onTab(i) },
+                        .combinedClickable(
+                            onClick = { onTab(i) },
+                            onLongClick = {
+                                if (i == 0) {
+                                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                    onOpenRadio()
+                                }
+                            },
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(

@@ -215,6 +215,11 @@ private fun App() {
     var contrast by remember { mutableFloatStateOf(app.lumen.player.data.Appearance.contrast(ctx)) }
     var fadeMs by remember { mutableLongStateOf(app.lumen.player.data.Appearance.fadeMs(ctx)) }
     var smartFade by remember { mutableStateOf(app.lumen.player.data.Appearance.smartFade(ctx)) }
+    var radioVibe by remember { mutableStateOf(app.lumen.player.data.RadioVibe.NIGHT) }
+    var radioTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
+    var radioLoading by remember { mutableStateOf(false) }
+    var radioProgress by remember { mutableFloatStateOf(0f) }
+    var radioError by remember { mutableStateOf<String?>(null) }
     var langMode by remember { mutableStateOf(app.lumen.player.util.L10n.mode(ctx)) }
     var showOnboarding by remember { mutableStateOf(!app.lumen.player.data.Onboarding.completed(ctx)) }
     var libraryVersion by remember { mutableIntStateOf(0) }
@@ -237,6 +242,7 @@ private fun App() {
         5 -> "artist:${selectedArtist?.id ?: ""}"
         6 -> "search"
         7 -> "stats"
+        10 -> "radio"
         else -> "s${k.screen}"
     }
     var lyrics by remember { mutableStateOf<List<LyricLine>?>(null) }
@@ -339,6 +345,8 @@ private fun App() {
         homeCache.artists = emptyList()
         homeCache.newest = emptyList()
         homeCache.recentTracks = emptyList()
+        radioTracks = emptyList()
+        app.lumen.player.data.Radio.clearCache(ctx)
         openAlbum = null
         selectedArtist = null
         navStack.clear()
@@ -474,6 +482,52 @@ private fun App() {
             p.transcodeUrl = { t -> client.streamUrl(t.id) + "&format=mp3&maxBitRate=320" }
         }
     }
+    fun startRadio(vibe: app.lumen.player.data.RadioVibe, reseed: Boolean = false) {
+        if (radioTracks.isEmpty()) return
+        val seedId = if (reseed) null else playback.current?.id
+        val queue = app.lumen.player.data.Radio.build(ctx, radioTracks, seedId, vibe)
+        if (queue.isEmpty()) {
+            radioError = L10n.tf(
+                "还没有足够的分析数据。先运行心情分析，再回来生成电台。",
+                "Not enough analyzed tracks yet. Run mood analysis, then come back.",
+            )
+            return
+        }
+        radioError = null
+        playback.play(queue, 0, L10n.tf("氛围电台", "Ambient Radio"))
+    }
+
+    fun loadRadio(vibe: app.lumen.player.data.RadioVibe) {
+        if (radioLoading) return
+        radioLoading = true
+        radioError = null
+        radioProgress = 0f
+        scope.launch {
+            try {
+                val list = withContext(Dispatchers.IO) {
+                    app.lumen.player.data.Radio.loadLibrary(ctx, client) { p ->
+                        scope.launch { radioProgress = p }
+                    }
+                }
+                radioTracks = list
+                if (list.isEmpty()) {
+                    radioError = L10n.tf("曲库为空，无法生成电台。", "The library is empty; cannot build a station.")
+                } else {
+                    startRadio(vibe)
+                }
+            } catch (e: Exception) {
+                radioError = e.message ?: L10n.tf("生成电台失败", "Failed to build station")
+            } finally {
+                radioLoading = false
+            }
+        }
+    }
+
+    fun openRadio() {
+        navigate(NavKey(10, null))
+        if (radioTracks.isNotEmpty()) startRadio(radioVibe) else loadRadio(radioVibe)
+    }
+
     LaunchedEffect(fadeMs) {
         playback.fadeMs = fadeMs
     }
@@ -691,6 +745,32 @@ private fun App() {
                             downloads = emptyList()
                         },
                     )
+                    key.screen == 10 -> app.lumen.player.ui.RadioScreen(
+                        vibe = radioVibe,
+                        loading = radioLoading,
+                        progress = radioProgress,
+                        error = radioError,
+                        current = playback.current,
+                        coverUrl = playback.current?.albumId?.let { client.coverUrl(it) } ?: "",
+                        playing = playback.playing,
+                        queueSize = playback.queue.size,
+                        onBack = { goBack() },
+                        onVibe = { vibe ->
+                            radioVibe = vibe
+                            if (radioTracks.isEmpty()) loadRadio(vibe) else startRadio(vibe)
+                        },
+                        onRegenerate = {
+                            if (radioTracks.isEmpty()) loadRadio(radioVibe) else startRadio(radioVibe, reseed = true)
+                        },
+                        onToggle = { playback.toggle() },
+                        onNext = { playback.next() },
+                        onOpenMood = { navigate(NavKey(8, null)) },
+                        onRetry = {
+                            radioTracks = emptyList()
+                            app.lumen.player.data.Radio.clearCache(ctx)
+                            loadRadio(radioVibe)
+                        },
+                    )
                     key.screen == 3 -> SettingsScreen(
                         cfg = cfg,
                         cacheDir = java.io.File(ctx.cacheDir, "media"),
@@ -824,6 +904,7 @@ private fun App() {
                             durationMs = playback.durationMs.takeIf { it > 0 } ?: ((current?.seconds ?: 0) * 1000L),
                             onToggle = { if (current != null) playback.toggle() },
                             onOpenPlayer = { navigate(NavKey(2, null)) },
+                            onOpenRadio = { openRadio() },
                             onOpenStats = { navigate(NavKey(7, null)) },
                             tab = homeTab,
                             onTabChange = { homeTab = it },

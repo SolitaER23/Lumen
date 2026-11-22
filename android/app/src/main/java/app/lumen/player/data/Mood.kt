@@ -27,6 +27,8 @@ data class MoodResult(
     val envStepMs: Int = 100,
     /** YAMNet top-K AudioSet 标签，仅供内部检索/推荐使用。 */
     val tags: List<AudioTag> = emptyList(),
+    /** YAMNet 521 维平均分，用于本地氛围电台相似度；旧数据为空。 */
+    val feature: FloatArray = FloatArray(0),
     val updatedAt: Long = System.currentTimeMillis(),
 )
 
@@ -34,12 +36,12 @@ object MoodStore {
     private const val DB = "moods.db"
     private const val TABLE = "moods"
 
-    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 6) {
+    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 7) {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS $TABLE (" +
                     "track_id TEXT PRIMARY KEY, valence REAL, arousal REAL, label TEXT, tempo REAL, " +
-                    "beats TEXT, env TEXT, env_step INTEGER, updated INTEGER, tags TEXT)",
+                    "beats TEXT, env TEXT, env_step INTEGER, updated INTEGER, tags TEXT, feature TEXT)",
             )
         }
 
@@ -47,6 +49,9 @@ object MoodStore {
             // v6 只增加内部标签列，保留已有分析结果
             if (oldVersion < 6) {
                 runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN tags TEXT") }
+            }
+            if (oldVersion < 7) {
+                runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN feature TEXT") }
             }
         }
 
@@ -85,6 +90,13 @@ object MoodStore {
         return arr.toString()
     }
 
+    private fun encodeFeature(feature: FloatArray): String =
+        if (feature.isEmpty()) "" else feature.joinToString(",") { "%.3f".format(it) }
+
+    private fun decodeFeature(raw: String?): FloatArray =
+        if (raw.isNullOrBlank()) FloatArray(0)
+        else raw.split(',').mapNotNull { it.toFloatOrNull() }.toFloatArray()
+
     private fun decodeTags(raw: String?): List<AudioTag> {
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching {
@@ -108,6 +120,7 @@ object MoodStore {
             put("env_step", r.envStepMs)
             put("updated", r.updatedAt)
             put("tags", encodeTags(r.tags))
+            put("feature", encodeFeature(r.feature))
         }
         runCatching { db(ctx).insertWithOnConflict(TABLE, null, v, SQLiteDatabase.CONFLICT_REPLACE) }
             .onFailure { android.util.Log.e("LumenMood", "mood put failed", it) }
@@ -126,11 +139,60 @@ object MoodStore {
                     env = decodeFloats(c.getString(6)),
                     envStepMs = if (c.isNull(7)) 100 else c.getInt(7),
                     tags = decodeTags(if (c.isNull(9)) null else c.getString(9)),
+                    feature = decodeFeature(if (c.isNull(10)) null else c.getString(10)),
                     updatedAt = c.getLong(8),
                 )
             } else null
         }
     }.onFailure { android.util.Log.e("LumenMood", "mood get failed", it) }.getOrNull()
+
+    /** 电台只需要坐标、标签与 521 维特征，不加载 beats/env。 */
+    fun radio(ctx: Context): Map<String, MoodResult> = runCatching {
+        val out = LinkedHashMap<String, MoodResult>()
+        db(ctx).rawQuery(
+            "SELECT track_id,valence,arousal,label,tempo,tags,feature FROM $TABLE",
+            null,
+        ).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getString(0) ?: continue
+                out[id] = MoodResult(
+                    trackId = id,
+                    valence = c.getFloat(1),
+                    arousal = c.getFloat(2),
+                    label = c.getString(3),
+                    tempo = c.getFloat(4),
+                    tags = decodeTags(c.getString(5)),
+                    feature = decodeFeature(c.getString(6)),
+                )
+            }
+        }
+        out
+    }.getOrDefault(emptyMap())
+
+    /** 读取全部分析结果（含 feature），供本地电台索引使用。 */
+    fun all(ctx: Context): List<MoodResult> = runCatching {
+        val out = ArrayList<MoodResult>()
+        db(ctx).query(TABLE, null, null, null, null, null, null).use { c ->
+            while (c.moveToNext()) {
+                out.add(
+                    MoodResult(
+                        trackId = c.getString(0),
+                        valence = c.getFloat(1),
+                        arousal = c.getFloat(2),
+                        label = c.getString(3),
+                        tempo = c.getFloat(4),
+                        beatsMs = decodeInts(c.getString(5)),
+                        env = decodeFloats(c.getString(6)),
+                        envStepMs = if (c.isNull(7)) 100 else c.getInt(7),
+                        tags = decodeTags(if (c.isNull(9)) null else c.getString(9)),
+                        feature = decodeFeature(if (c.isNull(10)) null else c.getString(10)),
+                        updatedAt = c.getLong(8),
+                    ),
+                )
+            }
+        }
+        out
+    }.getOrDefault(emptyList())
 
     fun count(ctx: Context): Int = runCatching {
         db(ctx).rawQuery("SELECT COUNT(*) FROM $TABLE", null).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
