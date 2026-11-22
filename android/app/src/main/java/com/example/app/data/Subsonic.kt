@@ -1,4 +1,4 @@
-﻿package com.example.app.data
+package com.example.app.data
 
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -322,6 +322,18 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
         )
 
     fun starredTracks(): List<Track> = parseStarred(get("getStarred2.view"))
+
+    /** 播放上报：submission=false 为 Now Playing，true 才计入播放次数（Navidrome 统计依赖它）。 */
+    fun scrobble(trackId: String, submission: Boolean) {
+        get(
+            "scrobble.view",
+            mapOf(
+                "id" to trackId,
+                "submission" to submission.toString(),
+                "time" to System.currentTimeMillis().toString(),
+            ),
+        )
+    }
 
     fun star(trackId: String) {
         get("star.view", mapOf("id" to trackId))

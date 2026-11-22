@@ -242,6 +242,8 @@ private fun App() {
     }
     var neodbRetry by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     var rating by remember { mutableFloatStateOf(0f) }
+    var scrobbledId by remember { mutableStateOf<String?>(null) }
+    var nowPlayingId by remember { mutableStateOf<String?>(null) }
     var mood by remember { mutableStateOf<com.example.app.data.MoodResult?>(null) }
     var moodAnalyzing by remember { mutableStateOf(false) }
     var moodPhase by remember { mutableStateOf("") }
@@ -362,6 +364,7 @@ private fun App() {
             lyricsTrackId = tr?.id
             if (tr != null) {
                 rating = Ratings.get(ctx, tr.id)
+                scrobbledId = null
                 mood = com.example.app.data.MoodStore.get(ctx, tr.id)
                 android.util.Log.i(
                     "LumenMood",
@@ -400,6 +403,30 @@ private fun App() {
         while (playback.playing) {
             playback.tick()
             delay(250)
+        }
+    }
+    // 播放上报：Now Playing + 达到一半/4 分钟时 submission（Navidrome Stat 靠它记账）
+    LaunchedEffect(playback.current?.id, playback.playing) {
+        val tr = playback.current
+        if (playback.playing && tr != null && nowPlayingId != tr.id) {
+            nowPlayingId = tr.id
+            withContext(Dispatchers.IO) {
+                val r = runCatching { client.scrobble(tr.id, submission = false) }
+                android.util.Log.i("LumenScrobble", "nowPlaying ${tr.id} ok=${r.isSuccess} err=${r.exceptionOrNull()?.message}")
+            }
+        }
+    }
+    LaunchedEffect(playback.positionMs, playback.playing, playback.current?.id) {
+        val tr = playback.current ?: return@LaunchedEffect
+        if (!playback.playing || scrobbledId == tr.id) return@LaunchedEffect
+        val duration = playback.durationMs.takeIf { it > 0 } ?: (tr.seconds * 1000L)
+        val threshold = if (duration > 0) minOf(duration / 2, 240_000L) else 120_000L
+        if (playback.positionMs >= threshold) {
+            scrobbledId = tr.id
+            withContext(Dispatchers.IO) {
+                val r = runCatching { client.scrobble(tr.id, submission = true) }
+                android.util.Log.i("LumenScrobble", "submit ${tr.id} ok=${r.isSuccess} err=${r.exceptionOrNull()?.message}")
+            }
         }
     }
     val current = playback.current
