@@ -1,4 +1,4 @@
-package com.example.app
+﻿package com.example.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -474,48 +474,7 @@ private fun App() {
     val onOpenArtist: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
     val onOpenArtistFromSearch: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
 
-    val animatedScheme = com.example.app.ui.rememberAnimatedColorScheme(scheme)
-    MaterialTheme(colorScheme = animatedScheme, typography = lumenTypography()) {
-        Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
-            Box(Modifier.fillMaxSize()) {
-                com.example.app.ui.ExpressiveBackdrop(Modifier.matchParentSize())
-                // 预测性返回：底层压暗，露出背景；上层内容跟手右移 + 缩放 + 圆角
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.32f * backAnim.value)),
-                )
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            translationX = size.width * 0.24f * backAnim.value
-                            val s = 1f - 0.07f * backAnim.value
-                            scaleX = s
-                            scaleY = s
-                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
-                        }
-                        .clip(RoundedCornerShape((26.dp * backAnim.value).coerceAtLeast(0.dp))),
-                ) {
-                run {
-                AnimatedContent(
-                    targetState = NavKey(screen, openAlbum),
-                    transitionSpec = {
-                        val forward = targetState.screen >= initialState.screen
-                        val spec = spring<Float>(dampingRatio = 0.85f, stiffness = 420f)
-                        val enter = fadeIn(tween<Float>(260)) + scaleIn(
-                            initialScale = if (forward) 0.90f else 1.06f,
-                            animationSpec = spec,
-                        )
-                        val exit = fadeOut(tween<Float>(180)) + scaleOut(
-                            targetScale = if (forward) 1.06f else 0.90f,
-                            animationSpec = spec,
-                        )
-                        (enter togetherWith exit).using(androidx.compose.animation.SizeTransform(clip = false))
-                    },
-                    label = "screen",
-                    modifier = Modifier.fillMaxSize(),
-                ) { key ->
+    val screenContent: @Composable (NavKey) -> Unit = { key ->
                 saveableStates.SaveableStateProvider(stateKeyOf(key)) {
                 when {
                     key.screen == 7 -> com.example.app.ui.StatsScreen(
@@ -754,32 +713,72 @@ private fun App() {
                     }
                 }
                 }
+    }
+
+    val animatedScheme = com.example.app.ui.rememberAnimatedColorScheme(scheme)
+    MaterialTheme(colorScheme = animatedScheme, typography = lumenTypography()) {
+        Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
+            Box(Modifier.fillMaxSize()) {
+                com.example.app.ui.ExpressiveBackdrop(Modifier.matchParentSize())
+                // 预测性返回：底层压暗，露出背景；上层内容跟手右移 + 缩放 + 圆角
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.32f * backAnim.value)),
+                )
+                // 上一页实时渲染在下方：返回时做视差，不是静态截图
+                if (backAnim.value > 0.01f && navStack.isNotEmpty()) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                val p = backAnim.value
+                                val s = 0.94f + 0.06f * p
+                                scaleX = s
+                                scaleY = s
+                                translationX = -size.width * 0.05f * (1f - p)
+                            },
+                    ) {
+                        screenContent(navStack.last())
+                    }
+                }
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            translationX = size.width * 0.24f * backAnim.value
+                            val s = 1f - 0.07f * backAnim.value
+                            scaleX = s
+                            scaleY = s
+                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+                        }
+                        .clip(RoundedCornerShape((26.dp * backAnim.value).coerceAtLeast(0.dp))),
+                ) {
+                // 当前页自带一层背景，返回滑动时只在让出的区域露出上一页
+                com.example.app.ui.ExpressiveBackdrop(Modifier.matchParentSize())
+                run {
+                AnimatedContent(
+                    targetState = NavKey(screen, openAlbum),
+                    transitionSpec = {
+                        val forward = targetState.screen >= initialState.screen
+                        val spec = spring<Float>(dampingRatio = 0.85f, stiffness = 420f)
+                        val enter = fadeIn(tween<Float>(260)) + scaleIn(
+                            initialScale = if (forward) 0.90f else 1.06f,
+                            animationSpec = spec,
+                        )
+                        val exit = fadeOut(tween<Float>(180)) + scaleOut(
+                            targetScale = if (forward) 1.06f else 0.90f,
+                            animationSpec = spec,
+                        )
+                        (enter togetherWith exit).using(androidx.compose.animation.SizeTransform(clip = false))
+                    },
+                    label = "screen",
+                    modifier = Modifier.fillMaxSize(),
+                ) { key ->
+                screenContent(key)
                 }
                 }
 
-                // 跟手的返回指示：越拖越清晰
-                if (backAnim.value > 0.02f) {
-                    Box(
-                        Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(start = 12.dp)
-                            .graphicsLayer {
-                                alpha = backAnim.value
-                                translationX = -20.dp.toPx() * (1f - backAnim.value)
-                            }
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            YoinSymbols.Back,
-                            contentDescription = "返回",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-                }
                 }
 
                 // 播放页有自己的控制区，不再显示底栏
