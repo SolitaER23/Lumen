@@ -98,6 +98,7 @@ fun SettingsScreen(
     onOpenGuide: () -> Unit = {},
     onOpenChangelog: () -> Unit = {},
     onOpenPrivacy: () -> Unit = {},
+    onOpenTerms: () -> Unit = {},
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var cacheBytes by remember { mutableStateOf(0L) }
@@ -390,6 +391,7 @@ fun SettingsScreen(
                     )
                     AboutRow(L10n.tf("使用引导", "Walkthrough"), L10n.tf("重新查看", "View again"), onClick = onOpenGuide)
                     AboutRow(L10n.t("开源信息"), L10n.t("技术栈与许可"), onClick = onOpenLicenses, chevron = true)
+                    AboutRow(L10n.tf("用户协议", "Terms of Service"), L10n.tf("查看", "View"), onClick = onOpenTerms, chevron = true)
                     AboutRow(
                         L10n.tf("检查更新", "Check for updates"),
                         L10n.tf("B 站发布", "Bilibili"),

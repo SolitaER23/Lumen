@@ -252,6 +252,8 @@ private fun App() {
         7 -> "stats"
         10 -> "radio"
         11 -> "changelog"
+        12 -> "privacy"
+        13 -> "terms"
         else -> "s${k.screen}"
     }
     var lyrics by remember { mutableStateOf<List<LyricLine>?>(null) }
@@ -812,6 +814,9 @@ private fun App() {
                             downloads = emptyList()
                         },
                     )
+                    key.screen == 13 -> app.lumen.player.ui.TermsScreen(
+                        onBack = { goBack() },
+                    )
                     key.screen == 12 -> app.lumen.player.ui.PrivacyScreen(
                         onBack = { goBack() },
                     )
@@ -875,6 +880,7 @@ private fun App() {
                         onOpenGuide = { showOnboarding = true },
                         onOpenChangelog = { navigate(NavKey(11, null)) },
                         onOpenPrivacy = { navigate(NavKey(12, null)) },
+                        onOpenTerms = { navigate(NavKey(13, null)) },
                         onClearCache = {
                             // 只清流媒体/图片缓存；下载曲目的 cache key（URI）保留
                             MediaCache.clearStreamingCache(ctx, Downloads.downloadedUris(ctx))

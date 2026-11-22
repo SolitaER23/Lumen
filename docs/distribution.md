@@ -7,7 +7,7 @@
 | 版本 | `0.50.0` / `versionCode 138` |
 | APK | `app-release.apk` |
 | 文件大小 | `11,767,694` 字节（约 11.2 MiB） |
-| SHA-256 | `1534137C51A09E6BF41DFF0A0A1B3CBDB3AB29D63508FDF7BCC1323DAC992A0D` |
+| SHA-256 | `F56CC6A8BB8C70CC0EC64A5E6D428A7F7816A6D51EE6A2ED907A777C772C9248` |
 | 签名证书 DN | `CN=Lumen, OU=Release, O=Lumen, L=Shanghai, ST=Shanghai, C=CN` |
 | 证书 SHA-256 | `c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37` |
 | 最低系统 | Android 8.0（API 26） |
