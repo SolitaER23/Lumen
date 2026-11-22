@@ -57,7 +57,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 ## 关键附件
 
-当前正式直发版本：**0.50.4 / versionCode 142**
+当前正式直发版本：**0.50.5 / versionCode 143**
 
 - [发布计划与状态](docs/release-plan.md)
 - [分发包与校验说明](docs/distribution.md)
@@ -68,7 +68,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - [兼容性说明](docs/compatibility.md)
 - [Release CI](.github/workflows/release.yml)
 - 官方更新渠道：[夸克网盘](https://pan.quark.cn/s/f35d0450e4b1?pwd=3GF3)，提取码 `3GF3`
-- 分发包：`dist/Lumen-0.50.4.apk`、`dist/SHA256SUMS.txt`
+- 分发包：`dist/Lumen-0.50.5.apk`、`dist/SHA256SUMS.txt`
 - 发布后同步元数据：`python scripts/update-release-metadata.py`
 
 ## 构建

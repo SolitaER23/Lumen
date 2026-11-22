@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -729,13 +730,18 @@ private fun AboutRow(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .then(
-                if (onLongClick != null) {
-                    Modifier.pointerInput(onLongClick) {
+                when {
+                    onClick != null && onLongClick != null -> Modifier.combinedClickable(
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                    )
+                    onClick != null -> Modifier.clickable(onClick = onClick)
+                    onLongClick != null -> Modifier.pointerInput(onLongClick) {
                         detectTapGestures(onLongPress = { onLongClick() })
                     }
-                } else Modifier,
+                    else -> Modifier
+                },
             )
             .padding(vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
