@@ -164,7 +164,6 @@ fun PlayingScreen(
             ) {
                 AnimatedCover(
                     url = coverUrl,
-                    direction = coverDirection,
                     contentDescription = track?.title,
                     modifier = coverModifier.size(232.dp),
                 )
@@ -674,18 +673,16 @@ private fun PlayerAction(
         }
     }
 }
-/** 封面切歌动效：下一首从左上向右下展开，上一首从右下向左上展开。 */
+/** 封面切歌：新旧封面交叉溶解，配合轻微景深缩放，避免硬切。 */
 @Composable
 private fun AnimatedCover(
     url: String,
-    direction: Int,
     contentDescription: String?,
     modifier: Modifier = Modifier,
 ) {
     var current by remember { mutableStateOf(url) }
     var previous by remember { mutableStateOf<String?>(null) }
     val progress = remember { Animatable(1f) }
-    val dir = rememberUpdatedState(if (direction >= 0) 1 else -1)
 
     LaunchedEffect(url) {
         if (url.isNotBlank() && url != current) {
@@ -694,13 +691,17 @@ private fun AnimatedCover(
             progress.snapTo(0f)
             progress.animateTo(
                 1f,
-                animationSpec = spring(dampingRatio = 0.9f, stiffness = 320f),
+                animationSpec = tween(durationMillis = 520, easing = FastOutSlowInEasing),
             )
             previous = null
         }
     }
 
-    Box(modifier.clip(RoundedCornerShape(24.dp))) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
         previous?.let { old ->
             AsyncImage(
                 model = old,
@@ -709,8 +710,8 @@ private fun AnimatedCover(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        alpha = (1f - progress.value).coerceIn(0f, 1f) * 0.55f
-                        val s = 1f + 0.05f * progress.value
+                        alpha = (1f - progress.value).coerceIn(0f, 1f)
+                        val s = 1f + 0.06f * progress.value
                         scaleX = s
                         scaleY = s
                     },
@@ -723,37 +724,10 @@ private fun AnimatedCover(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    val s = 1f + 0.04f * (1f - progress.value)
+                    alpha = progress.value.coerceIn(0f, 1f)
+                    val s = 0.94f + 0.06f * progress.value
                     scaleX = s
                     scaleY = s
-                }
-                .drawWithContent {
-                    val p = progress.value.coerceIn(0f, 1f)
-                    val w = size.width
-                    val h = size.height
-                    val path = Path()
-                    if (dir.value >= 0) {
-                        // 左上 → 右下：x + y <= p*(w+h)
-                        val t = p * (w + h)
-                        path.moveTo(0f, 0f)
-                        path.lineTo(w, 0f)
-                        path.lineTo(w, (t - w).coerceIn(0f, h))
-                        path.lineTo((t - h).coerceIn(0f, w), h)
-                        path.lineTo(0f, h)
-                        path.close()
-                    } else {
-                        // 右下 → 左上：x + y >= (1-p)*(w+h)
-                        val t = (1f - p) * (w + h)
-                        path.moveTo(w, h)
-                        path.lineTo(0f, h)
-                        path.lineTo(0f, t.coerceIn(0f, h))
-                        path.lineTo(t.coerceIn(0f, w), 0f)
-                        path.lineTo(w, 0f)
-                        path.close()
-                    }
-                    clipPath(path) {
-                        this@drawWithContent.drawContent()
-                    }
                 },
         )
     }
