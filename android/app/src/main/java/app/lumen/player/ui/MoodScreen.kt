@@ -61,8 +61,6 @@ import com.gpo.yoin.symbols.YoinSymbols
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlin.math.cos
-import kotlin.math.sin
 
 /** 心情分析页：进度、控制、分布与说明。 */
 @Composable
@@ -363,16 +361,6 @@ private fun MoodRing(progress: Float, modifier: Modifier = Modifier) {
                 sweepAngle = 360f * animated,
                 useCenter = false,
                 style = Stroke(stroke, cap = StrokeCap.Round),
-            )
-            val r = size.minDimension / 2f - stroke / 2f
-            val angle = Math.toRadians((-90f + 360f * animated).toDouble())
-            drawCircle(
-                color = end,
-                radius = 5.dp.toPx(),
-                center = Offset(
-                    size.width / 2f + r * cos(angle).toFloat(),
-                    size.height / 2f + r * sin(angle).toFloat(),
-                ),
             )
         }
     }
