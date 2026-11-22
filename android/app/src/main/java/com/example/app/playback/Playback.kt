@@ -70,6 +70,9 @@ class Playback(private val ctx: Context) {
     /** 播放模式：列表循环 / 单曲循环 / 随机播放 */
     var playMode by mutableStateOf(PlayMode.LIST)
         private set
+    /** 切歌方向：1=下一首（封面从左上展开），-1=上一首（从右下展开） */
+    var coverDirection by mutableIntStateOf(1)
+        private set
     /** 已经为哪一首做过转码兜底（按曲目 id 记，换曲才重置，避免 setMediaItem 触发 transition 后无限重试） */
     private var fallbackTrackId: String? = null
 
@@ -85,6 +88,7 @@ class Playback(private val ctx: Context) {
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 index = player.currentMediaItemIndex
+                if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) coverDirection = 1
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -229,6 +233,7 @@ class Playback(private val ctx: Context) {
     }
 
     fun next() {
+        coverDirection = 1
         if (player.shuffleModeEnabled) {
             player.seekToNextMediaItem()
             player.play()
@@ -243,6 +248,7 @@ class Playback(private val ctx: Context) {
     }
 
     fun prev() {
+        coverDirection = -1
         if (player.shuffleModeEnabled) {
             player.seekToPreviousMediaItem()
             player.play()

@@ -552,6 +552,7 @@ private fun App() {
                         onToggleLyrics = { showLyrics = !showLyrics },
                         playMode = playback.playMode,
                         onCyclePlayMode = { playback.cyclePlayMode() },
+                        coverDirection = playback.coverDirection,
                         onSeekPlay = { ms ->
                             playback.seekTo(ms)
                             if (!playback.playing) playback.toggle()

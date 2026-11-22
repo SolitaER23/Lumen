@@ -1,4 +1,4 @@
-package com.example.app.ui
+﻿package com.example.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -74,6 +75,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import coil.compose.AsyncImage
 import com.example.app.data.Track
@@ -115,6 +117,7 @@ fun PlayingScreen(
     onToggleLyrics: () -> Unit = {},
     playMode: com.example.app.playback.PlayMode = com.example.app.playback.PlayMode.LIST,
     onCyclePlayMode: () -> Unit = {},
+    coverDirection: Int = 1,
     onSeekPlay: (Long) -> Unit = {},
     mood: com.example.app.data.MoodResult? = null,
     moodAnalyzing: Boolean = false,
@@ -159,11 +162,11 @@ fun PlayingScreen(
                 Modifier.fillMaxWidth().padding(horizontal = 24.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AsyncImage(
-                    model = coverUrl,
+                AnimatedCover(
+                    url = coverUrl,
+                    direction = coverDirection,
                     contentDescription = track?.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = coverModifier.size(232.dp).clip(RoundedCornerShape(24.dp)),
+                    modifier = coverModifier.size(232.dp),
                 )
                 Box(
                     Modifier.weight(1f).height(232.dp),
@@ -669,5 +672,89 @@ private fun PlayerAction(
         } else if (text != null) {
             Text(text, color = content, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         }
+    }
+}
+/** 封面切歌动效：下一首从左上向右下展开，上一首从右下向左上展开。 */
+@Composable
+private fun AnimatedCover(
+    url: String,
+    direction: Int,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+) {
+    var current by remember { mutableStateOf(url) }
+    var previous by remember { mutableStateOf<String?>(null) }
+    val progress = remember { Animatable(1f) }
+    val dir = rememberUpdatedState(if (direction >= 0) 1 else -1)
+
+    LaunchedEffect(url) {
+        if (url.isNotBlank() && url != current) {
+            previous = current
+            current = url
+            progress.snapTo(0f)
+            progress.animateTo(
+                1f,
+                animationSpec = spring(dampingRatio = 0.9f, stiffness = 320f),
+            )
+            previous = null
+        }
+    }
+
+    Box(modifier.clip(RoundedCornerShape(24.dp))) {
+        previous?.let { old ->
+            AsyncImage(
+                model = old,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        alpha = (1f - progress.value).coerceIn(0f, 1f) * 0.55f
+                        val s = 1f + 0.05f * progress.value
+                        scaleX = s
+                        scaleY = s
+                    },
+            )
+        }
+        AsyncImage(
+            model = current,
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    val s = 1f + 0.04f * (1f - progress.value)
+                    scaleX = s
+                    scaleY = s
+                }
+                .drawWithContent {
+                    val p = progress.value.coerceIn(0f, 1f)
+                    val w = size.width
+                    val h = size.height
+                    val path = Path()
+                    if (dir.value >= 0) {
+                        // 左上 → 右下：x + y <= p*(w+h)
+                        val t = p * (w + h)
+                        path.moveTo(0f, 0f)
+                        path.lineTo(w, 0f)
+                        path.lineTo(w, (t - w).coerceIn(0f, h))
+                        path.lineTo((t - h).coerceIn(0f, w), h)
+                        path.lineTo(0f, h)
+                        path.close()
+                    } else {
+                        // 右下 → 左上：x + y >= (1-p)*(w+h)
+                        val t = (1f - p) * (w + h)
+                        path.moveTo(w, h)
+                        path.lineTo(0f, h)
+                        path.lineTo(0f, t.coerceIn(0f, h))
+                        path.lineTo(t.coerceIn(0f, w), 0f)
+                        path.lineTo(w, 0f)
+                        path.close()
+                    }
+                    clipPath(path) {
+                        this@drawWithContent.drawContent()
+                    }
+                },
+        )
     }
 }
