@@ -456,9 +456,9 @@ private fun App() {
             lyrics = null
             lyricsTrackId = tr?.id
             if (tr != null) {
-                rating = Ratings.get(ctx, tr.id)
+                rating = withContext(Dispatchers.IO) { Ratings.get(ctx, tr.id) }
                 scrobbledId = null
-                mood = com.example.app.data.MoodStore.get(ctx, tr.id)
+                mood = withContext(Dispatchers.IO) { com.example.app.data.MoodStore.get(ctx, tr.id) }
                 com.example.app.util.Logx.i(
                     "LumenMood",
                     "load mood id=${tr.id} found=${mood != null} beats=${mood?.beatsMs?.size ?: -1} tempo=${mood?.tempo ?: -1f}",
@@ -1109,7 +1109,7 @@ private fun HomeScreen(
     }
 
 
-    LaunchedEffect(tab, libraryVersion) {
+    LaunchedEffect(tab) {
         if (tab == 0) return@LaunchedEffect
         val firstLoad = (tab == 1 && artists.isEmpty()) ||
             (tab == 2 && (newest.isEmpty() || recentTracks.isEmpty()))

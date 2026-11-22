@@ -43,7 +43,9 @@ import androidx.compose.ui.unit.sp
 import com.example.app.data.MoodStore
 import com.example.app.playback.MoodWorker
 import com.gpo.yoin.symbols.YoinSymbols
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /** 心情分析页：进度、控制、分布与说明。 */
 @Composable
@@ -62,8 +64,11 @@ fun MoodScreen(onBack: () -> Unit) {
             done = d
             total = t
             running = r
-            analyzed = MoodStore.count(ctx)
-            dist = MoodStore.distribution(ctx)
+            val (count, distMap) = withContext(Dispatchers.IO) {
+                MoodStore.count(ctx) to MoodStore.distribution(ctx)
+            }
+            analyzed = count
+            dist = distMap
             delay(1500)
         }
     }

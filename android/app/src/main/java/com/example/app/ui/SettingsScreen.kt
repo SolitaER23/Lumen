@@ -267,7 +267,9 @@ fun SettingsScreen(
                         moodDone = d
                         moodTotal = t
                         moodRunning = r
-                        moodCount = com.example.app.data.MoodStore.count(ctx)
+                        moodCount = withContext(Dispatchers.IO) {
+                            com.example.app.data.MoodStore.count(ctx)
+                        }
                         delay(1500)
                     }
                 }
