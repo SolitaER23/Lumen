@@ -11,16 +11,33 @@ import kotlin.random.Random
 enum class RadioVibe(
     private val zh: String,
     private val en: String,
+    private val descZh: String,
+    private val descEn: String,
     val valence: Float,
     val arousal: Float,
     val tempo: Float,
 ) {
-    FOCUS("专注", "Focus", 0.55f, 0.35f, 90f),
-    NIGHT("夜晚", "Night", 0.36f, 0.26f, 72f),
-    ENERGY("活力", "Energy", 0.62f, 0.78f, 138f),
-    COMMUTE("通勤", "Commute", 0.52f, 0.50f, 110f);
+    FOCUS("专注", "Focus", "稳定器乐，低干扰", "Steady instrumentals, low distraction", 0.55f, 0.35f, 90f),
+    STUDY("学习", "Study", "平缓节拍，长时间陪伴", "Calm tempo for long sessions", 0.52f, 0.30f, 82f),
+    WORK("工作", "Work", "清晰、有推进感", "Clear and gently driving", 0.55f, 0.40f, 100f),
+    READING("阅读", "Reading", "安静、少人声", "Quiet, mostly instrumental", 0.50f, 0.28f, 74f),
+    NIGHT("夜晚", "Night", "低速、低亮度的深夜", "Slow, dim late-night mood", 0.36f, 0.26f, 72f),
+    SLEEP("睡前", "Sleep", "极低能量，舒缓收尾", "Very low energy, winding down", 0.30f, 0.14f, 60f),
+    MORNING("清晨", "Morning", "明亮、轻盈地开始", "Bright and light to start the day", 0.66f, 0.46f, 102f),
+    DUSK("黄昏", "Dusk", "温暖的落日余晖", "Warm end-of-day glow", 0.45f, 0.32f, 84f),
+    RAINY("雨天", "Rainy", "潮湿、内省的慢节奏", "Damp, introspective slow tempo", 0.38f, 0.30f, 78f),
+    CAFE("咖啡馆", "Café", "松弛的午后背景", "Relaxed afternoon backdrop", 0.55f, 0.38f, 94f),
+    COMMUTE("通勤", "Commute", "路上平稳陪伴", "Steady company on the move", 0.52f, 0.50f, 112f),
+    ROAD("公路", "Road trip", "开阔、持续向前", "Open, continuously forward", 0.60f, 0.55f, 118f),
+    RUNNING("跑步", "Running", "高 BPM、强驱动", "High BPM, strong drive", 0.62f, 0.84f, 150f),
+    WORKOUT("健身", "Workout", "高能量、硬朗", "High energy and punchy", 0.65f, 0.80f, 140f),
+    ENERGY("活力", "Energy", "明亮、快速、有弹性", "Bright, fast and bouncy", 0.64f, 0.78f, 136f),
+    PARTY("派对", "Party", "热烈、舞动", "Hot and danceable", 0.68f, 0.88f, 128f),
+    RELAX("放松", "Relax", "柔和的呼吸感", "Soft, breathing pace", 0.50f, 0.24f, 70f),
+    NOSTALGIA("怀旧", "Nostalgia", "旧时光的质感", "A texture from another time", 0.46f, 0.34f, 86f);
 
     fun label(): String = L10n.tf(zh, en)
+    fun description(): String = L10n.tf(descZh, descEn)
 }
 
 /**

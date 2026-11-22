@@ -753,7 +753,6 @@ private fun App() {
                         current = playback.current,
                         coverUrl = playback.current?.albumId?.let { client.coverUrl(it) } ?: "",
                         playing = playback.playing,
-                        queueSize = playback.queue.size,
                         onBack = { goBack() },
                         onVibe = { vibe ->
                             radioVibe = vibe

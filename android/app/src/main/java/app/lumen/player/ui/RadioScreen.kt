@@ -5,7 +5,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -14,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,12 +30,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -63,7 +60,7 @@ import app.lumen.player.util.L10n
 import coil.compose.AsyncImage
 import com.gpo.yoin.symbols.YoinSymbols
 
-/** 氛围电台：本地 521 维相似度生成，不展示标签或队列列表。 */
+/** 氛围电台：参考播放页的封面 + 控制布局，下方直接选择场景。 */
 @Composable
 fun RadioScreen(
     vibe: RadioVibe,
@@ -73,7 +70,6 @@ fun RadioScreen(
     current: Track?,
     coverUrl: String,
     playing: Boolean,
-    queueSize: Int,
     onBack: () -> Unit,
     onVibe: (RadioVibe) -> Unit,
     onRegenerate: () -> Unit,
@@ -88,7 +84,7 @@ fun RadioScreen(
     val drift by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(16000, easing = LinearEasing), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(18000, easing = LinearEasing), RepeatMode.Reverse),
         label = "drift",
     )
     val float by transition.animateFloat(
@@ -110,7 +106,7 @@ fun RadioScreen(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        accent.copy(alpha = 0.16f),
+                        accent.copy(alpha = 0.14f),
                         MaterialTheme.colorScheme.surface,
                         MaterialTheme.colorScheme.surface,
                     ),
@@ -122,7 +118,7 @@ fun RadioScreen(
             val h = size.height
             drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(accent.copy(alpha = 18f / 255f), Color.Transparent),
+                    listOf(accent.copy(alpha = 0.09f), Color.Transparent),
                     center = androidx.compose.ui.geometry.Offset(w * (0.15f + 0.1f * drift), h * 0.12f),
                     radius = w * 0.8f,
                 ),
@@ -131,7 +127,7 @@ fun RadioScreen(
             )
             drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(secondary.copy(alpha = 14f / 255f), Color.Transparent),
+                    listOf(secondary.copy(alpha = 0.07f), Color.Transparent),
                     center = androidx.compose.ui.geometry.Offset(w * (0.9f - 0.1f * drift), h * 0.65f),
                     radius = w * 0.7f,
                 ),
@@ -140,202 +136,167 @@ fun RadioScreen(
             )
         }
 
-        Column(
-            Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
         ) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
+            item {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) {
+                        Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Column {
+                        Text(
+                            L10n.tf("氛围电台", "Ambient radio"),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            letterSpacing = 0.6.sp,
+                        )
+                        Text(
+                            vibe.label(),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                 }
-                Text(
-                    "RADIO",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    letterSpacing = 1.4.sp,
+            }
+
+            item {
+                RadioCover(
+                    current = current,
+                    coverUrl = coverUrl,
+                    playing = playing,
+                    loading = loading,
+                    float = float,
+                    modifier = Modifier.padding(top = 14.dp),
                 )
-                Spacer(Modifier.weight(1f))
-                Surface(shape = CircleShape, color = accent.copy(alpha = 0.16f)) {
+            }
+
+            item {
+                Column(Modifier.fillMaxWidth().padding(top = 18.dp)) {
+                    AnimatedContent(
+                        targetState = current?.title ?: if (loading) L10n.tf("正在准备电台", "Preparing station") else L10n.tf("等待曲目", "Waiting for a track"),
+                        transitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(160)) },
+                        label = "radio-title",
+                    ) { title ->
+                        Text(
+                            title,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
-                        if (loading) L10n.tf("构建中", "BUILDING") else L10n.tf("本机生成", "ON DEVICE"),
-                        color = accent,
-                        fontSize = 10.sp,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        current?.artist ?: L10n.tf("本地曲库", "Local library"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             }
 
-            Text(
-                L10n.tf("氛围电台", "Ambient Radio"),
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Light,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-            Text(
-                L10n.tf(
-                    "用 521 维音频特征，从你的曲库连成一段连续氛围。",
-                    "A continuous station built from 521-dim audio features in your own library.",
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
-                lineHeight = 18.sp,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-
-            RadioHero(
-                current = current,
-                coverUrl = coverUrl,
-                vibe = vibe,
-                playing = playing,
-                loading = loading,
-                float = float,
-                modifier = Modifier.padding(top = 20.dp),
-            )
-
-            if (loading) {
-                LoadingRadio(progress)
-            } else if (error != null) {
-                RadioError(error, onRetry, onOpenMood)
-            } else {
+            item {
                 Row(
-                    Modifier.fillMaxWidth().padding(top = 18.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    RadioVibe.entries.forEach { option ->
-                        val active = option == vibe
-                        val color by animateColorAsState(
-                            if (active) accent else MaterialTheme.colorScheme.surfaceContainerHigh,
-                            tween(260),
-                            label = "vibe-${option.name}",
-                        )
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .height(42.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .clickable { onVibe(option) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                option.label(),
-                                color = if (active) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 12.sp,
-                                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                            )
-                        }
-                    }
-                }
-
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 18.dp),
+                    Modifier.fillMaxWidth().padding(top = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Surface(
                         shape = CircleShape,
                         color = accent,
-                        modifier = Modifier.size(78.dp),
+                        modifier = Modifier.size(64.dp),
                     ) {
                         Box(
-                            Modifier.fillMaxSize().clickable(onClick = onToggle),
+                            Modifier
+                                .fillMaxSize()
+                                .clickable(onClick = onToggle)
+                                .graphicsLayer {
+                                    scaleX = if (playing) pulse else 1f
+                                    scaleY = if (playing) pulse else 1f
+                                },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Box(
-                                Modifier
-                                    .size(78.dp)
-                                    .graphicsLayer {
-                                        scaleX = if (playing) pulse else 1f
-                                        scaleY = if (playing) pulse else 1f
-                                    },
-                            )
                             Icon(
                                 if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
                                 contentDescription = L10n.t("播放"),
                                 tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(32.dp),
+                                modifier = Modifier.size(26.dp),
                             )
                         }
                     }
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            L10n.tf("电台曲目", "Station queue"),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 10.sp,
-                            letterSpacing = 1.sp,
-                        )
-                        Text(
-                            L10n.tf("$queueSize 首 · 本地生成", "$queueSize tracks · local"),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Text(
-                            L10n.tf("一次连续的氛围", "One continuous vibe"),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(top = 2.dp),
-                        )
-                    }
                     OutlinedButton(
                         onClick = onNext,
-                        shape = CircleShape,
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                    ) { Text("→", fontSize = 18.sp) }
-                }
-
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedButton(
-                        onClick = onRegenerate,
-                        modifier = Modifier.weight(1f).height(44.dp),
+                        modifier = Modifier.height(48.dp),
                         shape = CircleShape,
                     ) {
-                        Text(L10n.tf("换一段氛围", "New station"), fontSize = 12.sp)
+                        Text(L10n.tf("下一首", "Next"), fontSize = 13.sp)
                     }
-                    OutlinedButton(
-                        onClick = onOpenMood,
-                        modifier = Modifier.weight(1f).height(44.dp),
-                        shape = CircleShape,
-                    ) {
-                        Text(L10n.tf("分析更多", "Analyze more"), fontSize = 12.sp)
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onRegenerate) {
+                        Text(L10n.tf("换一批", "Shuffle"), fontSize = 13.sp)
                     }
                 }
             }
-            Spacer(Modifier.height(110.dp).navigationBarsPadding())
+
+            if (loading) {
+                item { RadioLoading(progress, Modifier.padding(top = 18.dp)) }
+            } else if (error != null) {
+                item { RadioError(error, onRetry, onOpenMood, Modifier.padding(top = 18.dp)) }
+            }
+
+            item {
+                Text(
+                    L10n.tf("选择电台", "Choose a station"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(start = 4.dp, top = 26.dp, bottom = 10.dp),
+                )
+            }
+
+            items(RadioVibe.entries.chunked(2).size) { rowIndex ->
+                val pair = RadioVibe.entries.chunked(2)[rowIndex]
+                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    pair.forEach { option ->
+                        StationCard(
+                            vibe = option,
+                            active = option == vibe,
+                            onClick = { onVibe(option) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun RadioHero(
+private fun RadioCover(
     current: Track?,
     coverUrl: String,
-    vibe: RadioVibe,
     playing: Boolean,
     loading: Boolean,
     float: Float,
     modifier: Modifier = Modifier,
 ) {
-    val accent = MaterialTheme.colorScheme.primary
-    val scale by animateFloatAsState(if (playing) 1f else 0.97f, tween(500), label = "cover-scale")
     Box(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 240.dp, max = 340.dp)
+            .heightIn(min = 250.dp, max = 330.dp)
             .graphicsLayer {
-                translationY = float * 40.dp.toPx()
-                scaleX = scale
-                scaleY = scale
+                translationY = float * 32.dp.toPx()
+                val s = if (playing) 1f else 0.98f
+                scaleX = s
+                scaleY = s
             }
-            .clip(RoundedCornerShape(38.dp))
+            .clip(RoundedCornerShape(36.dp))
             .background(MaterialTheme.colorScheme.surfaceContainer),
     ) {
         if (coverUrl.isNotBlank()) {
@@ -345,104 +306,116 @@ private fun RadioHero(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-        }
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Black.copy(alpha = 0.10f),
-                            Color.Black.copy(alpha = 0.20f),
-                            Color.Black.copy(alpha = 0.78f),
+        } else {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f),
+                                MaterialTheme.colorScheme.surfaceContainer,
+                            ),
                         ),
                     ),
-                ),
-        )
-        Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.Bottom) {
-            Surface(shape = CircleShape, color = accent) {
-                Text(
-                    vibe.label(),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    fontSize = 10.sp,
-                    letterSpacing = 1.2.sp,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                )
-            }
-            AnimatedContent(
-                targetState = current?.title ?: if (loading) L10n.tf("正在构建电台", "Building station") else L10n.tf("等待曲目", "Waiting for a track"),
-                transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(180)) },
-                label = "radio-title",
-                modifier = Modifier.padding(top = 12.dp),
-            ) { title ->
-                Text(
-                    title,
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Text(
-                current?.artist ?: L10n.tf("本机音频特征", "On-device audio features"),
-                color = Color.White.copy(alpha = 0.72f),
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center).size(34.dp),
+                color = Color.White,
+                strokeWidth = 3.dp,
             )
         }
     }
 }
 
 @Composable
-private fun LoadingRadio(progress: Float) {
-    Column(Modifier.fillMaxWidth().padding(top = 24.dp)) {
+private fun StationCard(
+    vibe: RadioVibe,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val color by animateColorAsState(
+        if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+        else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.55f),
+        tween(220),
+        label = "station-${vibe.name}",
+    )
+    val border = if (active) MaterialTheme.colorScheme.primary else Color.Transparent
+    Column(
+        modifier
+            .height(76.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(color)
+            .border(1.2.dp, border, RoundedCornerShape(22.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            vibe.label(),
+            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            vibe.description(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 10.sp,
+            lineHeight = 13.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun RadioLoading(progress: Float, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             Text(
-                L10n.tf("正在扫描曲库并计算相似度…", "Scanning library and computing similarity…"),
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(start = 12.dp),
+                L10n.tf("正在准备电台…", "Preparing station…"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 10.dp),
             )
         }
         Box(
             Modifier
                 .fillMaxWidth()
-                .padding(top = 14.dp)
-                .height(8.dp)
+                .padding(top = 10.dp)
+                .height(6.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         ) {
             Box(
                 Modifier
                     .fillMaxWidth(progress.coerceIn(0f, 1f))
-                    .height(8.dp)
+                    .height(6.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary),
             )
         }
-        Text(
-            "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(top = 6.dp),
-        )
     }
 }
 
 @Composable
-private fun RadioError(message: String, onRetry: () -> Unit, onOpenMood: () -> Unit) {
+private fun RadioError(message: String, onRetry: () -> Unit, onOpenMood: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(18.dp)) {
             Text(
-                L10n.tf("还无法生成电台", "Cannot build a station yet"),
+                L10n.tf("还不能生成电台", "Cannot build a station yet"),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
@@ -455,10 +428,8 @@ private fun RadioError(message: String, onRetry: () -> Unit, onOpenMood: () -> U
                 modifier = Modifier.padding(top = 4.dp),
             )
             Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onRetry, shape = CircleShape) { Text(L10n.tf("重试", "Retry"), fontSize = 12.sp) }
-                OutlinedButton(onClick = onOpenMood, shape = CircleShape) {
-                    Text(L10n.tf("去分析", "Analyze"), fontSize = 12.sp)
-                }
+                TextButton(onClick = onRetry) { Text(L10n.tf("重试", "Retry"), fontSize = 12.sp) }
+                TextButton(onClick = onOpenMood) { Text(L10n.tf("去分析", "Analyze"), fontSize = 12.sp) }
             }
         }
     }
