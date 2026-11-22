@@ -300,11 +300,11 @@ private fun RadioCover(
             .background(MaterialTheme.colorScheme.surfaceContainer),
     ) {
         if (coverUrl.isNotBlank()) {
-            AsyncImage(
-                model = coverUrl,
+            AnimatedCover(
+                url = coverUrl,
                 contentDescription = current?.album ?: L10n.tf("电台封面", "Station cover"),
-                contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
+                cornerRadius = 36.dp,
             )
         } else {
             Box(
