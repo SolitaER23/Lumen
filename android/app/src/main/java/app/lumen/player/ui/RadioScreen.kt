@@ -49,7 +49,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -57,7 +56,6 @@ import androidx.compose.ui.unit.sp
 import app.lumen.player.data.RadioVibe
 import app.lumen.player.data.Track
 import app.lumen.player.util.L10n
-import coil.compose.AsyncImage
 import com.gpo.yoin.symbols.YoinSymbols
 
 /** 氛围电台：参考播放页的封面 + 控制布局，下方直接选择场景。 */
@@ -68,7 +66,6 @@ fun RadioScreen(
     progress: Float,
     error: String?,
     current: Track?,
-    coverUrl: String,
     playing: Boolean,
     onBack: () -> Unit,
     onVibe: (RadioVibe) -> Unit,
@@ -128,10 +125,9 @@ fun RadioScreen(
             }
 
             item {
-                RadioCover(
+                RadioBanner(
                     current = current,
-                    coverUrl = coverUrl,
-                    playing = playing,
+                    vibe = vibe,
                     loading = loading,
                     float = float,
                     modifier = Modifier.padding(top = 14.dp),
@@ -243,54 +239,97 @@ fun RadioScreen(
 }
 
 @Composable
-private fun RadioCover(
+private fun RadioBanner(
     current: Track?,
-    coverUrl: String,
-    playing: Boolean,
+    vibe: RadioVibe,
     loading: Boolean,
     float: Float,
     modifier: Modifier = Modifier,
 ) {
+    val primary = MaterialTheme.colorScheme.primary
+    val tertiary = MaterialTheme.colorScheme.tertiary
+    val base = MaterialTheme.colorScheme.surfaceContainer
     Box(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 250.dp, max = 330.dp)
-            .graphicsLayer {
-                translationY = float * 32.dp.toPx()
-                val s = if (playing) 1f else 0.98f
-                scaleX = s
-                scaleY = s
-            }
+            .heightIn(min = 210.dp, max = 280.dp)
+            .graphicsLayer { translationY = float * 24.dp.toPx() }
             .clip(RoundedCornerShape(36.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainer),
-    ) {
-        if (coverUrl.isNotBlank()) {
-            AnimatedCover(
-                url = coverUrl,
-                contentDescription = current?.album ?: L10n.tf("电台封面", "Station cover"),
-                modifier = Modifier.fillMaxSize(),
-                cornerRadius = 36.dp,
-            )
-        } else {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f),
-                                MaterialTheme.colorScheme.surfaceContainer,
-                            ),
-                        ),
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        primary.copy(alpha = 0.62f),
+                        tertiary.copy(alpha = 0.34f),
+                        base,
                     ),
+                ),
+            ),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.58f)),
+                    ),
+                ),
+        )
+        Canvas(Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            drawCircle(
+                Color.White.copy(alpha = 0.10f),
+                radius = w * 0.42f,
+                center = androidx.compose.ui.geometry.Offset(w * 0.88f, h * 0.18f),
+            )
+            drawCircle(
+                primary.copy(alpha = 0.20f),
+                radius = w * 0.34f,
+                center = androidx.compose.ui.geometry.Offset(w * 0.14f, h * 0.88f),
+            )
+            drawLine(
+                Color.White.copy(alpha = 0.20f),
+                androidx.compose.ui.geometry.Offset(w * 0.62f, h * 0.10f),
+                androidx.compose.ui.geometry.Offset(w * 0.98f, h * 0.74f),
+                strokeWidth = 2.dp.toPx(),
+            )
+        }
+        Column(
+            Modifier.fillMaxSize().padding(22.dp),
+            verticalArrangement = Arrangement.Bottom,
+        ) {
+            Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.22f)) {
+                Text(
+                    vibe.label(),
+                    color = Color.White.copy(alpha = 0.90f),
+                    fontSize = 10.sp,
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                )
+            }
+            Text(
+                L10n.tf("专辑", "ALBUM"),
+                color = Color.White.copy(alpha = 0.62f),
+                fontSize = 10.sp,
+                letterSpacing = 1.6.sp,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            Text(
+                current?.album?.takeIf { it.isNotBlank() }
+                    ?: L10n.tf("本地曲库", "Local library"),
+                color = Color.White,
+                fontSize = 32.sp,
+                lineHeight = 37.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         if (loading) {
             CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center).size(34.dp),
+                modifier = Modifier.align(Alignment.TopEnd).padding(18.dp).size(22.dp),
                 color = Color.White,
-                strokeWidth = 3.dp,
+                strokeWidth = 2.dp,
             )
         }
     }

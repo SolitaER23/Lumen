@@ -768,6 +768,9 @@ private fun App() {
                             downloads = emptyList()
                         },
                     )
+                    key.screen == 12 -> app.lumen.player.ui.PrivacyScreen(
+                        onBack = { goBack() },
+                    )
                     key.screen == 11 -> app.lumen.player.ui.ChangelogScreen(
                         onBack = { goBack() },
                     )
@@ -777,7 +780,6 @@ private fun App() {
                         progress = radioProgress,
                         error = radioError,
                         current = playback.current,
-                        coverUrl = playback.current?.albumId?.let { client.coverUrl(it) } ?: "",
                         playing = playback.playing,
                         onBack = { goBack() },
                         onVibe = { vibe ->
@@ -828,6 +830,7 @@ private fun App() {
                         onClearLocalData = { clearLocalData() },
                         onOpenGuide = { showOnboarding = true },
                         onOpenChangelog = { navigate(NavKey(11, null)) },
+                        onOpenPrivacy = { navigate(NavKey(12, null)) },
                         onClearCache = {
                             // 只清流媒体/图片缓存；下载曲目的 cache key（URI）保留
                             MediaCache.clearStreamingCache(ctx, Downloads.downloadedUris(ctx))
@@ -1126,7 +1129,6 @@ private fun App() {
                 // 播放页有自己的控制区，不再显示底栏
                 if (screen != 2) {
                     YoinBar(
-                        pulseKey = screen,
                         modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 6.dp),
                         title = current?.title ?: "",
                         artist = current?.artist ?: "",

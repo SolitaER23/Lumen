@@ -48,7 +48,6 @@ import com.gpo.yoin.symbols.YoinSymbols
 @Composable
 fun YoinBar(
     modifier: Modifier = Modifier,
-    pulseKey: Int = 0,
     title: String,
     artist: String,
     coverUrl: String,
@@ -59,16 +58,8 @@ fun YoinBar(
     onOpenPlayer: () -> Unit,
     onToggle: () -> Unit,
 ) {
-    val pulse = remember { Animatable(1f) }
-    LaunchedEffect(pulseKey) {
-        pulse.snapTo(1.02f)
-        pulse.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = 480f))
-    }
     Row(
-        modifier.fillMaxWidth().graphicsLayer {
-            scaleX = pulse.value
-            scaleY = pulse.value
-        }.padding(horizontal = 12.dp).height(68.dp),
+        modifier.fillMaxWidth().padding(horizontal = 12.dp).height(68.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -116,6 +107,7 @@ fun YoinBar(
                                 Surface(
                                     shape = CircleShape,
                                     color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.20f),
+                                    modifier = Modifier.width(48.dp),
                                 ) {
                                     AnimatedContent(
                                         targetState = event.label(),
@@ -127,6 +119,7 @@ fun YoinBar(
                                             color = MaterialTheme.colorScheme.tertiary,
                                             fontSize = 8.sp,
                                             maxLines = 1,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
                                         )

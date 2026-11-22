@@ -97,6 +97,7 @@ fun SettingsScreen(
     onClearLocalData: () -> Unit = {},
     onOpenGuide: () -> Unit = {},
     onOpenChangelog: () -> Unit = {},
+    onOpenPrivacy: () -> Unit = {},
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var cacheBytes by remember { mutableStateOf(0L) }
@@ -391,6 +392,24 @@ fun SettingsScreen(
                     AboutRow(L10n.t("开源信息"), L10n.t("技术栈与许可"), onClick = onOpenLicenses, chevron = true)
                     FeedbackBlock()
                     AiCodedBadge(Modifier.padding(top = 14.dp))
+                }
+            }
+
+            // 07 隐私
+            item {
+                ExpressiveSection("07", L10n.tf("隐私条款", "Privacy")) {
+                    Text(
+                        L10n.tf(
+                            "说明 Lumen 收集哪些信息、为什么使用、如何存储与保护，以及你的删除与联系权利。",
+                            "How Lumen handles information, why it is used, how it is stored and protected, plus your deletion and contact rights.",
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                    )
+                    TextButton(onClick = onOpenPrivacy, contentPadding = PaddingValues(0.dp)) {
+                        Text(L10n.tf("查看完整条款 →", "Read the full policy →"), fontSize = 13.sp)
+                    }
                 }
             }
         }
@@ -718,16 +737,6 @@ private fun AboutRow(
 @Composable
 private fun FeedbackBlock() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    val clipboard = LocalClipboardManager.current
-    val email = "moon.knurled.7j@icloud.com"
-    var copied by remember { mutableStateOf(false) }
-
-    fun copy() {
-        clipboard.setText(AnnotatedString(email))
-        copied = true
-        android.widget.Toast.makeText(ctx, L10n.t("邮箱已复制"), android.widget.Toast.LENGTH_SHORT).show()
-    }
-
     Column(
         Modifier
             .fillMaxWidth()
@@ -743,20 +752,17 @@ private fun FeedbackBlock() {
             fontWeight = FontWeight.Medium,
         )
         Text(
-            email,
+            ExternalLinks.FEEDBACK_NAME,
             color = MaterialTheme.colorScheme.primary,
             fontSize = 13.sp,
-            maxLines = 1,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 6.dp)
-                .pointerInput(email) {
-                    detectTapGestures(onLongPress = { copy() })
-                }
+                .clickable { ExternalLinks.open(ctx, ExternalLinks.BILIBILI_URL) }
                 .padding(vertical = 4.dp),
         )
         Text(
-            if (copied) L10n.t("已复制到剪贴板") else L10n.t("长按邮箱复制"),
+            L10n.tf("点击前往 B 站主页", "Tap to open the Bilibili profile"),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 10.sp,
         )

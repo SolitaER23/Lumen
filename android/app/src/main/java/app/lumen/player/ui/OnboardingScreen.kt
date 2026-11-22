@@ -137,6 +137,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
                 L10n.tf("拖动进度条，点击歌词跳转", "Drag to seek, tap lyrics to jump"),
                 L10n.tf("收藏、评分或下载当前曲目", "Favorite, rate or download a track"),
                 L10n.tf("通知栏 / 锁屏遥控", "Notification and lock-screen controls"),
+                L10n.tf("迷你条显示当前声音类型", "The mini bar shows the current sound type"),
             ),
         ),
         GuidePage(
@@ -150,6 +151,32 @@ fun OnboardingScreen(onDone: () -> Unit) {
                 L10n.tf("封面取色与动态背景", "Cover colors and animated background"),
                 L10n.tf("切歌淡入淡出可调", "Adjustable crossfade"),
                 L10n.tf("账号、语言与数据管理", "Accounts, language and data"),
+            ),
+        ),
+        GuidePage(
+            tag = L10n.tf("电台", "RADIO"),
+            title = L10n.tf("长按，\n进入氛围", "Press and hold\nfor a station"),
+            body = L10n.tf(
+                "长按首页左上角「专辑」标签，按当前声音特征生成一段连续电台；也可以直接选择专注、夜晚、通勤等场景。",
+                "Press and hold the Albums tab on Home to build a continuous station from your library, or pick focus, night, commute and more.",
+            ),
+            bullets = listOf(
+                L10n.tf("长按「专辑」标签进入", "Long-press the Albums tab"),
+                L10n.tf("选择场景，立即切换", "Pick a scene and switch instantly"),
+                L10n.tf("没有列表，只有连续播放", "No queue list, just continuous play"),
+            ),
+        ),
+        GuidePage(
+            tag = L10n.tf("隐私", "PRIVACY"),
+            title = L10n.tf("所有声音，\n留在本机", "Your sounds\nstay on device"),
+            body = L10n.tf(
+                "账号密码使用 Android Keystore 加密；播放历史、评分与端侧分析只保存在本机；音频不会上传，也不含统计 SDK。",
+                "Credentials are encrypted with the Android Keystore. History, ratings and on-device analysis stay local; audio is never uploaded and there is no analytics SDK.",
+            ),
+            bullets = listOf(
+                L10n.tf("凭据加密存储", "Encrypted credentials"),
+                L10n.tf("分析在本机完成", "Analysis runs on device"),
+                L10n.tf("设置里可清除全部本机数据", "Clear all local data in Settings"),
             ),
         ),
     )
