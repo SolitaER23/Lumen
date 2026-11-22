@@ -5,7 +5,12 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -331,6 +336,8 @@ fun SettingsScreen(
                     Text("技术栈与许可", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     Text("  ›", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                 }
+                FeedbackBlock()
+                AiCodedBadge(Modifier.padding(top = 14.dp))
             }
         }
     }
@@ -343,6 +350,77 @@ fun SettingsScreen(
                 onAddAccount(base, user, pass)
             },
         )
+    }
+}
+
+@Composable
+private fun FeedbackBlock() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val email = "moon.knurled.7j@icloud.com"
+    var copied by remember { mutableStateOf(false) }
+
+    fun copy() {
+        clipboard.setText(AnnotatedString(email))
+        copied = true
+        android.widget.Toast.makeText(ctx, "邮箱已复制", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
+        Text(
+            "问题反馈",
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 14.sp,
+        )
+        Text(
+            email,
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 13.sp,
+            maxLines = 1,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp)
+                .pointerInput(email) {
+                    detectTapGestures(onLongPress = { copy() })
+                }
+                .padding(vertical = 4.dp),
+        )
+        Text(
+            if (copied) "已复制到剪贴板" else "长按邮箱复制",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun AiCodedBadge(modifier: Modifier = Modifier) {
+    val outline = MaterialTheme.colorScheme.onSurface
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .border(1.5.dp, outline.copy(alpha = 0.85f), RoundedCornerShape(14.dp))
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                "AI 编码",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.5.sp,
+            )
+            Text(
+                "非真人生成",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
     }
 }
 
