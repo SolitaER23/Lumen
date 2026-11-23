@@ -1,4 +1,4 @@
-﻿package app.lumen.player.ui
+package app.lumen.player.ui
 
 import app.lumen.player.util.L10n
 import androidx.compose.foundation.background
@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,7 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import app.lumen.player.data.Album
 import app.lumen.player.data.Artist
 import app.lumen.player.data.SubsonicClient
@@ -116,8 +117,16 @@ fun SearchScreen(
         if (error != null) {
             Text(error!!, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(20.dp))
         }
+        // 结果出现时淡入，避免"空 → 满"的硬切（纯修饰符改动，不动布局结构）
+        val contentAlpha by androidx.compose.animation.core.animateFloatAsState(
+            targetValue = if (loading) 0f else 1f,
+            animationSpec = androidx.compose.animation.core.tween(160),
+            label = "search-fade",
+        )
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = contentAlpha },
             contentPadding = PaddingValues(bottom = 120.dp),
         ) {
             if (artists.isNotEmpty()) {

@@ -50,6 +50,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -98,6 +99,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -116,7 +118,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import app.lumen.player.data.Album
 import app.lumen.player.data.AlbumCache
 import app.lumen.player.data.LyricLine
@@ -137,8 +139,9 @@ import app.lumen.player.ui.ArtistScreen
 import app.lumen.player.ui.SearchScreen
 import app.lumen.player.ui.FallbackScheme
 import app.lumen.player.ui.LicensesScreen
-import app.lumen.player.ui.MoodScreen
 import app.lumen.player.ui.HomeCard
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import app.lumen.player.ui.HomeText
 import app.lumen.player.ui.HomeSub
 import app.lumen.player.ui.HomeAccent
@@ -164,6 +167,14 @@ import kotlinx.coroutines.withContext
 fun HomeScreen(
     client: SubsonicClient,
     albums: List<Album>,
+    analyzing: Boolean = false,
+    analysisDone: Int = 0,
+    analysisTotal: Int = 0,
+    analysisPhase: String = "",
+    analysisTrack: String = "",
+    analysisMode: String = "",
+    analysisModeDetail: String = "",
+    downloadedIds: Set<String> = emptySet(),
     loading: Boolean,
     error: String?,
     coverUrl: (String) -> String,
@@ -279,6 +290,13 @@ fun HomeScreen(
                 3 -> L10n.tf("${starred.size} 首单曲 · ${sortOptions.getOrElse(sortIndex) { L10n.t("收藏顺序") }}", "${starred.size} tracks · ${sortOptions.getOrElse(sortIndex) { L10n.t("收藏顺序") }}")
                 else -> L10n.tf("${albums.size} 张专辑 · ${sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }}", "${albums.size} albums · ${sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }}")
             },
+            analyzing = analyzing,
+            analysisDone = analysisDone,
+            analysisTotal = analysisTotal,
+            analysisPhase = analysisPhase,
+            analysisTrack = analysisTrack,
+            analysisMode = analysisMode,
+            analysisModeDetail = analysisModeDetail,
             onTab = onTabChange,
             onOpenRadio = onOpenRadio,
             onSettings = onSettings,
@@ -307,10 +325,16 @@ fun HomeScreen(
             }
             else -> {
                 val pagerState = rememberPagerState(pageCount = { 4 })
-                // 点击标签：直接跳页（不做动画），快速连点不会互相打断
+                // 点击标签：走 pager 的横向滑动（shared axis X），连点会被新动画接管
                 LaunchedEffect(tab) {
                     if (pagerState.currentPage != tab) {
-                        pagerState.scrollToPage(tab)
+                        pagerState.animateScrollToPage(
+                            tab,
+                            animationSpec = androidx.compose.animation.core.tween(
+                                260,
+                                easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f),
+                            ),
+                        )
                     }
                 }
                 // 滑动过程中就跟随 currentPage 回写标签；用 rememberUpdatedState 读最新 tab，避免闭包捕获旧值
@@ -327,7 +351,7 @@ fun HomeScreen(
                     key = { it },
                 ) { page ->
                     when (page) {
-                        3 -> StarredList(sortedStarred, onPlayStarred)
+                        3 -> StarredList(sortedStarred, downloadedIds, onPlayStarred)
                         1 -> ArtistGrid(sortedArtists, onOpenArtist)
                         2 -> RecentList(
                             newest = sortedNewest,
@@ -338,6 +362,7 @@ fun HomeScreen(
                             coverUrl = coverUrl,
                             onOpen = onOpen,
                             onPlayTrack = onPlayTrack,
+                            downloadedIds = downloadedIds,
                             loading = tabLoading && newest.isEmpty(),
                         )
                         else -> Column(Modifier.fillMaxSize()) {
@@ -437,7 +462,7 @@ private fun sortStarred(list: List<Track>, mode: Int, ratingOf: (String) -> Floa
 }
 
 @Composable
-private fun StarredList(tracks: List<Track>, onPlay: (Int) -> Unit) {
+private fun StarredList(tracks: List<Track>, downloadedIds: Set<String> = emptySet(), onPlay: (Int) -> Unit) {
     if (tracks.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(L10n.t("还没有收藏的单曲"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
@@ -476,6 +501,15 @@ private fun StarredList(tracks: List<Track>, onPlay: (Int) -> Unit) {
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                if (track.id in downloadedIds) {
+                    Icon(
+                        YoinSymbols.DownloadDone,
+                        contentDescription = L10n.t("已下载"),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
                 Icon(
                     YoinSymbols.StarFilled,
                     contentDescription = null,
@@ -492,6 +526,13 @@ private fun HomeHeader(
     selected: Int,
     title: String,
     subtitle: String,
+    analyzing: Boolean = false,
+    analysisDone: Int = 0,
+    analysisTotal: Int = 0,
+    analysisPhase: String = "",
+    analysisTrack: String = "",
+    analysisMode: String = "",
+    analysisModeDetail: String = "",
     onTab: (Int) -> Unit,
     onOpenRadio: () -> Unit = {},
     onSettings: () -> Unit,
@@ -503,12 +544,25 @@ private fun HomeHeader(
     Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(title, color = HomeText, fontSize = 34.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = 34.sp, fontWeight = FontWeight.SemiBold)
+                    if (analyzing) {
+                        Spacer(Modifier.width(8.dp))
+                        AnalysisChip(
+                            done = analysisDone,
+                            total = analysisTotal,
+                            phase = analysisPhase,
+                            track = analysisTrack,
+                            mode = analysisMode,
+                            modeDetail = analysisModeDetail,
+                        )
+                    }
+                }
                 Spacer(Modifier.height(4.dp))
-                Text(subtitle, color = HomeSub, fontSize = 12.sp)
+                Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
             HomeCircleButton(onClick = onStats) {
-                val c = HomeText
+                val c = MaterialTheme.colorScheme.onBackground
                 Canvas(Modifier.size(20.dp)) {
                     val barW = size.width / 5f
                     val heights = floatArrayOf(0.45f, 0.75f, 1f)
@@ -526,11 +580,11 @@ private fun HomeHeader(
             }
             Spacer(Modifier.width(10.dp))
             HomeCircleButton(onClick = onSearch) {
-                Icon(YoinSymbols.Search, contentDescription = L10n.t("搜索"), tint = HomeText, modifier = Modifier.size(22.dp))
+                Icon(YoinSymbols.Search, contentDescription = L10n.t("搜索"), tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(10.dp))
             HomeCircleButton(onClick = onSort) {
-                val sortColor = HomeText
+                val sortColor = MaterialTheme.colorScheme.onBackground
                 Canvas(Modifier.size(20.dp)) {
                     val stroke = 2.dp.toPx()
                     val w = size.width
@@ -543,7 +597,7 @@ private fun HomeHeader(
             }
             Spacer(Modifier.width(10.dp))
             HomeCircleButton(onClick = onSettings) {
-                Icon(YoinSymbols.Settings, contentDescription = L10n.t("设置"), tint = HomeText, modifier = Modifier.size(21.dp))
+                Icon(YoinSymbols.Settings, contentDescription = L10n.t("设置"), tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(21.dp))
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -553,7 +607,7 @@ private fun HomeHeader(
                 .fillMaxWidth()
                 .height(42.dp)
                 .clip(RoundedCornerShape(percent = 50))
-                .background(HomeCard)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .padding(4.dp),
         ) {
             listOf(L10n.t("专辑"), L10n.t("艺人"), L10n.t("最近"), L10n.t("收藏")).forEachIndexed { i, label ->
@@ -562,7 +616,10 @@ private fun HomeHeader(
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(percent = 50))
-                        .background(if (i == selected) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Transparent)
+                        .background(
+                            if (i == selected) MaterialTheme.colorScheme.primaryContainer
+                            else androidx.compose.ui.graphics.Color.Transparent,
+                        )
                         .combinedClickable(
                             onClick = { onTab(i) },
                             onLongClick = {
@@ -576,7 +633,7 @@ private fun HomeHeader(
                 ) {
                     Text(
                         label,
-                        color = if (i == selected) androidx.compose.ui.graphics.Color(0xFF202126) else HomeSub,
+                        color = if (i == selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                         fontWeight = if (i == selected) FontWeight.Medium else FontWeight.Normal,
                     )
@@ -588,12 +645,28 @@ private fun HomeHeader(
 
 @Composable
 private fun HomeCircleButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+    // P2：按下时轻微缩放，反馈更"实"，不再只有 ripple
+    val interaction = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = androidx.compose.animation.core.tween(120),
+        label = "circle-press",
+    )
     Box(
         Modifier
             .size(40.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(CircleShape)
-            .background(HomeCard)
-            .clickable(onClick = onClick),
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(
+                interactionSource = interaction,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) { content() }
 }
@@ -604,9 +677,9 @@ private fun SectionRow(title: String, trailing: String) {
         Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, color = HomeText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.weight(1f))
-        Text(trailing, color = HomeSub, fontSize = 11.sp)
+        Text(trailing, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
     }
 }
 
@@ -614,7 +687,7 @@ private fun SectionRow(title: String, trailing: String) {
 
 
 // 首页中性色板（设计稿）：颜色交给封面，界面只用灰阶 + 一种强调色
-private val HomeBg = androidx.compose.ui.graphics.Color(0xFF202126)
+internal val HomeBg = androidx.compose.ui.graphics.Color(0xFF202126)
 
 /** 首页专用的中性灰阶配色：颜色交给封面，界面只用灰阶 + 一种强调色。 */
 internal val HomeScheme = androidx.compose.material3.darkColorScheme(
@@ -647,19 +720,58 @@ private fun AlbumGrid(
     coverShared: @Composable (String) -> Modifier,
     progressOf: (Album) -> Float? = { null },
 ) {
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+    // 解码尺寸对齐：两列、左右各 20dp、列间距 24dp
+    val cellPx = with(density) { (((screenW - 64) / 2f).coerceAtLeast(120f).dp).roundToPx() }
+
+    // 分页渲染：首屏只组合 24 张，滚动接近底部再追加，冷启动更快
+    // F4：分页数量必须可恢复，否则返回首页会退回 24 张并跳回顶部
+    var shown by androidx.compose.runtime.saveable.rememberSaveable(albums.size) {
+        androidx.compose.runtime.mutableIntStateOf(minOf(albums.size, 24))
+    }
+    androidx.compose.runtime.LaunchedEffect(gridState.layoutInfo.visibleItemsInfo.size, shown) {
+        val last = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+        if (last >= shown - 4 && shown < albums.size) {
+            shown = minOf(albums.size, shown + 24)
+        }
+    }
+
+    // 预取下一屏：可见范围之后 8 个格子的封面先解码进内存
+    androidx.compose.runtime.LaunchedEffect(gridState.layoutInfo.visibleItemsInfo.size, albums.size) {
+        val info = gridState.layoutInfo
+        val last = info.visibleItemsInfo.lastOrNull()?.index ?: return@LaunchedEffect
+        val until = (last + 8).coerceAtMost(albums.lastIndex)
+        if (until <= last) return@LaunchedEffect
+        val loader = coil3.SingletonImageLoader.get(ctx)
+        for (i in last + 1..until) {
+            val a = albums.getOrNull(i) ?: continue
+            loader.enqueue(
+                coil3.request.ImageRequest.Builder(ctx)
+                    .data(coverUrl(a.coverId))
+                    .size(cellPx)
+                    .build(),
+            )
+        }
+    }
+
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
+        state = gridState,
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 130.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        items(albums, key = { it.id }) { album ->
+        items(albums.take(shown), key = { it.id }) { album ->
             AlbumCard(
                 album = album,
                 url = coverUrl(album.coverId),
                 coverModifier = coverShared(album.id),
                 progress = progressOf(album),
+                coverSizePx = cellPx,
                 onClick = { onOpen(album) },
             )
         }
@@ -697,6 +809,7 @@ private fun ArtistGrid(
 private fun RecentTrackRow(
     track: Track,
     coverUrl: (String) -> String,
+    downloaded: Boolean = false,
     onPlay: (Track) -> Unit,
 ) {
     Row(
@@ -730,6 +843,15 @@ private fun RecentTrackRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (downloaded) {
+            Icon(
+                YoinSymbols.DownloadDone,
+                contentDescription = L10n.t("已下载"),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+        }
         Icon(
             YoinSymbols.PlayFilled,
             contentDescription = L10n.t("播放"),
@@ -760,6 +882,7 @@ private fun RecentList(
     coverUrl: (String) -> String,
     onOpen: (Album) -> Unit,
     onPlayTrack: (Track) -> Unit,
+    downloadedIds: Set<String> = emptySet(),
     loading: Boolean,
 ) {
     // 单曲下载：按 trackId 拉一次元数据（封面/标题/艺人），供卡片显示与播放
@@ -892,7 +1015,7 @@ private fun RecentList(
                     item(key = "rempty") { RecentEmpty(L10n.t("暂无最近播放的歌曲")) }
                 } else {
                     items(recentTracks, key = { "r${it.id}" }) { track ->
-                        RecentTrackRow(track, coverUrl, onPlayTrack)
+                        RecentTrackRow(track, coverUrl, track.id in downloadedIds, onPlayTrack)
                     }
                 }
                 else -> if (downloads.isEmpty()) {
@@ -1105,37 +1228,58 @@ private fun AlbumCard(
     modifier: Modifier = Modifier,
     coverModifier: Modifier = Modifier,
     progress: Float? = null,
+    /** 解码尺寸（px）：与格子实际像素对齐，避免超采样解码 */
+    coverSizePx: Int? = null,
     onClick: () -> Unit,
 ) {
     Column(modifier.clickable(onClick = onClick)) {
-        Box(
-            Modifier
+        LumooCover(
+            modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(18.dp))
-                .background(HomeCard),
+                .onGloballyPositioned { c ->
+                    runCatching {
+                        app.lumen.player.ui.NavOriginStore.put(album.id, c.boundsInRoot())
+                    }
+                },
+            albumId = album.id,
+            cornerRadius = 20.dp,
+            elevation = 14.dp,
         ) {
+            val imgCtx = androidx.compose.ui.platform.LocalContext.current
+            val model = remember(url, coverSizePx) {
+                if (coverSizePx == null) {
+                    url
+                } else {
+                    coil3.request.ImageRequest.Builder(imgCtx)
+                        .data(url)
+                        .size(coverSizePx)
+                        .build()
+                }
+            }
             AsyncImage(
-                model = url,
+                model = model,
                 contentDescription = album.name,
                 contentScale = ContentScale.Crop,
                 modifier = coverModifier.fillMaxSize(),
             )
-            // 播放中的专辑：封面下沿 3dp 进度线（不叠加任何角标/描边）
+            // 播放中：底部细进度线，贴合卡片圆角
             if (progress != null) {
                 Box(
                     Modifier
-                        .align(Alignment.BottomStart)
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
                         .fillMaxWidth(progress.coerceIn(0f, 1f))
                         .height(3.dp)
-                        .background(HomeAccent),
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(MaterialTheme.colorScheme.primary),
                 )
             }
         }
         Spacer(Modifier.height(8.dp))
         Text(
             album.name,
-            color = HomeText,
+            color = MaterialTheme.colorScheme.onBackground,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
@@ -1144,10 +1288,189 @@ private fun AlbumCard(
         Spacer(Modifier.height(3.dp))
         Text(
             album.artist,
-            color = HomeSub,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/**
+ * 「正在分析」气泡（重建：原实现随文件截断丢失，功能与文案保持一致）：
+ * 收起态是胶囊，点开后展开进度、阶段、取流方式与说明，点空白处关闭。
+ */
+@Composable
+private fun AnalysisChip(
+    done: Int,
+    total: Int,
+    phase: String,
+    track: String,
+    mode: String,
+    modeDetail: String,
+) {
+    var open by remember { mutableStateOf(false) }
+    val progress = if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f
+    val pct = (progress * 100).toInt()
+
+    Box {
+        androidx.compose.material3.Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 3.dp,
+            modifier = Modifier.clickable { open = true },
+        ) {
+            Row(
+                Modifier.padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    progress = { if (progress > 0f) progress else 0.08f },
+                    modifier = Modifier.size(12.dp),
+                    strokeWidth = 1.6.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    L10n.t("正在分析"),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+
+        if (open) {
+            androidx.compose.ui.window.Popup(
+                alignment = Alignment.TopStart,
+                offset = androidx.compose.ui.unit.IntOffset(0, 56),
+                onDismissRequest = { open = false },
+                properties = androidx.compose.ui.window.PopupProperties(
+                    focusable = true,
+                    dismissOnClickOutside = true,
+                    dismissOnBackPress = true,
+                ),
+            ) {
+                val pop = androidx.compose.runtime.remember {
+                    androidx.compose.animation.core.Animatable(0f)
+                }
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    pop.animateTo(
+                        1f,
+                        androidx.compose.animation.core.tween(
+                            160,
+                            easing = androidx.compose.animation.core.FastOutSlowInEasing,
+                        ),
+                    )
+                }
+                Column(
+                    Modifier
+                        .width(320.dp)
+                        .graphicsLayer {
+                            alpha = pop.value
+                            scaleX = 0.94f + 0.06f * pop.value
+                            scaleY = 0.94f + 0.06f * pop.value
+                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                        }
+                        .shadow(18.dp, androidx.compose.foundation.shape.RoundedCornerShape(26.dp))
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(26.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                            androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
+                        )
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            L10n.t("正在后台分析"),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            "$pct%",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            "$done",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            L10n.tf(" / $total 首", " / $total tracks"),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(bottom = 5.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(5.dp)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(percent = 50))
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)),
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth(progress.coerceAtLeast(0.01f))
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.primary),
+                        )
+                    }
+                    if (phase.isNotBlank()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            L10n.t("当前阶段：") + phase + if (track.isNotBlank()) " · " + track else "",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            maxLines = 2,
+                        )
+                    }
+                    if (mode.isNotBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            if (modeDetail.isBlank()) mode else mode + " · " + modeDetail,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            fontSize = 10.sp,
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        L10n.t(
+                            "每首只读取开头、中间、结尾各 30 秒音频（约 1~2 秒/首），用于封面配色、氛围电台与节拍动效；" +
+                                "不会保存整首歌，也不占用离线下载空间。全部在本机完成，不上传音频。" +
+                                "分析期间可能有短暂卡顿或发热，结束后自动恢复。",
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        L10n.t("轻点空白处关闭"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        fontSize = 10.sp,
+                    )
+                }
+            }
+        }
     }
 }

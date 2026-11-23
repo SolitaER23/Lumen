@@ -1,4 +1,4 @@
-﻿package app.lumen.player.playback
+package app.lumen.player.playback
 
 import app.lumen.player.util.L10n
 import android.content.Context
@@ -43,11 +43,18 @@ object Downloads {
             .putString("name_$key", name).apply()
     }
 
+    private fun saveTrackTitle(ctx: Context, trackId: String, title: String) {
+        runCatching {
+            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putString("t_$trackId", title).apply()
+        }
+    }
+
     private fun request(id: String, url: String, key: String): DownloadRequest =
         DownloadRequest.Builder(id, android.net.Uri.parse(url))
             .setData(key.toByteArray(Charsets.UTF_8))
             .setMimeType("audio/mpeg")
-            // 独立 cache key：既不与在线播放同一 URI 并发冲突，也方便L10n.t("清缓存")时保留
+            // 独立 cache key：既不与在线播放同一 URI 并发冲突，也方便“清缓存”时保留
             .setCustomCacheKey(MediaCache.downloadKey(id))
             .build()
 
@@ -57,6 +64,7 @@ object Downloads {
         val key = PREFIX_ALBUM + album.id
         saveName(ctx, key, album.name)
         tracks.forEach { t ->
+            saveTrackTitle(ctx, t.id, if (t.artist.isBlank()) t.title else "${t.title} · ${t.artist}")
             Media3DownloadService.sendAddDownload(ctx, DownloadService::class.java, request(t.id, urlFor(t), key), true)
         }
     }
@@ -65,6 +73,7 @@ object Downloads {
     fun enqueueTrack(ctx: Context, track: Track, urlFor: (Track) -> String) {
         val key = PREFIX_TRACK + track.id
         saveName(ctx, key, if (track.artist.isBlank()) track.title else "${track.title} · ${track.artist}")
+        saveTrackTitle(ctx, track.id, if (track.artist.isBlank()) track.title else "${track.title} · ${track.artist}")
         // 记下专辑/艺人，管理页与「已下载」卡片可直接显示封面并播放
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString("album_$key", track.albumId)
@@ -151,6 +160,72 @@ object Downloads {
                 }
             }
         }
+    }
+
+    /** 已下载完成的曲目 id（含专辑组里的单曲），用于列表打「已下载」标记。 */
+    fun completedTrackIds(ctx: Context): Set<String> = runCatching {
+        MediaCache.downloadManager(ctx).downloadIndex.getDownloads().use { c ->
+            buildSet {
+                while (c.moveToNext()) {
+                    val d = c.download
+                    if (d.state == Download.STATE_COMPLETED) add(d.request.id)
+                }
+            }
+        }
+    }.getOrDefault(emptySet())
+
+    data class DownloadTrack(
+        val id: String,
+        val title: String,
+        val bytes: Long,
+        val done: Boolean,
+        val failed: Boolean,
+        val paused: Boolean,
+    )
+
+    /** 某个下载组（专辑或单曲）下的曲目明细，用于管理页展开。 */
+    fun tracksOf(ctx: Context, groupKey: String): List<DownloadTrack> = runCatching {
+        val cache = MediaCache.cache(ctx)
+        val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val out = ArrayList<DownloadTrack>()
+        MediaCache.downloadManager(ctx).downloadIndex.getDownloads().use { c ->
+            while (c.moveToNext()) {
+                val d = c.download
+                if (keyOf(d) != groupKey) continue
+                val size = runCatching {
+                    maxOf(
+                        cache.getCachedSpans(MediaCache.downloadKey(d.request.id)).sumOf { it.length },
+                        cache.getCachedSpans(d.request.uri.toString()).sumOf { it.length },
+                    )
+                }.getOrDefault(0L)
+                out.add(
+                    DownloadTrack(
+                        id = d.request.id,
+                        title = prefs.getString("t_${d.request.id}", null) ?: d.request.id,
+                        bytes = size,
+                        done = d.state == Download.STATE_COMPLETED,
+                        failed = d.state == Download.STATE_FAILED,
+                        paused = d.state == Download.STATE_STOPPED,
+                    ),
+                )
+            }
+        }
+        out
+    }.getOrDefault(emptyList())
+
+    /** 单独删除一首（专辑组内也可单独删）。 */
+    fun deleteTrack(ctx: Context, trackId: String) {
+        runCatching {
+            Media3DownloadService.sendRemoveDownload(ctx, DownloadService::class.java, trackId, true)
+        }
+    }
+
+    fun pauseAll(ctx: Context) {
+        runCatching { Media3DownloadService.sendPauseDownloads(ctx, DownloadService::class.java, true) }
+    }
+
+    fun resumeAll(ctx: Context) {
+        runCatching { Media3DownloadService.sendResumeDownloads(ctx, DownloadService::class.java, true) }
     }
 
     fun totalBytes(ctx: Context): Long = summaries(ctx).sumOf { it.bytes }

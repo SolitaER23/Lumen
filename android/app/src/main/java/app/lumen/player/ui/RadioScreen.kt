@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -72,7 +73,6 @@ fun RadioScreen(
     onRegenerate: () -> Unit,
     onToggle: () -> Unit,
     onNext: () -> Unit,
-    onOpenMood: () -> Unit,
     onRetry: () -> Unit,
 ) {
     val accent = MaterialTheme.colorScheme.primary
@@ -92,8 +92,17 @@ fun RadioScreen(
     )
 
     Box(Modifier.fillMaxSize()) {
+        // 曲目到达时淡入（从"正在准备"到有内容不硬切）
+        val contentAlpha by androidx.compose.animation.core.animateFloatAsState(
+            targetValue = if (loading) 0.55f else 1f,
+            animationSpec = androidx.compose.animation.core.tween(200),
+            label = "radio-fade",
+        )
         LazyColumn(
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = contentAlpha }
+                .statusBarsPadding(),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
         ) {
             item {
@@ -195,7 +204,7 @@ fun RadioScreen(
             if (loading) {
                 item { RadioLoading(progress, Modifier.padding(top = 18.dp)) }
             } else if (error != null) {
-                item { RadioError(error, onRetry, onOpenMood, Modifier.padding(top = 18.dp)) }
+                item { RadioError(error, onRetry, Modifier.padding(top = 18.dp)) }
             }
 
             item {
@@ -327,7 +336,7 @@ private fun RadioLoading(progress: Float, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun RadioError(message: String, onRetry: () -> Unit, onOpenMood: () -> Unit, modifier: Modifier = Modifier) {
+private fun RadioError(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -349,7 +358,12 @@ private fun RadioError(message: String, onRetry: () -> Unit, onOpenMood: () -> U
             )
             Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onRetry) { Text(L10n.tf("重试", "Retry"), fontSize = 12.sp) }
-                TextButton(onClick = onOpenMood) { Text(L10n.tf("去分析", "Analyze"), fontSize = 12.sp) }
+                Text(
+                    L10n.tf("分析会在后台自动进行", "Analysis runs automatically in the background"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
         }
     }

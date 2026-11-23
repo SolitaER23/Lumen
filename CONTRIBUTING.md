@@ -5,8 +5,9 @@
 ## 开发环境
 
 - JDK 17
-- Android SDK 36（platform 36）
-- 使用仓库自带的 Gradle Wrapper，不要依赖全局 Gradle 版本
+- Android SDK 37（platform 37.2）+ Build-Tools 37.0.0（Compose 1.13 要求 compileSdk ≥ 37.1，工程用 `compileSdkMinor = 2`）
+- 使用仓库自带的 Gradle Wrapper（9.9.2），不要依赖全局 Gradle 版本
+- AGP 9 起内置 Kotlin 支持，构建脚本中不再应用 `org.jetbrains.kotlin.android`
 
 ```bash
 cd android
@@ -16,7 +17,7 @@ cd android
 
 ## 提交前检查
 
-1. `./gradlew :app:testDebugUnitTest` 通过；
+1. `./gradlew :app:testDebugUnitTest` 通过；Release 变更还需 `./gradlew :app:assembleRelease` 通过；
 2. 改动涉及播放、下载或账号切换时，在真机上做一次冒烟测试；
 3. 不要在日志或测试里写真实服务器地址、账号、密码或 Token；
 4. 新增第三方依赖时同步更新 `THIRD_PARTY_NOTICES.md` 和 `assets/licenses/`；

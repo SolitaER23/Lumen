@@ -41,7 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.gpo.yoin.symbols.YoinSymbols
 
 /** 底部迷你播放条：封面 + 曲名 / 艺人 + 播放键。 */
@@ -53,7 +53,6 @@ fun YoinBar(
     coverUrl: String,
     playing: Boolean,
     enabled: Boolean,
-    eventLabel: String? = null,
     onHome: () -> Unit,
     onOpenPlayer: () -> Unit,
     onToggle: () -> Unit,
@@ -68,7 +67,7 @@ fun YoinBar(
                 .weight(1f)
                 .height(62.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .background(HomeCard)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .clickable(enabled = enabled, onClick = onOpenPlayer)
                 .padding(start = 8.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -93,46 +92,22 @@ fun YoinBar(
                     Column(Modifier.fillMaxWidth()) {
                         Text(
                             t, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                            color = HomeText,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             Text(
-                                artist, fontSize = 11.sp, color = HomeSub,
+                                artist, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false),
                             )
-                            if (eventLabel != null) {
-                                Spacer(Modifier.width(6.dp))
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.20f),
-                                    modifier = Modifier.width(48.dp),
-                                ) {
-                                    AnimatedContent(
-                                        targetState = eventLabel,
-                                        transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(140)) },
-                                        label = "audio-event",
-                                    ) { label ->
-                                        Text(
-                                            label,
-                                            color = MaterialTheme.colorScheme.tertiary,
-                                            fontSize = 8.sp,
-                                            maxLines = 1,
-                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                                        )
-                                    }
-                                }
-                            }
                         }
                     }
                 }
             } else {
                 Text(
                     L10n.t("还没有播放"),
-                    color = HomeSub,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     modifier = Modifier.weight(1f).padding(start = 12.dp),
                 )
@@ -141,14 +116,14 @@ fun YoinBar(
                 Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(Color.White)
+                    .background(MaterialTheme.colorScheme.primary)
                     .clickable(enabled = enabled, onClick = onToggle),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
                     contentDescription = if (playing) L10n.t("暂停") else L10n.t("播放"),
-                    tint = Color(0xFF202126),
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(22.dp),
                 )
             }

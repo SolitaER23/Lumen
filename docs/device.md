@@ -1,6 +1,6 @@
-﻿# 测试设备档案
+# 测试设备档案
 
-> 手动维护。最后更新：2026-11-20
+> 手动维护。最后更新：2026-11-23
 >
 > **只维护一台目标机**：Google Pixel 10a。其他机型、平板、模拟器不再作为验证对象。
 
@@ -8,40 +8,45 @@
 
 | 项 | 值 |
 | --- | --- |
-| 序列号 | `192.0.2.14:42187`（无线调试；mDNS：`adb-DEMO-DEVICE`） |
 | 厂商 / 品牌 | Google / Pixel |
-| 机型 / 代号 | Pixel 10a / `stallion` |
-| Android 版本 | 16（API 36，build `CP1A.260305.018`） |
+| 机型 | Pixel 10a |
+| Android 版本 | 17（API 37，arm64） |
+| 编译/目标 SDK | `compileSdk 37` / `targetSdk 37` |
 | 主要 ABI | arm64-v8a |
 | 屏幕 / 密度 | 1080×2424 @420dpi（2.625×） |
 | 逻辑尺寸 | **411×923 pt**（竖屏）；挖孔 cutout top 152px，圆角 115px |
-| 刷新率 | 120 / 60 / 40 / 30 / 24 / 20 Hz，默认 mode 2 = 120Hz；App 钉 120Hz，动画实测 121 fps |
+| 刷新率 | 120 / 60 / 40 / 30 / 24 / 20 Hz；应用在 `MainActivity` 固定请求 120Hz（`preferredRefreshRate = 120f`） |
 
-### 连接与验证
+## 连接与验证
 
 ```powershell
-adb devices -l                                  # 确认序列号
-.\build.ps1 -Abis arm64-v8a                     # 只编 arm64
-adb -s <serial> install -r .\dist\app-debug.apk
+adb devices -l                                   # 确认序列号
+cd android
+.\gradlew.bat :app:testDebugUnitTest             # 单测
+.\gradlew.bat :app:assembleRelease               # 正式签名包
+adb -s <serial> install -r app\build\outputs\apk\release\app-release.apk
 adb -s <serial> shell am force-stop app.lumen.player
-adb -s <serial> shell am start -n app.lumen.player/com.google.androidgamesdk.GameActivity
-adb -s <serial> logcat -d | Select-String "app::"     # 日志 tag 是模块路径：app::app / app::audio / ...
+adb -s <serial> shell am start -n app.lumen.player/.MainActivity
+adb -s <serial> logcat -d -s Lumen LumenPlay LumenMood   # 仅 Debug 构建有 Logx 输出
 adb -s <serial> exec-out screencap -p > shot.png
 ```
 
-无线调试时先 `adb connect <ip>:5555`；adb daemon 偶发重启会丢连接，每次操作前重新连接。
+说明：
 
-### 换机时需要重新确认的项
+- 唯一入口是 `app.lumen.player/.MainActivity`；
+- `Logx` 的打桩日志只在 `BuildConfig.DEBUG` 下输出，Release 版请用 `adb logcat` 观察系统层日志与崩溃栈；
+- 无线调试时先 `adb connect <ip>:5555`；adb daemon 偶发重启会丢连接，每次操作前重新连接。
 
-- `wm size` / `wm density` → 决定 `k`（屏高/760）与瓷砖列数；
-- 状态栏/导航栏/挖孔安全区（`safe_area` 打印的 top/bottom px）；
-- 面板刷新率与 `ANativeWindow_setFrameRateWithChangeStrategy(120, FIXED_SOURCE+ALWAYS)` 是否真的切到高刷；
-- 16 KB 页支持（Pixel 已按 16 KB 对齐，`llvm-readelf -l` 看 `LOAD ... 0x4000`）。
+## 换机时需要重新确认的项
+
+- `wm size` / `wm density` → 决定瓷砖列数与逻辑尺寸；
+- 状态栏 / 导航栏 / 挖孔安全区；
+- 面板刷新率是否真的切到 120Hz；
+- 16 KB page 支持：`llvm-readelf -l` 查看 `.so` 的 `LOAD` 对齐是否为 `0x4000`。
 
 ## 打包注意事项
 
-- 只出 `arm64-v8a`（`abiFilters` 与 `build.ps1` 默认值都已收敛），不再编 x86_64；
-- `build.ps1` 里 `$ErrorActionPreference = "Stop"`，**不要**给 cargo/gradle 加 `2>&1`，
-  cargo 的进度输出走 stderr，会被 PowerShell 当成错误中断构建；
-- 如果安装报 `INSTALL_FAILED_OLDER_SDK`，说明系统 API 低于 `minSdk 26`，需要下调 `minSdk`；
-- 全面屏手势导航下，系统报的 safe-area bottom 是 0，界面对播放条自己补了 10pt 下限。
+- 只出 `arm64-v8a`（`abiFilters` 已收敛，不再编 x86_64）；
+- Release 必须使用正式证书：读取 `android/keystore.properties` 或环境变量 `LUMEN_KEYSTORE_FILE` / `LUMEN_KEYSTORE_PASSWORD` / `LUMEN_KEY_ALIAS` / `LUMEN_KEY_PASSWORD`；缺密钥时产出 **unsigned APK**，不会回退 debug 签名；
+- 安装报 `INSTALL_FAILED_OLDER_SDK` 说明系统 API 低于 `minSdk 26`；
+- 全面屏手势导航下系统报的 safe-area bottom 是 0，界面对播放条自行补了 10pt 下限。

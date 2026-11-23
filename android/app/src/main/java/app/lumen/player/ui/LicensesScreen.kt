@@ -59,37 +59,37 @@ private val OSS_GROUPS = listOf(
     OssGroup(
         L10n.t("应用与界面"),
         listOf(
-            OssItem("Kotlin", "2.3.20", L10n.t("开发语言与协程"), "Apache-2.0", "© JetBrains s.r.o. and contributors"),
-            OssItem("Jetpack Compose", "BOM 2024.10.01", L10n.t("声明式 UI 框架"), "Apache-2.0", "© 2019-2024 The Android Open Source Project"),
-            OssItem("Material 3", "Compose BOM 2024.10.01", L10n.t("组件、动效与设计规范"), "Apache-2.0", "© The Android Open Source Project"),
-            OssItem("AndroidX Core / Activity / Lifecycle", "1.15.0 / 1.9.3 / 2.8.7", L10n.t("系统能力与生命周期"), "Apache-2.0", "© The Android Open Source Project"),
-            OssItem("WorkManager", "2.9.1", L10n.t("充电 + Wi-Fi 时的后台分析任务"), "Apache-2.0", "© The Android Open Source Project"),
+            OssItem("Kotlin", "2.4.21", L10n.t("开发语言与协程"), "Apache-2.0", "© JetBrains s.r.o. and contributors"),
+            OssItem("Jetpack Compose", "BOM 2026.11.01", L10n.t("声明式 UI 框架"), "Apache-2.0", "© 2019-2024 The Android Open Source Project"),
+            OssItem("Material 3", "Compose BOM 2026.11.01", L10n.t("组件、动效与设计规范"), "Apache-2.0", "© The Android Open Source Project"),
+            OssItem("AndroidX Core / Activity / Lifecycle", "1.19.1 / 1.13.0 / 2.11.1", L10n.t("系统能力与生命周期"), "Apache-2.0", "© The Android Open Source Project"),
+            OssItem("WorkManager", "2.12.0", L10n.t("充电 + Wi-Fi 时的后台分析任务"), "Apache-2.0", "© The Android Open Source Project"),
             OssItem("Yoin Symbols", "0.2.0", L10n.t("界面图标"), "MIT", "© p2o51"),
-            OssItem("Material Color Utilities", L10n.t("2025 源码快照"), L10n.t("封面取色与配色方案（vendored）"), "Apache-2.0", "© 2021-2025 Google LLC"),
+            OssItem("Material Color Utilities", L10n.t("2026 源码快照"), L10n.t("封面取色与配色方案（vendored）"), "Apache-2.0", "© 2021-2026 Google LLC"),
             OssItem("Google Sans Flex", L10n.t("内嵌字体"), L10n.t("界面字体"), "OFL-1.1", "© 2015 The Google Sans Flex Authors"),
         ),
     ),
     OssGroup(
         L10n.t("媒体与图片"),
         listOf(
-            OssItem("AndroidX Media3 / ExoPlayer", "1.5.0", L10n.t("音频播放、队列与转码兜底"), "Apache-2.0", "© The Android Open Source Project"),
-            OssItem("Coil", "2.7.0", L10n.t("封面与图片加载缓存"), "Apache-2.0", "© Coil Contributors"),
+            OssItem("AndroidX Media3 / ExoPlayer", "1.11.1", L10n.t("音频播放、队列与转码兜底"), "Apache-2.0", "© The Android Open Source Project"),
+            OssItem("Coil", "3.6.3", L10n.t("封面与图片加载缓存"), "Apache-2.0", "© Coil Contributors"),
         ),
     ),
     OssGroup(
         L10n.t("网络与数据"),
         listOf(
-            OssItem("Retrofit", "2.11.0", L10n.t("Subsonic HTTP 接口调用"), "Apache-2.0", "© Square, Inc."),
-            OssItem("OkHttp", "4.12.0", L10n.t("网络传输与连接池"), "Apache-2.0", "© Square, Inc."),
-            OssItem("Gson", "2.11.0", L10n.t("JSON 解析"), "Apache-2.0", "© Google LLC"),
-            OssItem("kotlinx.serialization", "1.9.0", L10n.t("设置与播放状态的序列化"), "Apache-2.0", "© JetBrains s.r.o."),
+            OssItem("Retrofit", "3.0.0", L10n.t("Subsonic HTTP 接口调用"), "Apache-2.0", "© Square, Inc."),
+            OssItem("OkHttp", "5.5.1", L10n.t("网络传输与连接池"), "Apache-2.0", "© Square, Inc."),
+            OssItem("Gson", "2.15.0", L10n.t("JSON 解析"), "Apache-2.0", "© Google LLC"),
+            OssItem("kotlinx.serialization", "1.13.0", L10n.t("设置与播放状态的序列化"), "Apache-2.0", "© JetBrains s.r.o."),
             OssItem(L10n.t("SQLite（Android 内置）"), L10n.t("系统版本"), L10n.t("心情结果、评分与统计缓存"), "Public Domain", "© SQLite Authors"),
         ),
     ),
     OssGroup(
         L10n.t("端侧音乐理解"),
         listOf(
-            OssItem("LiteRT", "1.4.0", L10n.t("YAMNet 推理运行时"), "Apache-2.0", "© The TensorFlow Authors"),
+            OssItem("LiteRT", "2.4.0", L10n.t("YAMNet 推理运行时"), "Apache-2.0", "© The TensorFlow Authors"),
             OssItem("YAMNet", "TensorFlow Models", L10n.t("预训练音频事件分类模型"), "Apache-2.0", "© 2019 The TensorFlow Authors"),
         ),
     ),
@@ -215,8 +215,8 @@ fun LicensesScreen(onBack: () -> Unit) {
                     LicenseNote(
                         L10n.tf("端侧音频理解", "On-device audio understanding"),
                         L10n.tf(
-                            "心情分析由 YAMNet 与本地 DSP 完成，推理通过 LiteRT 1.4.0 在设备端执行；YAMNet 模型未修改，音频不会上传。分析结果仅用于动态背景、配色与节拍，不改变音频文件。",
-                            "Mood analysis runs YAMNet and local DSP with LiteRT 1.4.0 entirely on device. The YAMNet model is unmodified and audio is never uploaded. Results only drive the animated background, palette and beat response; audio files are never modified.",
+                            "心情分析由 YAMNet 与本地 DSP 完成，推理通过 LiteRT 2.4.0 在设备端执行；YAMNet 模型未修改，音频不会上传。分析结果仅用于动态背景、配色与节拍，不改变音频文件。",
+                            "Mood analysis runs YAMNet and local DSP with LiteRT 2.4.0 entirely on device. The YAMNet model is unmodified and audio is never uploaded. Results only drive the animated background, palette and beat response; audio files are never modified.",
                         ),
                     )
                     LicenseNote(

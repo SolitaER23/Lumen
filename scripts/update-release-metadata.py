@@ -5,8 +5,8 @@ Usage:
   python scripts/update-release-metadata.py [path/to/app-release.apk]
 
 It copies the APK into dist/, writes SHA256SUMS.txt and README.txt, and keeps
-docs/distribution.md, docs/release-plan.md, docs/privacy-policy.md and
-docs/terms-of-service.md in sync with the current version.
+docs/distribution.md, README.md, docs/privacy-policy.md and docs/terms-of-service.md
+in sync with the current version.
 """
 from __future__ import annotations
 
@@ -63,6 +63,7 @@ def main() -> int:
             (r"`0\.\d+\.\d+` / `versionCode \d+`", f"`{version_name}` / `versionCode {version_code}`"),
             (r"`\d{1,3}(?:,\d{3})+` 字节（约 [\d.]+ MiB）", f"`{size:,}` 字节（约 {size / 1_048_576:.1f} MiB）"),
             (r"\| SHA-256 \| `[0-9A-F]{64}` \|", f"| SHA-256 | `{sha}` |"),
+            (r"# 应输出 [0-9A-F]{64}", f"# 应输出 {sha}"),
             (r"Lumen-\d+\.\d+\.\d+\.apk", target.name),
             (
                 r"- 已安装：`Lumen-\d+\.\d+\.\d+\.apk`",
@@ -88,13 +89,6 @@ def main() -> int:
             (r"`dist/Lumen-\d+\.\d+\.\d+\.apk`", f"`dist/{target.name}`"),
         ],
     )
-    replace(
-        ROOT / "docs/release-plan.md",
-        [
-            (r"目标版本：`0\.\d+\.\d+` / `versionCode \d+`", f"目标版本：`{version_name}` / `versionCode {version_code}`"),
-            (r"Lumen-\d+\.\d+\.\d+\.apk", target.name),
-        ],
-    )
     for doc in ("privacy-policy.md", "terms-of-service.md"):
         replace(
             ROOT / "docs" / doc,
@@ -104,7 +98,7 @@ def main() -> int:
     print(f"Updated {target} ({size} bytes)")
     print(f"SHA-256 {sha}")
     print(f"Version {version_name} ({version_code})")
-    print("Key attachments updated: distribution, release-plan, privacy, terms, dist/")
+    print("Key attachments updated: distribution, privacy, terms, dist/")
     return 0
 
 

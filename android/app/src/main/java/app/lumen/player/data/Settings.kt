@@ -24,19 +24,99 @@ object Appearance {
     private const val FILE = "lumen_settings"
     private const val KEY_CONTRAST = "mcu_contrast"
 
+    /** 对比度：0 = 标准 / 0.45 = 增强 / 0.7 = 最高（旧值 1.0 收敛到 0.7）。 */
     fun contrast(ctx: Context): Float {
         val p = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
-        // 本次升级默认切到「高」对比度（只迁移一次）
-        if (!p.getBoolean("mcu_contrast_high_default", false)) {
-            p.edit().putFloat(KEY_CONTRAST, 1f).putBoolean("mcu_contrast_high_default", true).apply()
-            return 1f
+        val v = p.getFloat(KEY_CONTRAST, 0.45f)
+        if (v > 0.7f) {
+            p.edit().putFloat(KEY_CONTRAST, 0.7f).apply()
+            return 0.7f
         }
-        return p.getFloat(KEY_CONTRAST, 1f)
+        return v
     }
 
     fun setContrast(ctx: Context, value: Float) {
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
-            .putFloat(KEY_CONTRAST, value.coerceIn(0f, 1f)).apply()
+            .putFloat(KEY_CONTRAST, value.coerceIn(0f, 0.7f)).apply()
+    }
+
+    // ---------- 主题 / 配色偏好 ----------
+
+    fun themeMode(ctx: Context): String =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getString("theme_mode", "system") ?: "system"
+
+    fun setThemeMode(ctx: Context, v: String) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putString("theme_mode", v).apply()
+    }
+
+    fun paletteStyle(ctx: Context): String =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getString("palette_style", "tonal") ?: "tonal"
+
+    fun setPaletteStyle(ctx: Context, v: String) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putString("palette_style", v).apply()
+    }
+
+    fun moodTint(ctx: Context): Boolean =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean("mood_tint", true)
+
+    fun setMoodTint(ctx: Context, v: Boolean) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("mood_tint", v).apply()
+    }
+
+    fun gradientTheme(ctx: Context): Boolean =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean("gradient_theme", false)
+
+    fun setGradientTheme(ctx: Context, v: Boolean) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("gradient_theme", v).apply()
+    }
+
+    fun perPageColor(ctx: Context): Boolean =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean("per_page_color", false)
+
+    fun setPerPageColor(ctx: Context, v: Boolean) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("per_page_color", v).apply()
+    }
+
+    fun materialYou(ctx: Context): Boolean =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean("material_you", false)
+
+    fun setMaterialYou(ctx: Context, v: Boolean) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("material_you", v).apply()
+    }
+
+    fun amoled(ctx: Context): Boolean =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean("amoled", false)
+
+    fun setAmoled(ctx: Context, v: Boolean) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("amoled", v).apply()
+    }
+
+    /** 按专辑锁色：存的是专辑 id + 该专辑的种子，与播放中的曲目解耦。 */
+    fun pinnedAlbum(ctx: Context): String? =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getString("pinned_album", null)
+
+    fun pinnedSeeds(ctx: Context): List<Int>? {
+        val raw = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getString("pinned_seeds", null) ?: return null
+        return runCatching {
+            val arr = org.json.JSONArray(raw)
+            List(arr.length()) { arr.getInt(it) }
+        }.getOrNull()
+    }
+
+    fun setPinned(ctx: Context, albumId: String, seeds: List<Int>) {
+        val arr = org.json.JSONArray()
+        seeds.take(3).forEach { arr.put(it) }
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .putString("pinned_album", albumId)
+            .putString("pinned_seeds", arr.toString())
+            .apply()
+    }
+
+    fun clearPinned(ctx: Context) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .remove("pinned_album")
+            .remove("pinned_seeds")
+            .apply()
     }
 
     /** 切歌音量渐变时长（毫秒，0 = 关闭）。 */

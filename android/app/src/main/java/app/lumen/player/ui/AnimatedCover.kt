@@ -20,7 +20,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 
 /** 封面切换：新旧封面交叉溶解 + 轻微景深缩放，播放页与电台页共用。 */
 @Composable
@@ -29,7 +29,13 @@ internal fun AnimatedCover(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 24.dp,
+    /** 用于查四边采样色；为空时回退到主题主色 */
+    albumId: String? = null,
+    /** 弱网降级：先展示这张低清图，高清到达后自动覆盖 */
+    lowResUrl: String? = null,
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val edges = albumId?.let { app.lumen.player.data.CoverEdgeStore.get(it) }
     var current by remember { mutableStateOf(url) }
     var previous by remember { mutableStateOf<String?>(null) }
     val progress = remember { Animatable(1f) }
@@ -47,11 +53,22 @@ internal fun AnimatedCover(
         }
     }
 
-    Box(
-        modifier
-            .clip(RoundedCornerShape(cornerRadius))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+    LumooCover(
+        modifier = modifier,
+        albumId = albumId,
+        cornerRadius = cornerRadius,
+        elevation = 20.dp,
+        scrimFraction = 0.30f,
     ) {
+        // 低清占位：通常已在列表缓存里，弱网下也能立刻看到画面
+        if (!lowResUrl.isNullOrBlank() && lowResUrl != current) {
+            AsyncImage(
+                model = lowResUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         previous?.let { old ->
             AsyncImage(
                 model = old,

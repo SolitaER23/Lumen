@@ -1,4 +1,4 @@
-﻿package app.lumen.player.ui
+package app.lumen.player.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -39,11 +39,49 @@ import kotlin.math.sin
  * - 叠加柔和高光呼吸，随曲目 tempo/节拍轻微闪动；
  * - 只做渐变绘制，保证滚动/转场流畅。
  */
+class BackdropMotion(
+    val drift: androidx.compose.runtime.State<Float>,
+    val breathe: androidx.compose.runtime.State<Float>,
+    val sheen: androidx.compose.runtime.State<Float>,
+)
+
+@Composable
+fun rememberBackdropMotion(): BackdropMotion {
+    val transition = rememberInfiniteTransition(label = "expressive-bg")
+    val drift by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2 * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(36_000, easing = LinearEasing)),
+        label = "drift",
+    )
+    val breathe by transition.animateFloat(
+        initialValue = 0.86f,
+        targetValue = 1.12f,
+        animationSpec = infiniteRepeatable(tween(9_000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "breathe",
+    )
+    val sheen by transition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(6_500, easing = LinearEasing), RepeatMode.Reverse),
+        label = "sheen",
+    )
+    return BackdropMotion(
+        androidx.compose.runtime.rememberUpdatedState(drift),
+        androidx.compose.runtime.rememberUpdatedState(breathe),
+        androidx.compose.runtime.rememberUpdatedState(sheen),
+    )
+}
+
 @Composable
 fun ExpressiveBackdrop(
     modifier: Modifier = Modifier,
     drivePulse: Boolean = true,
     event: AudioEvent? = null,
+    /** P0-1：不播放/不可见/省电时传 false，彻底停止无限动画（不再每帧重绘） */
+    animate: Boolean = true,
+    /** F3：由上层共享的相位；传了就与其它页面同一相位，切换时不会跳位 */
+    sharedMotion: BackdropMotion? = null,
 ) {
     androidx.compose.runtime.LaunchedEffect(drivePulse) {
         if (!drivePulse) return@LaunchedEffect
@@ -101,26 +139,8 @@ fun ExpressiveBackdrop(
         label = "event-radius",
     )
 
-    val transition = rememberInfiniteTransition(label = "expressive-bg")
-
-    val drift by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(36_000, easing = LinearEasing)),
-        label = "drift",
-    )
-    val breathe by transition.animateFloat(
-        initialValue = 0.86f,
-        targetValue = 1.12f,
-        animationSpec = infiniteRepeatable(tween(9_000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "breathe",
-    )
-    val sheen by transition.animateFloat(
-        initialValue = 0.5f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(6_500, easing = LinearEasing), RepeatMode.Reverse),
-        label = "sheen",
-    )
+    // 相位用 State 承载：只在绘制阶段读取，避免整树每帧重组
+    val anims = sharedMotion ?: if (animate) rememberBackdropMotion() else null
 
     val base = scheme.surface
     // 节拍相位（分析阶段预计算）只做很轻的调制
@@ -128,14 +148,21 @@ fun ExpressiveBackdrop(
     val beat = app.lumen.player.playback.MusicPulse.beat.coerceIn(0f, 1f)
     val energy = (lvl * 0.55f + beat * 0.45f).coerceIn(0f, 1f)
 
-    val c1 = scheme.primary
-    val c2 = scheme.secondary
-    val c3 = scheme.tertiary
-    // 两个派生色：在 HCT 里把主/次色相轻轻推向第三色，增加层次但仍是同一套配色
-    val c4 = Color(Blend.hctHue(scheme.primary.toArgb(), scheme.tertiary.toArgb(), 0.55))
-    val c5 = Color(Blend.hctHue(scheme.secondary.toArgb(), scheme.primary.toArgb(), 0.50))
+    // P2-4：光斑与底色亮度差不足时自动提亮，保证在极端配色下也看得见
+    val c1 = remember(scheme) { ensureLuminous(scheme.primary, base) }
+    val c2 = remember(scheme) { ensureLuminous(scheme.secondary, base) }
+    val c3 = remember(scheme) { ensureLuminous(scheme.tertiary, base) }
+    val c4 = remember(scheme) {
+        ensureLuminous(Color(Blend.hctHue(scheme.primary.toArgb(), scheme.tertiary.toArgb(), 0.55)), base)
+    }
+    val c5 = remember(scheme) {
+        ensureLuminous(Color(Blend.hctHue(scheme.secondary.toArgb(), scheme.primary.toArgb(), 0.50)), base)
+    }
 
     Canvas(modifier.fillMaxSize()) {
+        val drift = anims?.drift?.value ?: 0.6f
+        val breathe = anims?.breathe?.value ?: 1f
+        val sheen = anims?.sheen?.value ?: 0.8f
         val w = size.width
         val h = size.height
         drawRect(base)

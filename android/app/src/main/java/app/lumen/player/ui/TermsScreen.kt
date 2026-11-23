@@ -179,12 +179,13 @@ fun TermsScreen(onBack: () -> Unit, onReachedBottom: () -> Unit = {}) {
                 modifier = Modifier.padding(top = 2.dp),
             )
             Text(
-                L10n.tf("在 B 站查看官方在线版本 ↗", "View official online version on Bilibili ↗"),
-                color = MaterialTheme.colorScheme.primary,
+                L10n.tf(
+                    "官方在线版本尚未上线：目前无法上线，也不计划上线；以本页文本为准。",
+                    "No online copy is hosted: it cannot be published now and none is planned. This screen is authoritative.",
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
-                modifier = Modifier
-                    .padding(top = 6.dp)
-                    .clickable { ExternalLinks.open(ctx, ExternalLinks.TERMS_URL) },
+                modifier = Modifier.padding(top = 6.dp),
             )
         }
 

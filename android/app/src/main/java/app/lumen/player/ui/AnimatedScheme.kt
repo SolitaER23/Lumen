@@ -1,21 +1,26 @@
-﻿package app.lumen.player.ui
+package app.lumen.player.ui
 
+import android.util.LruCache
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 
 /**
- * 主题色随封面变化时，在旧配色和新配色之间做平滑插值，
- * 避免整页颜色瞬间跳变（尤其背景 5 团光晕和卡片容器色）。
+ * P0-4：只插值「关键角色」，其余角色直接切到目标值；
+ * 进度量化成 24 档并对结果做 LRU 缓存，避免每帧新建整套配色。
  */
+private const val STEPS = 24
+
+private val lerpCache = object : LruCache<String, ColorScheme>(48) {}
+
 @Composable
 fun rememberAnimatedColorScheme(target: ColorScheme): ColorScheme {
     val from = remember { mutableStateOf(target) }
@@ -23,56 +28,36 @@ fun rememberAnimatedColorScheme(target: ColorScheme): ColorScheme {
 
     LaunchedEffect(target) {
         if (from.value != target) {
-            val current = lerpScheme(from.value, target, progress.value.coerceIn(0f, 1f))
-            from.value = current
+            from.value = from.value
             progress.snapTo(0f)
             progress.animateTo(
                 1f,
-                animationSpec = tween(durationMillis = 620, easing = FastOutSlowInEasing),
+                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
             )
             from.value = target
         }
     }
 
     val p = progress.value
-    return if (p >= 1f) target else lerpScheme(from.value, target, p)
+    if (p >= 1f || from.value == target) return target
+    val step = (p * STEPS).toInt().coerceIn(0, STEPS)
+    return interpolate(from.value, target, step)
 }
 
-private fun lerpScheme(a: ColorScheme, b: ColorScheme, t: Float): ColorScheme = darkColorScheme(
-    primary = lerp(a.primary, b.primary, t),
-    onPrimary = lerp(a.onPrimary, b.onPrimary, t),
-    primaryContainer = lerp(a.primaryContainer, b.primaryContainer, t),
-    onPrimaryContainer = lerp(a.onPrimaryContainer, b.onPrimaryContainer, t),
-    inversePrimary = lerp(a.inversePrimary, b.inversePrimary, t),
-    secondary = lerp(a.secondary, b.secondary, t),
-    onSecondary = lerp(a.onSecondary, b.onSecondary, t),
-    secondaryContainer = lerp(a.secondaryContainer, b.secondaryContainer, t),
-    onSecondaryContainer = lerp(a.onSecondaryContainer, b.onSecondaryContainer, t),
-    tertiary = lerp(a.tertiary, b.tertiary, t),
-    onTertiary = lerp(a.onTertiary, b.onTertiary, t),
-    tertiaryContainer = lerp(a.tertiaryContainer, b.tertiaryContainer, t),
-    onTertiaryContainer = lerp(a.onTertiaryContainer, b.onTertiaryContainer, t),
-    background = lerp(a.background, b.background, t),
-    onBackground = lerp(a.onBackground, b.onBackground, t),
-    surface = lerp(a.surface, b.surface, t),
-    onSurface = lerp(a.onSurface, b.onSurface, t),
-    surfaceVariant = lerp(a.surfaceVariant, b.surfaceVariant, t),
-    onSurfaceVariant = lerp(a.onSurfaceVariant, b.onSurfaceVariant, t),
-    surfaceTint = lerp(a.surfaceTint, b.surfaceTint, t),
-    inverseSurface = lerp(a.inverseSurface, b.inverseSurface, t),
-    inverseOnSurface = lerp(a.inverseOnSurface, b.inverseOnSurface, t),
-    error = lerp(a.error, b.error, t),
-    onError = lerp(a.onError, b.onError, t),
-    errorContainer = lerp(a.errorContainer, b.errorContainer, t),
-    onErrorContainer = lerp(a.onErrorContainer, b.onErrorContainer, t),
-    outline = lerp(a.outline, b.outline, t),
-    outlineVariant = lerp(a.outlineVariant, b.outlineVariant, t),
-    scrim = lerp(a.scrim, b.scrim, t),
-    surfaceBright = lerp(a.surfaceBright, b.surfaceBright, t),
-    surfaceDim = lerp(a.surfaceDim, b.surfaceDim, t),
-    surfaceContainer = lerp(a.surfaceContainer, b.surfaceContainer, t),
-    surfaceContainerHigh = lerp(a.surfaceContainerHigh, b.surfaceContainerHigh, t),
-    surfaceContainerHighest = lerp(a.surfaceContainerHighest, b.surfaceContainerHighest, t),
-    surfaceContainerLow = lerp(a.surfaceContainerLow, b.surfaceContainerLow, t),
-    surfaceContainerLowest = lerp(a.surfaceContainerLowest, b.surfaceContainerLowest, t),
-)
+/** 只对 6 个关键角色做插值，其余取目标值。 */
+private fun interpolate(a: ColorScheme, b: ColorScheme, step: Int): ColorScheme {
+    val key = a.hashCode().toString() + "|" + b.hashCode() + "|" + step
+    lerpCache.get(key)?.let { return it }
+    val t = step / STEPS.toFloat()
+    fun m(x: Color, y: Color): Color = if (t >= 1f) y else lerp(x, y, t)
+    val cs = b.copy(
+        primary = m(a.primary, b.primary),
+        secondary = m(a.secondary, b.secondary),
+        tertiary = m(a.tertiary, b.tertiary),
+        surface = m(a.surface, b.surface),
+        surfaceContainer = m(a.surfaceContainer, b.surfaceContainer),
+        onSurface = m(a.onSurface, b.onSurface),
+    )
+    lerpCache.put(key, cs)
+    return cs
+}

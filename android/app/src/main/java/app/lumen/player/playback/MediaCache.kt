@@ -1,4 +1,4 @@
-﻿package app.lumen.player.playback
+package app.lumen.player.playback
 
 import android.content.Context
 import androidx.media3.database.StandaloneDatabaseProvider
@@ -69,26 +69,44 @@ object MediaCache {
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
 
-    /**
-     * 只清理「流媒体缓存与封面缓存」，保留 [keepKeys]（已下载曲目的 cache key = 下载 URI）。
-     */
-    fun clearStreamingCache(ctx: Context, keepKeys: Set<String>) {
+    /** 只清歌曲流缓存，保留 [keepKeys]（已下载曲目的 cache key = 下载 URI）。封面/歌词/分析结果不受影响。 */
+    fun clearSongCache(ctx: Context, keepKeys: Set<String>) {
         val c = cache(ctx)
         runCatching {
             c.keys.toList().forEach { key ->
                 if (key !in keepKeys) runCatching { c.removeResource(key) }
             }
         }
+    }
+
+    /** 旧接口：清空全部本地数据时使用（歌曲 + 封面）。 */
+    fun clearStreamingCache(ctx: Context, keepKeys: Set<String>) {
+        clearSongCache(ctx, keepKeys)
+        clearImageCache(ctx)
+    }
+
+    fun clearImageCache(ctx: Context) {
         runCatching { File(ctx.applicationContext.cacheDir, "image_cache").deleteRecursively() }
     }
 
-    /** 缓存目录（流 + 下载共用）占用字节。 */
-    fun cacheBytes(ctx: Context): Long = runCatching {
+    /** 歌曲流缓存占用（不含封面/歌词/下载）。 */
+    fun streamingBytes(ctx: Context): Long = runCatching {
         File(ctx.applicationContext.cacheDir, "media")
             .walkTopDown()
             .filter { it.isFile }
             .sumOf { it.length() }
     }.getOrDefault(0L)
+
+    /** 封面缓存占用。 */
+    fun imageBytes(ctx: Context): Long = runCatching {
+        File(ctx.applicationContext.cacheDir, "image_cache")
+            .walkTopDown()
+            .filter { it.isFile }
+            .sumOf { it.length() }
+    }.getOrDefault(0L)
+
+    /** 缓存目录（流 + 下载共用）占用字节。 */
+    fun cacheBytes(ctx: Context): Long = streamingBytes(ctx)
 
     fun downloadManager(ctx: Context): DownloadManager = synchronized(this) {
         manager ?: DownloadManager(

@@ -1,4 +1,4 @@
-﻿package app.lumen.player.ui
+package app.lumen.player.ui
 
 import app.lumen.player.util.L10n
 import androidx.compose.foundation.Canvas
@@ -79,7 +79,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import app.lumen.player.data.Track
 import com.gpo.yoin.symbols.YoinSymbols
 import kotlin.math.PI
@@ -122,9 +122,6 @@ fun PlayingScreen(
     coverDirection: Int = 1,
     onSeekPlay: (Long) -> Unit = {},
     mood: app.lumen.player.data.MoodResult? = null,
-    moodAnalyzing: Boolean = false,
-    moodPhase: String = "",
-    onAnalyzeMood: () -> Unit = {},
     rating: Float = 0f,
     onRating: (Float) -> Unit = {},
     coverModifier: Modifier = Modifier,
@@ -168,6 +165,8 @@ fun PlayingScreen(
                     url = coverUrl,
                     contentDescription = track?.title,
                     modifier = coverModifier.size(232.dp),
+                    albumId = track?.albumId,
+                    lowResUrl = coverUrl.replace("size=600", "size=200").takeIf { it != coverUrl },
                 )
                 Box(
                     Modifier.weight(1f).height(232.dp),
@@ -226,14 +225,19 @@ fun PlayingScreen(
                 modifier = Modifier.padding(horizontal = 28.dp),
             )
             Spacer(Modifier.height(3.dp))
-            Text(
-                track?.artist ?: "",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 14.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 28.dp),
-            )
+            ) {
+                Text(
+                    track?.artist ?: "",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+            }
 
             Spacer(Modifier.height(10.dp))
             // 第一行：播放/暂停（左） + 波浪进度（右，时间在两侧）
@@ -388,7 +392,7 @@ private fun WavyProgress(
         ),
         label = "phase",
     )
-    // 近似L10n.t("节奏")：约 130 BPM 的脉动，播放时幅度更大
+    // 近似“节奏”：约 130 BPM 的脉动，播放时幅度更大
     val pulse by transition.animateFloat(
         initialValue = 0.55f,
         targetValue = 1f,
@@ -455,7 +459,7 @@ private fun WavyProgress(
     }
 }
 
-/** 播放页下方的歌词区：按时间轴高亮当前行、自动滚动、上下渐隐。 */
+/** 播放页下方的歌词区：按时间轴高亮、自动跟随、可手动滚动、上下渐隐；点按任意行跳转。 */
 @Composable
 private fun LyricsArea(
     lines: List<LyricLine>?,
@@ -466,9 +470,18 @@ private fun LyricsArea(
 ) {
     val listState = rememberLazyListState()
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val hasTimeline = lines?.any { it.startMs > 0L } == true
+    val hasTimeline = lines?.any { it.startMs >= 0L } == true
     val currentIndex = if (lines.isNullOrEmpty() || !hasTimeline) -1
     else lines.indexOfLast { it.startMs <= positionMs }.coerceAtLeast(0)
+
+    // 用户手动滚动后 3 秒内不自动跟随，避免刚翻上去就被拽回来
+    var followPausedUntil by remember { mutableStateOf(0L) }
+    var programmaticScroll by remember { mutableStateOf(false) }
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress && !programmaticScroll) {
+            followPausedUntil = System.currentTimeMillis() + 3_000
+        }
+    }
 
     val appear = remember { Animatable(0f) }
     LaunchedEffect(lines) {
@@ -492,15 +505,21 @@ private fun LyricsArea(
                 Text(L10n.t("暂无歌词"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
             else -> {
+                val lyricLines = lines
                 // 上下留白 = 半个视口，配合 scrollToItem 让当前行自然落在视觉中心
                 val vPad = (maxHeight / 2) - 13.dp
+                val highlight = currentIndex
                 LaunchedEffect(currentIndex) {
-                    if (currentIndex >= 0) {
+                    if (currentIndex >= 0 && System.currentTimeMillis() >= followPausedUntil) {
+                        programmaticScroll = true
                         runCatching { listState.animateScrollToItem(currentIndex) }
+                        programmaticScroll = false
                     }
                 }
                 LazyColumn(
                     state = listState,
+                    // 保留手动滚动：长按后拖动才是跳转（避免与滚动抢手势）
+                    userScrollEnabled = true,
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
@@ -519,12 +538,12 @@ private fun LyricsArea(
                         .graphicsLayer { alpha = appear.value },
                     contentPadding = PaddingValues(top = vPad, bottom = vPad, start = 24.dp, end = 24.dp),
                 ) {
-                    itemsIndexed(lines) { i, line ->
+                    itemsIndexed(lyricLines) { i, line ->
                         // 层次只由“离当前行的距离”决定，不读取滚动布局，滚动中不会反复重排
-                        val d = kotlin.math.abs(i - currentIndex).toFloat()
+                        val d = kotlin.math.abs(i - highlight).toFloat()
                         val smooth = kotlin.math.exp(-d / 2.0f)
                         val alpha = 0.12f + 0.88f * smooth
-                        val isCurrent = i == currentIndex
+                        val isCurrent = i == highlight
                         val scale = if (isCurrent) 1.0f else 0.97f
                         Text(
                             line.text,
@@ -536,9 +555,7 @@ private fun LyricsArea(
                             lineHeight = 26.sp,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable(enabled = hasTimeline && line.startMs > 0L) {
-                                    onSeekPlay(line.startMs)
-                                }
+                                .clickable { onSeekPlay(line.startMs) }
                                 .padding(vertical = 9.dp)
                                 .graphicsLayer {
                                     this.alpha = alpha

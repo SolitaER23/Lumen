@@ -2,7 +2,7 @@
 
 Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 Subsonic / OpenSubsonic 协议连接 Navidrome。
 
-- 参考设备：Pixel 10a（120Hz），minSdk 26 / targetSdk 36，只构建 `arm64-v8a`
+- 参考设备：Pixel 10a（120Hz），`minSdk 26` / `compileSdk 37` / `targetSdk 37`（Android 17），只构建 `arm64-v8a`
 - 应用不收集分析数据，曲库、账号与播放记录都保存在设备本地
 
 ## 功能
@@ -21,13 +21,13 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 | 层 | 选型 |
 | --- | --- |
-| UI | Jetpack Compose + Material 3（Expressive 风格） |
-| 图标 | `io.github.p2o51:yoin-symbols` |
-| 音频 | Media3 ExoPlayer（磁盘缓存 + 解码失败自动转码兜底） |
-| 网络 | OkHttp + org.json（Subsonic token + salt 认证） |
-| 图片 | Coil + Material Color Utilities 封面取色 |
-| 端侧模型 | LiteRT 1.4.0（YAMNet） |
-| 构建 | Gradle 8.11.1（Wrapper）+ AGP 8.10.1 + Kotlin 2.3.20 |
+| UI | Jetpack Compose（BOM 2026.11.01）+ Material 3（Expressive 风格） |
+| 图标 | `io.github.p2o51:yoin-symbols` 0.2.0 |
+| 音频 | Media3 ExoPlayer 1.11.1（磁盘缓存 + 解码失败自动转码兜底） |
+| 网络 | OkHttp 5.5.1 + Retrofit 3.0.0 + Gson 2.15.0（Subsonic token + salt 认证） |
+| 图片 | Coil 3.6.3（coil-compose + coil-network-okhttp）+ Material Color Utilities 封面取色 |
+| 端侧模型 | LiteRT 2.4.0（YAMNet） |
+| 构建 | Gradle 9.9.2（Wrapper）+ AGP 9.5.2 + Kotlin 2.4.21 |
 
 ## 首次启动
 
@@ -37,12 +37,12 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 ## 语言
 
-设置 → 语言 可切换「跟随系统 / 中文 / English」；文案集中在 util/L10n.kt，英文缺失时回退中文。
+设置 → 语言 可切换「跟随系统 / 中文 / English」；文案集中在 `util/L10n.kt`，英文缺失时回退中文。
 
 ## 安装与更新（终端用户）
 
 - 支持 Android 8.0+、**arm64-v8a**；32 位设备无法安装；
-- 从发布页下载 APK，需允许“安装未知应用”；
+- 从官方夸克网盘渠道下载 APK，需允许“安装未知应用”；
 - 新版本必须使用同一签名证书覆盖安装；正式证书与早期 debug 测试版不能互相覆盖；
 - 卸载会删除本机账号、历史、评分、心情与下载（应用不启用云备份）；
 - 详细步骤、校验方式与故障排查见 [docs/user-guide.md](docs/user-guide.md) 与 [docs/distribution.md](docs/distribution.md)。
@@ -51,29 +51,29 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 - [隐私条款](docs/privacy-policy.md)
 - [用户协议](docs/terms-of-service.md)
-- 官方在线版本：[隐私条款（B 站）](https://www.bilibili.com/opus/1273580145420009473) · [用户协议（B 站）](https://www.bilibili.com/opus/1273580330098360325)
+- 条款与协议的**在线版本尚未上线**：目前无法上线，也不计划上线；以仓库内 `docs/` 的文本与应用内条款页为准
 - 问题反馈：**bilibili@晓月枫**，[B 站主页](https://space.bilibili.com/20567705)
 - 设置 → 问题反馈 →「复制诊断信息」可生成脱敏信息
 
 ## 关键附件
 
-当前正式直发版本：**0.50.5 / versionCode 143**
+当前正式直发版本：**0.54.0 / versionCode 157**
 
-- [发布计划与状态](docs/release-plan.md)
 - [分发包与校验说明](docs/distribution.md)
 - [用户指南](docs/user-guide.md)
 - [隐私条款](docs/privacy-policy.md)
 - [用户协议](docs/terms-of-service.md)
-- 官方在线版本：[隐私条款（B 站）](https://www.bilibili.com/opus/1273580145420009473) · [用户协议（B 站）](https://www.bilibili.com/opus/1273580330098360325)
 - [兼容性说明](docs/compatibility.md)
+- [测试设备档案](docs/device.md)
+- [YAMNet 功能路线图](docs/feature-plan.md)
 - [Release CI](.github/workflows/release.yml)
 - 官方更新渠道：[夸克网盘](https://pan.quark.cn/s/f35d0450e4b1?pwd=3GF3)，提取码 `3GF3`
-- 分发包：`dist/Lumen-0.50.5.apk`、`dist/SHA256SUMS.txt`
+- 分发包：`dist/Lumen-0.54.0.apk`、`dist/SHA256SUMS.txt`
 - 发布后同步元数据：`python scripts/update-release-metadata.py`
 
 ## 构建
 
-需要 JDK 17 与 Android SDK 36（platform 36）：
+需要 JDK 17 与 Android SDK 37（platform **37.2**，Compose 1.13 要求 compileSdk ≥ 37.1）：
 
 ```bash
 cd android
@@ -94,7 +94,7 @@ cd android
 ./gradlew :app:testDebugUnitTest
 ```
 
-目前覆盖 URL 构造、专辑排序与队列索引等纯逻辑。
+目前覆盖 URL 构造、专辑排序、队列索引与情绪计算等纯逻辑。
 
 ## 目录
 

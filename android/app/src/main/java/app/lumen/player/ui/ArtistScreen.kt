@@ -1,4 +1,4 @@
-﻿package app.lumen.player.ui
+package app.lumen.player.ui
 
 import app.lumen.player.util.L10n
 import androidx.compose.foundation.background
@@ -38,7 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import app.lumen.player.data.Album
 import app.lumen.player.data.Artist
 import app.lumen.player.data.SubsonicClient

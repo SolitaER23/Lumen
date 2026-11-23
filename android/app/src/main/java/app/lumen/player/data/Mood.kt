@@ -41,12 +41,22 @@ object MoodStore {
     private const val DB = "moods.db"
     private const val TABLE = "moods"
 
-    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 8) {
+    private const val FAIL_TABLE = "mood_failures"
+
+    private const val IGNORE_TABLE = "mood_ignored"
+
+    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 10) {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS $TABLE (" +
                     "track_id TEXT PRIMARY KEY, valence REAL, arousal REAL, label TEXT, tempo REAL, " +
                     "beats TEXT, env TEXT, env_step INTEGER, updated INTEGER, tags TEXT, feature TEXT, segments TEXT)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS $FAIL_TABLE (track_id TEXT PRIMARY KEY, attempts INTEGER, last INTEGER)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS $IGNORE_TABLE (track_id TEXT PRIMARY KEY, at INTEGER)",
             )
         }
 
@@ -60,6 +70,18 @@ object MoodStore {
             }
             if (oldVersion < 8) {
                 runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN segments TEXT") }
+            }
+            if (oldVersion < 9) {
+                runCatching {
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS $FAIL_TABLE (track_id TEXT PRIMARY KEY, attempts INTEGER, last INTEGER)",
+                    )
+                }
+            }
+            if (oldVersion < 10) {
+                runCatching {
+                    db.execSQL("CREATE TABLE IF NOT EXISTS $IGNORE_TABLE (track_id TEXT PRIMARY KEY, at INTEGER)")
+                }
             }
         }
 
@@ -236,6 +258,106 @@ object MoodStore {
 
     fun count(ctx: Context): Int = runCatching {
         db(ctx).rawQuery("SELECT COUNT(*) FROM $TABLE", null).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+    }.getOrDefault(0)
+
+    // ---------- 失败 / 异常数据：只允许清理这一类，禁止清空全部分析结果 ----------
+
+    /** 记录一次失败，返回累计失败次数。 */
+    fun recordFailure(ctx: Context, trackId: String): Int = runCatching {
+        val attempts = db(ctx).rawQuery("SELECT attempts FROM $FAIL_TABLE WHERE track_id=?", arrayOf(trackId)).use {
+            if (it.moveToFirst()) it.getInt(0) else 0
+        }
+        val next = attempts + 1
+        val v = ContentValues().apply {
+            put("track_id", trackId)
+            put("attempts", next)
+            put("last", System.currentTimeMillis())
+        }
+        db(ctx).insertWithOnConflict(FAIL_TABLE, null, v, SQLiteDatabase.CONFLICT_REPLACE)
+        next
+    }.getOrDefault(1)
+
+    fun clearFailure(ctx: Context, trackId: String) {
+        runCatching { db(ctx).delete(FAIL_TABLE, "track_id=?", arrayOf(trackId)) }
+    }
+
+    /** 被「不再分析」标记的曲目：永久跳过。 */
+    fun ignore(ctx: Context, trackId: String) {
+        runCatching {
+            val v = ContentValues().apply {
+                put("track_id", trackId)
+                put("at", System.currentTimeMillis())
+            }
+            db(ctx).insertWithOnConflict(IGNORE_TABLE, null, v, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+    }
+
+    fun isIgnored(ctx: Context, trackId: String): Boolean = runCatching {
+        db(ctx).rawQuery("SELECT 1 FROM $IGNORE_TABLE WHERE track_id=?", arrayOf(trackId)).use { it.moveToFirst() }
+    }.getOrDefault(false)
+
+    /** 把当前所有失败曲目加入忽略名单，并从失败表移除。返回忽略条数。 */
+    fun ignoreFailures(ctx: Context): Int = runCatching {
+        val ids = ArrayList<String>()
+        db(ctx).rawQuery("SELECT track_id FROM $FAIL_TABLE", null).use { c ->
+            while (c.moveToNext()) c.getString(0)?.let { ids.add(it) }
+        }
+        val now = System.currentTimeMillis()
+        ids.forEach { id ->
+            val v = ContentValues().apply {
+                put("track_id", id)
+                put("at", now)
+            }
+            db(ctx).insertWithOnConflict(IGNORE_TABLE, null, v, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+        db(ctx).delete(FAIL_TABLE, null, null)
+        ids.size
+    }.getOrDefault(0)
+
+    fun ignoredCount(ctx: Context): Int = runCatching {
+        db(ctx).rawQuery("SELECT COUNT(*) FROM $IGNORE_TABLE", null).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+    }.getOrDefault(0)
+
+    /** 恢复全部被忽略的曲目（下次启动会重新尝试）。返回恢复条数。 */
+    fun clearIgnored(ctx: Context): Int = runCatching {
+        db(ctx).delete(IGNORE_TABLE, null, null)
+    }.getOrDefault(0)
+
+    /** 同一首连续失败 3 次后冷却 6 小时，避免坏文件无限重试拖住整库队列。 */
+    fun shouldAttempt(ctx: Context, trackId: String): Boolean = runCatching {
+        if (isIgnored(ctx, trackId)) return@runCatching false
+        db(ctx).rawQuery("SELECT attempts,last FROM $FAIL_TABLE WHERE track_id=?", arrayOf(trackId)).use { c ->
+            if (!c.moveToFirst()) return@use true
+            val attempts = c.getInt(0)
+            val last = c.getLong(1)
+            attempts < 3 || System.currentTimeMillis() - last > 6 * 3600_000L
+        }
+    }.getOrDefault(true)
+
+    fun failureCount(ctx: Context): Int = runCatching {
+        db(ctx).rawQuery("SELECT COUNT(*) FROM $FAIL_TABLE", null).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+    }.getOrDefault(0)
+
+    /** 明显损坏的结果行：没有标签或坐标非有限值。 */
+    fun brokenResultCount(ctx: Context): Int = runCatching {
+        db(ctx).rawQuery(
+            "SELECT COUNT(*) FROM $TABLE WHERE label IS NULL OR label='' OR valence IS NULL OR arousal IS NULL " +
+                "OR valence != valence OR arousal != arousal",
+            null,
+        ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+    }.getOrDefault(0)
+
+    fun abnormalCount(ctx: Context): Int = failureCount(ctx) + brokenResultCount(ctx)
+
+    /** 只清理「失败记录 + 损坏结果」，成功的结果一律保留。返回删除条数。 */
+    fun clearAbnormal(ctx: Context): Int = runCatching {
+        var removed = db(ctx).delete(FAIL_TABLE, null, null)
+        removed += db(ctx).delete(
+            TABLE,
+            "label IS NULL OR label='' OR valence IS NULL OR arousal IS NULL OR valence != valence OR arousal != arousal",
+            null,
+        )
+        removed
     }.getOrDefault(0)
 
     /** 各心情标签的分布，用于分析页展示。 */

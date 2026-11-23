@@ -1,4 +1,4 @@
-﻿# Retrofit / Gson
+# Retrofit / Gson
 -keepattributes Signature, InnerClasses, EnclosingMethod
 -keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations, AnnotationDefault
 -keep,allowobfuscation interface retrofit2.Call

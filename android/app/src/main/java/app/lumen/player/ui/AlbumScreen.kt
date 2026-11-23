@@ -1,4 +1,4 @@
-﻿package app.lumen.player.ui
+package app.lumen.player.ui
 
 import app.lumen.player.util.L10n
 import androidx.compose.foundation.background
@@ -53,7 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import app.lumen.player.data.Album
 import app.lumen.player.data.absoluteStart
 import app.lumen.player.data.discsOf
@@ -79,14 +79,23 @@ fun AlbumScreen(
     onShuffle: () -> Unit,
     download: AlbumDownload?,
     onDownload: () -> Unit,
-    contrast: Float = 0f,
+    downloadedIds: Set<String> = emptySet(),
+    themeOpts: ThemeOptions = ThemeOptions(),
+    mood: app.lumen.player.data.MoodResult? = null,
+    /** P1-1 / 扩展：每页独立取色；关闭时跟随全局主题 */
+    selfColor: Boolean = false,
     coverModifier: Modifier = Modifier,
 ) {
-    // 首帧只画头部，曲目表推到下一帧，避免一次组合太多导致掉帧
-    // 用当前专辑封面取色（Palette 有缓存），失败时回退到全局主题
-    var albumScheme by remember(coverUrl) { mutableStateOf<ColorScheme?>(null) }
-    LaunchedEffect(coverUrl, contrast) { albumScheme = schemeFromCover(coverUrl, contrast) }
-    val s = albumScheme ?: MaterialTheme.colorScheme
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    // P1-2：与播放页同一口径（封面 + 情绪 + 同一套选项）
+    // P0-F1：首帧就用内存里的配色，避免"先全局色再切专辑色"的一帧闪烁
+    var albumScheme by remember(album.id) {
+        mutableStateOf(schemeFromCache(album.id, mood, themeOpts))
+    }
+    LaunchedEffect(album.id, themeOpts, mood) {
+        albumScheme = schemeFromCover(ctx, album.id, coverUrl, mood, themeOpts)
+    }
+    val s = if (selfColor) (albumScheme ?: MaterialTheme.colorScheme) else MaterialTheme.colorScheme
 
     // 重进专辑页时直接恢复（否则曲目表先消失一帧会把滚动位置夹回 0）
     var showList by rememberSaveable(album.id) { mutableStateOf(false) }
@@ -97,6 +106,7 @@ fun AlbumScreen(
     val list = remember(tracks, discKey) { tracksOfDisc(tracks, discKey) }
     val startIndex = remember(tracks, discKey) { absoluteStart(tracks, discKey) }
 
+    MaterialTheme(colorScheme = s) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().statusBarsPadding(),
         contentPadding = PaddingValues(bottom = 120.dp),
@@ -142,11 +152,16 @@ fun AlbumScreen(
         }
         item {
             // 三个按钮：形状 / 颜色各不相同，颜色都从当前专辑封面取色
-            val finished = download != null && download.total > 0 && download.done == download.total
+            // 下载状态要同时看两处：专辑整组任务（download） 与 逐曲已完成集合（downloadedIds）。
+            // 只有一首歌的专辑若单独下载了那首，之前会一直显示「下载」。
+            val albumTotal = if (tracks.isNotEmpty()) tracks.size else (download?.total ?: 0)
+            val albumDone = maxOf(download?.done ?: 0, tracks.count { it.id in downloadedIds })
+            val finished = albumTotal > 0 && albumDone >= albumTotal
             val dlLabel = when {
-                download == null || download.total == 0 -> L10n.t("下载")
+                albumTotal == 0 -> L10n.t("下载")
                 finished -> L10n.t("已下载")
-                else -> L10n.tf("下载 ${download.done}/${download.total}", "Downloading ${download.done}/${download.total}")
+                albumDone == 0 -> L10n.t("下载")
+                else -> albumDone.toString() + "/" + albumTotal
             }
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
@@ -187,26 +202,38 @@ fun AlbumScreen(
                         Text(L10n.t("播放"), color = s.onPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
-                // 下载：切角形状 + tertiary 容器色
+                // 下载：切角形状 + tertiary 容器色；下载中在底部显示进度条
                 Surface(
                     onClick = { if (!finished) onDownload() },
                     shape = CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp),
                     color = s.tertiaryContainer,
                     modifier = Modifier.weight(1f).height(52.dp),
                 ) {
-                    Row(
-                        Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            if (finished) YoinSymbols.DownloadDone else YoinSymbols.Download,
-                            contentDescription = null,
-                            tint = s.onTertiaryContainer,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(dlLabel, color = s.onTertiaryContainer, fontSize = 12.sp)
+                    Box(Modifier.fillMaxSize()) {
+                        Row(
+                            Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                if (finished) YoinSymbols.DownloadDone else YoinSymbols.Download,
+                                contentDescription = null,
+                                tint = s.onTertiaryContainer,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(dlLabel, color = s.onTertiaryContainer, fontSize = 12.sp)
+                        }
+                        val busy = albumTotal > 0 && !finished && albumDone > 0
+                        if (busy) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.BottomStart)
+                                    .fillMaxWidth((albumDone.toFloat() / albumTotal).coerceIn(0f, 1f))
+                                    .height(3.dp)
+                                    .background(s.onTertiaryContainer.copy(alpha = 0.55f)),
+                            )
+                        }
                     }
                 }
             }
@@ -243,6 +270,19 @@ fun AlbumScreen(
                 Spacer(Modifier.height(8.dp))
             }
         }
+        // 曲目还在路上（首次进入 / 弱网）：先铺占位行，避免页面"空着等"
+        if (showList && tracks.isEmpty()) {
+            items(7) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp)
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
+                )
+            }
+        }
         if (showList) itemsIndexed(list, key = { _, t -> t.id }) { i, track ->
             val active = track.id == currentTrackId
             Row(
@@ -272,6 +312,15 @@ fun AlbumScreen(
                     maxLines = 1,
                     modifier = Modifier.weight(1f),
                 )
+                if (track.id in downloadedIds) {
+                    Icon(
+                        YoinSymbols.DownloadDone,
+                        contentDescription = L10n.t("已下载"),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
                 Text(
                     "%d:%02d".format(track.seconds / 60, track.seconds % 60),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -279,5 +328,6 @@ fun AlbumScreen(
                 )
             }
         }
+    }
     }
 }

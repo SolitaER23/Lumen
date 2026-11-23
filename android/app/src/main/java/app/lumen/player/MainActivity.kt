@@ -121,7 +121,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import app.lumen.player.data.Album
 import app.lumen.player.data.AlbumCache
 import app.lumen.player.data.LyricLine
@@ -140,9 +139,9 @@ import app.lumen.player.playback.PlaybackService
 import app.lumen.player.ui.AlbumScreen
 import app.lumen.player.ui.ArtistScreen
 import app.lumen.player.ui.SearchScreen
+import androidx.compose.ui.graphics.toArgb
 import app.lumen.player.ui.FallbackScheme
 import app.lumen.player.ui.LicensesScreen
-import app.lumen.player.ui.MoodScreen
 import app.lumen.player.ui.HomeCard
 import app.lumen.player.ui.HomeText
 import app.lumen.player.ui.HomeSub
@@ -245,7 +244,50 @@ private fun App() {
     // 0 = 首页, 1 = 专辑页, 2 = 播放页
     var screen by remember { mutableStateOf(0) }
     var scheme by remember { mutableStateOf(FallbackScheme) }
+    val animatedScheme = app.lumen.player.ui.rememberAnimatedColorScheme(scheme)
     var contrast by remember { mutableFloatStateOf(app.lumen.player.data.Appearance.contrast(ctx)) }
+    var themeMode by remember { mutableStateOf(app.lumen.player.data.Appearance.themeMode(ctx)) }
+    var paletteStyle by remember { mutableStateOf(app.lumen.player.data.Appearance.paletteStyle(ctx)) }
+    var amoledOn by remember { mutableStateOf(app.lumen.player.data.Appearance.amoled(ctx)) }
+    var moodTintOn by remember { mutableStateOf(app.lumen.player.data.Appearance.moodTint(ctx)) }
+    var gradientOn by remember { mutableStateOf(app.lumen.player.data.Appearance.gradientTheme(ctx)) }
+    var materialYouOn by remember { mutableStateOf(app.lumen.player.data.Appearance.materialYou(ctx)) }
+    var perPageColorOn by remember { mutableStateOf(app.lumen.player.data.Appearance.perPageColor(ctx)) }
+    var pinnedAlbumId by remember { mutableStateOf(app.lumen.player.data.Appearance.pinnedAlbum(ctx)) }
+    var paletteStatus by remember { mutableStateOf("") }
+    val powerSave = remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val pm = ctx.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+        while (true) {
+            powerSave.value = pm.isPowerSaveMode
+            kotlinx.coroutines.delay(5_000)
+        }
+    }
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDarkTheme = when (themeMode) {
+        "dark" -> true
+        "light" -> false
+        else -> systemDark
+    }
+    // 浅色模式下把状态栏/导航栏图标切成深色
+    val rootView = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.LaunchedEffect(isDarkTheme) {
+        val act = rootView.context as? android.app.Activity
+        if (act != null) {
+            androidx.core.view.WindowCompat.getInsetsController(act.window, rootView).apply {
+                isAppearanceLightStatusBars = !isDarkTheme
+                isAppearanceLightNavigationBars = !isDarkTheme
+            }
+        }
+    }
+    val themeOpts = app.lumen.player.ui.ThemeOptions(
+        contrast = contrast,
+        isDark = isDarkTheme,
+        style = app.lumen.player.ui.PaletteStyle.of(paletteStyle),
+        amoled = amoledOn,
+        moodTint = moodTintOn,
+        gradient = gradientOn,
+    )
     var fadeMs by remember { mutableLongStateOf(app.lumen.player.data.Appearance.fadeMs(ctx)) }
     var smartFade by remember { mutableStateOf(app.lumen.player.data.Appearance.smartFade(ctx)) }
     var radioVibe by remember { mutableStateOf(app.lumen.player.data.RadioVibe.NIGHT) }
@@ -295,8 +337,6 @@ private fun App() {
     var scrobbledId by remember { mutableStateOf<String?>(null) }
     var nowPlayingId by remember { mutableStateOf<String?>(null) }
     var mood by remember { mutableStateOf<app.lumen.player.data.MoodResult?>(null) }
-    var moodAnalyzing by remember { mutableStateOf(false) }
-    var moodPhase by remember { mutableStateOf("") }
     val navStack = remember { androidx.compose.runtime.mutableStateListOf<NavKey>() }
 
     /** 原路返回（立即执行，手势/动画在外部包一层） */
@@ -331,6 +371,13 @@ private fun App() {
         loading = false
     }
 
+    // 后台分析提示：每次安装只提示一次
+    var showMoodHint by remember { mutableStateOf(false) }
+    LaunchedEffect(loggedIn) {
+        val prefs = ctx.getSharedPreferences("lumen_mood", android.content.Context.MODE_PRIVATE)
+        if (loggedIn && !prefs.getBoolean("hint_shown", false)) showMoodHint = true
+    }
+
     // 登录尝试与表单状态解耦：每次提交（loginNonce）都重新认证；
     // 失败后保持登录页并恢复按钮，成功后才进入主界面。
     LaunchedEffect(loginNonce, cfg) {
@@ -356,6 +403,10 @@ private fun App() {
                     activeAccountId = app.lumen.player.data.Accounts.activeId(ctx)
                     error = null
                     loggedIn = true
+                    // 曲库拉取完成即开始后台分析（每次启动续跑未完成的曲目）
+                    runCatching {
+                        app.lumen.player.playback.MoodAnalysisRunner.start(ctx, SubsonicClient(cfg), list)
+                    }
                 }
             } catch (e: Exception) {
                 error = loginErrorMessage(e)
@@ -533,11 +584,15 @@ private fun App() {
     val enterAnim = remember { Animatable(1f) }
     var enterOriginX by remember { mutableFloatStateOf(0.5f) }
     var enterOriginY by remember { mutableFloatStateOf(0.5f) }
+    // 容器变换：进入时从该矩形长出，返回时收缩回去
+    var enterRect by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    var exitRect by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
     var enterJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     /** 去下一页，并把L10n.t("来处")压栈；从点击位置展开新页面 */
     fun navigate(target: NavKey) {
         if (target.screen == screen && target.album?.id == openAlbum?.id) return
+        enterRect = app.lumen.player.ui.NavOriginStore.get(target.album?.id)
         enterJob?.cancel()
         enterJob = scope.launch {
             enterAnim.snapTo(0f)
@@ -558,11 +613,23 @@ private fun App() {
     var heldBack by remember { mutableStateOf<NavKey?>(null) }
     fun goBack() {
         if (navStack.isEmpty()) return
+        // 只有"返回首页"才收缩到卡片；播放页→专辑页应走普通反向转场
+        exitRect = if (navStack.lastOrNull()?.screen == 0) {
+            app.lumen.player.ui.NavOriginStore.get(openAlbum?.id)
+        } else {
+            null
+        }
         heldBack = navStack.lastOrNull()
         scope.launch {
             if (backAnim.value < 1.4f) {
-                // 把当前页完全送出屏幕，再无缝切换
-                backAnim.animateTo(1.4f, tween(260, easing = FastOutSlowInEasing))
+                // 把当前页完全送出屏幕，再无缝切换（Expressive emphasized 缓动）
+                backAnim.animateTo(
+                    1.4f,
+                    tween(
+                        300,
+                        easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f),
+                    ),
+                )
             }
             // 等这一帧把“页面已送出”的画面渲染出来，再出栈，避免空白帧
             kotlinx.coroutines.delay(48)
@@ -730,12 +797,9 @@ private fun App() {
         }
     }
 
-    // 下载完成情况 → 单曲是否已下载
+    // 下载完成情况 → 单曲是否已下载（含专辑组里已完成的曲目）
     LaunchedEffect(downloads) {
-        downloadedTrackIds = downloads
-            .filter { it.isSingle && it.total > 0 && it.done == it.total }
-            .map { it.key.removePrefix("track:") }
-            .toSet()
+        downloadedTrackIds = withContext(Dispatchers.IO) { Downloads.completedTrackIds(ctx) }
     }
     LaunchedEffect(playback.playing) {
         while (playback.playing) {
@@ -800,10 +864,101 @@ private fun App() {
         app.lumen.player.playback.MusicPulse.setPosition(playback.positionMs)
     }
 
-    // 封面取色：主色跟着正在播的专辑走
-    LaunchedEffect(current?.albumId, contrast, mood) {
-        current?.let { t ->
-            schemeFromCover(client.coverUrl(t.albumId, 200), contrast, mood)?.let { scheme = it }
+    // 封面分档预热：切歌时把播放页要用的 600px 版本放进 Coil 缓存，
+    // 列表用的是 200px，两层互不覆盖，进播放页时 0 等待
+    LaunchedEffect(current?.albumId) {
+        val t = current ?: return@LaunchedEffect
+        runCatching {
+            val loader = coil3.SingletonImageLoader.get(ctx)
+            loader.enqueue(
+                coil3.request.ImageRequest.Builder(ctx)
+                    .data(client.coverUrl(t.albumId, 600))
+                    .size(600, 600)
+                    .build(),
+            )
+        }
+    }
+
+    // 预取：曲库加载完后台把前几首专辑的曲目写进磁盘缓存，首次点开即秒开
+    LaunchedEffect(albums.isNotEmpty()) {
+        if (albums.isEmpty()) return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            albums.take(6).forEach { a ->
+                runCatching {
+                    if (app.lumen.player.data.AlbumTracksCache.load(ctx, a.id) == null) {
+                        val list = client.tracks(a.id)
+                        app.lumen.player.data.AlbumTracksCache.save(ctx, a.id, list)
+                    }
+                }
+            }
+        }
+    }
+
+    // 封面取色：主色跟着正在播的专辑走（可被 Material You / 专辑锁色覆盖）
+    LaunchedEffect(
+        current?.albumId,
+        contrast,
+        paletteStyle,
+        isDarkTheme,
+        amoledOn,
+        moodTintOn,
+        gradientOn,
+        materialYouOn,
+        pinnedAlbumId,
+        mood,
+    ) {
+        // ① Material You（Android 12+）
+        if (materialYouOn && android.os.Build.VERSION.SDK_INT >= 31) {
+            val you = runCatching {
+                if (isDarkTheme) androidx.compose.material3.dynamicDarkColorScheme(ctx)
+                else androidx.compose.material3.dynamicLightColorScheme(ctx)
+            }.getOrNull()
+            if (you != null) {
+                scheme = if (amoledOn && isDarkTheme) app.lumen.player.ui.amoledOf(you) else you
+                paletteStatus = "系统配色（Material You）"
+                return@LaunchedEffect
+            }
+        }
+        // ② 按专辑锁色
+        val pinned = app.lumen.player.data.Appearance.pinnedSeeds(ctx)
+        if (pinnedAlbumId != null && pinned != null) {
+            scheme = app.lumen.player.ui.buildScheme(pinned, themeOpts)
+            paletteStatus = "已锁定专辑配色"
+            return@LaunchedEffect
+        }
+        // ③ 封面 + 情绪
+        val t = current
+        if (t == null) {
+            scheme = app.lumen.player.ui.fallbackScheme(isDarkTheme, amoledOn)
+            paletteStatus = "默认配色"
+            return@LaunchedEffect
+        }
+        val s = schemeFromCover(
+            ctx,
+            t.albumId,
+            client.coverUrl(t.albumId, 200),
+            if (moodTintOn) mood else null,
+            themeOpts,
+        )
+        if (s != null) {
+            scheme = s
+            paletteStatus = if (moodTintOn && mood != null) "封面取色 · 已叠加情绪" else "封面取色"
+        } else {
+            // P1-3：取色失败显式降级，不再沿用上一张封面
+            scheme = app.lumen.player.ui.fallbackScheme(isDarkTheme, amoledOn)
+            paletteStatus = "已降级：本张封面取色失败"
+        }
+    }
+
+    // 首页再按一次返回才退出，避免误触直接杀掉应用
+    var lastBackAt by remember { mutableLongStateOf(0L) }
+    androidx.activity.compose.BackHandler(enabled = screen == 0) {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastBackAt < 2000L) {
+            (ctx as? android.app.Activity)?.finish()
+        } else {
+            lastBackAt = now
+            android.widget.Toast.makeText(ctx, "再按一次退出", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -849,7 +1004,6 @@ private fun App() {
                 saveableStates.SaveableStateProvider(stateKeyOf(key)) {
                 when {
                     key.screen == 9 -> LicensesScreen(onBack = { goBack() })
-                    key.screen == 8 -> MoodScreen(onBack = { goBack() })
                     key.screen == 7 -> app.lumen.player.ui.StatsScreen(
                         initial = app.lumen.player.data.StatsStore.load(ctx),
                         onBack = { goBack() },
@@ -872,11 +1026,18 @@ private fun App() {
                     }
                     key.screen == 4 -> DownloadsScreen(
                         summaries = downloads,
+                        tracksOf = { key -> Downloads.tracksOf(ctx, key) },
                         onBack = { goBack() },
                         onDelete = { id ->
                             Downloads.delete(ctx, id)
-                            downloads = Downloads.summaries(ctx)
+                            scope.launch { downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) } }
                         },
+                        onDeleteTrack = { trackId ->
+                            Downloads.deleteTrack(ctx, trackId)
+                            scope.launch { downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) } }
+                        },
+                        onPauseAll = { Downloads.pauseAll(ctx) },
+                        onResumeAll = { Downloads.resumeAll(ctx) },
                         onClearAll = {
                             downloads.forEach { Downloads.delete(ctx, it.key) }
                             downloads = emptyList()
@@ -908,7 +1069,6 @@ private fun App() {
                         },
                         onToggle = { playback.toggle() },
                         onNext = { playback.next() },
-                        onOpenMood = { navigate(NavKey(8, null)) },
                         onRetry = {
                             radioTracks = emptyList()
                             app.lumen.player.data.Radio.clearCache(ctx)
@@ -917,7 +1077,6 @@ private fun App() {
                     )
                     key.screen == 3 -> SettingsScreen(
                         cfg = cfg,
-                        cacheDir = java.io.File(ctx.cacheDir, "media"),
                         downloadCount = downloads.sumOf { it.total },
                         downloadBytes = downloads.sumOf { it.bytes },
                         onManageDownloads = { navigate(NavKey(4, null)) },
@@ -926,13 +1085,68 @@ private fun App() {
                         onSwitchAccount = { switchAccount(it) },
                         onAddAccount = { base, user, password -> addAccount(base, user, password) },
                         onRemoveAccount = { removeAccount(it) },
-                        onOpenMood = { navigate(NavKey(8, null)) },
                         onOpenLicenses = { navigate(NavKey(9, null)) },
                         versionName = BuildConfig.VERSION_NAME,
                         contrast = contrast,
                         onContrast = { v ->
                             contrast = v
                             app.lumen.player.data.Appearance.setContrast(ctx, v)
+                        },
+                        themeMode = themeMode,
+                        onThemeMode = {
+                            themeMode = it
+                            app.lumen.player.data.Appearance.setThemeMode(ctx, it)
+                        },
+                        paletteStyle = paletteStyle,
+                        onPaletteStyle = {
+                            paletteStyle = it
+                            app.lumen.player.data.Appearance.setPaletteStyle(ctx, it)
+                        },
+                        amoled = amoledOn,
+                        onAmoled = {
+                            amoledOn = it
+                            app.lumen.player.data.Appearance.setAmoled(ctx, it)
+                        },
+                        moodTint = moodTintOn,
+                        onMoodTint = {
+                            moodTintOn = it
+                            app.lumen.player.data.Appearance.setMoodTint(ctx, it)
+                        },
+                        gradientTheme = gradientOn,
+                        onGradientTheme = {
+                            gradientOn = it
+                            app.lumen.player.data.Appearance.setGradientTheme(ctx, it)
+                        },
+                        materialYou = materialYouOn,
+                        onMaterialYou = {
+                            materialYouOn = it
+                            app.lumen.player.data.Appearance.setMaterialYou(ctx, it)
+                        },
+                        perPageColor = perPageColorOn,
+                        onPerPageColor = {
+                            perPageColorOn = it
+                            app.lumen.player.data.Appearance.setPerPageColor(ctx, it)
+                        },
+                        pinned = pinnedAlbumId != null,
+                        paletteStatus = paletteStatus,
+                        onPinColor = {
+                            val t = current
+                            if (t != null) {
+                                app.lumen.player.data.Appearance.setPinned(
+                                    ctx,
+                                    t.albumId,
+                                    listOf(
+                                        scheme.primary.toArgb(),
+                                        scheme.secondary.toArgb(),
+                                        scheme.tertiary.toArgb(),
+                                    ),
+                                )
+                                pinnedAlbumId = t.albumId
+                            }
+                        },
+                        onUnpinColor = {
+                            app.lumen.player.data.Appearance.clearPinned(ctx)
+                            pinnedAlbumId = null
                         },
                         fadeMs = fadeMs,
                         langMode = langMode,
@@ -949,9 +1163,21 @@ private fun App() {
                         onOpenChangelog = { navigate(NavKey(11, null)) },
                         onOpenPrivacy = { navigate(NavKey(12, null)) },
                         onOpenTerms = { navigate(NavKey(13, null)) },
-                        onClearCache = {
-                            // 只清流媒体/图片缓存；下载曲目的 cache key（URI）保留
-                            MediaCache.clearStreamingCache(ctx, Downloads.downloadedUris(ctx))
+                        onClearSongCache = {
+                            withContext(Dispatchers.IO) {
+                                MediaCache.clearSongCache(ctx, Downloads.downloadedUris(ctx))
+                            }
+                        },
+                        onClearImageCache = { withContext(Dispatchers.IO) { MediaCache.clearImageCache(ctx) } },
+                        onClearLyricsCache = { withContext(Dispatchers.IO) { app.lumen.player.data.LyricsCache.clear(ctx) } },
+                        onClearMoodAbnormal = {
+                            withContext(Dispatchers.IO) { app.lumen.player.data.MoodStore.clearAbnormal(ctx) }
+                        },
+                        onIgnoreFailedTracks = {
+                            withContext(Dispatchers.IO) { app.lumen.player.data.MoodStore.ignoreFailures(ctx) }
+                        },
+                        onRestoreIgnoredTracks = {
+                            withContext(Dispatchers.IO) { app.lumen.player.data.MoodStore.clearIgnored(ctx) }
                         },
                         onBack = { goBack() },
                         onLogout = {
@@ -985,30 +1211,6 @@ private fun App() {
                         },
                         rating = rating,
                         mood = mood,
-                        moodAnalyzing = moodAnalyzing,
-                        moodPhase = moodPhase,
-                        onAnalyzeMood = {
-                            current?.let { tr ->
-                                moodAnalyzing = true
-                                moodPhase = L10n.t("准备")
-                                scope.launch {
-                                    runCatching {
-                                        withContext(Dispatchers.IO) {
-                                            app.lumen.player.data.MoodAnalyzer(ctx).analyze(
-                                                tr.id,
-                                                streamUrl(client, tr),
-                                            ) { phase, p -> moodPhase = "$phase ${(p * 100).toInt()}%" }
-                                        }
-                                    }.onSuccess {
-                                        app.lumen.player.data.MoodStore.put(ctx, it)
-                                        mood = it
-                                    }.onFailure {
-                                        android.util.Log.e("LumenMood", "mood analysis failed", it)
-                                    }
-                                    moodAnalyzing = false
-                                }
-                            }
-                        },
                         onRating = { v ->
                             rating = v
                             current?.let { Ratings.set(ctx, it.id, v) }
@@ -1035,10 +1237,21 @@ private fun App() {
                         onSeek = { playback.seekTo(it) },
                     )
                     else -> if (key.album == null) {
-                        MaterialTheme(colorScheme = HomeScheme, typography = lumenTypography()) {
+                        MaterialTheme(
+                            colorScheme = app.lumen.player.ui.mutedForHome(animatedScheme, isDarkTheme),
+                            typography = lumenTypography(),
+                        ) {
                         HomeScreen(
                             client = client,
                             albums = albums,
+                            analyzing = app.lumen.player.playback.MoodAnalysisRunner.running,
+                            analysisDone = app.lumen.player.playback.MoodAnalysisRunner.done,
+                            analysisTotal = app.lumen.player.playback.MoodAnalysisRunner.total,
+                            analysisPhase = app.lumen.player.playback.MoodAnalysisRunner.phase,
+                            analysisTrack = app.lumen.player.playback.MoodAnalysisRunner.currentTitle,
+                            analysisMode = app.lumen.player.playback.MoodAnalysisRunner.modeLabel,
+                            analysisModeDetail = app.lumen.player.playback.MoodAnalysisRunner.modeDetail,
+                            downloadedIds = downloadedTrackIds,
                             loading = loading,
                             error = error,
                             coverUrl = coverOf,
@@ -1082,6 +1295,14 @@ private fun App() {
                         val albumTracks = albumTracksCache[album.id]
                         if (albumTracks == null) {
                             LaunchedEffect(album.id) {
+                                // ① 先用磁盘缓存秒开（可能略旧），避免白屏等待
+                                val cached = withContext(Dispatchers.IO) {
+                                    app.lumen.player.data.AlbumTracksCache.load(ctx, album.id)
+                                }
+                                if (cached != null && albumTracksCache[album.id] == null) {
+                                    albumTracksCache[album.id] = cached
+                                }
+                                // ② 后台刷新，成功则覆写内存与磁盘
                                 val fetched = try {
                                     withContext(Dispatchers.IO) { client.tracks(album.id) }.also {
                                         app.lumen.player.util.Logx.i(
@@ -1091,25 +1312,14 @@ private fun App() {
                                     }
                                 } catch (e: Exception) {
                                     android.util.Log.e("LumenAlbum", "album=${album.id} fetch failed", e)
-                                    error = e.message
+                                    if (cached == null) error = e.message
                                     emptyList()
                                 }
                                 // 不要把空结果缓存下来：否则一次网络抖动会让这张专辑一直空白
-                                if (fetched.isNotEmpty()) albumTracksCache[album.id] = fetched
-                            }
-                        }
-                        // 进入专辑即静默分析缺失曲目（无 UI、无提示）
-                        LaunchedEffect(album.id, albumTracksCache[album.id]?.size) {
-                            val list = albumTracksCache[album.id].orEmpty()
-                            if (list.isNotEmpty()) {
-                                withContext(Dispatchers.IO) {
-                                    app.lumen.player.data.MoodAnalyzer(ctx).use { analyzer ->
-                                        list.forEach { tr ->
-                                            if (app.lumen.player.data.MoodStore.get(ctx, tr.id) == null) {
-                                                runCatching { analyzer.analyze(tr.id, client.streamUrl(tr.id) + "&format=mp3&maxBitRate=96") { _, _ -> } }
-                                                    .onSuccess { app.lumen.player.data.MoodStore.put(ctx, it) }
-                                            }
-                                        }
+                                if (fetched.isNotEmpty()) {
+                                    albumTracksCache[album.id] = fetched
+                                    withContext(Dispatchers.IO) {
+                                        app.lumen.player.data.AlbumTracksCache.save(ctx, album.id, fetched)
                                     }
                                 }
                             }
@@ -1122,7 +1332,10 @@ private fun App() {
                             currentTrackId = current?.id,
                             onBack = { goBack() },
                             download = downloads.firstOrNull { it.key == "album:${album.id}" },
-                            contrast = contrast,
+                            downloadedIds = downloadedTrackIds,
+                            themeOpts = themeOpts,
+                            mood = if (current?.albumId == album.id) mood else null,
+                            selfColor = perPageColorOn,
                             onDownload = {
                                 Downloads.enqueue(ctx, album, albumTracksCache[album.id].orEmpty()) { tr -> streamUrl(client, tr) }
                                 scope.launch {
@@ -1150,7 +1363,6 @@ private fun App() {
                 }
     }
 
-    val animatedScheme = app.lumen.player.ui.rememberAnimatedColorScheme(scheme)
     MaterialTheme(colorScheme = animatedScheme, typography = lumenTypography()) {
         Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
             Box(
@@ -1172,7 +1384,12 @@ private fun App() {
                         }
                     },
             ) {
-                app.lumen.player.ui.ExpressiveBackdrop(Modifier.matchParentSize(), event = currentMoment.event)
+                val sharedMotion = app.lumen.player.ui.rememberBackdropMotion()
+                app.lumen.player.ui.ExpressiveBackdrop(
+                    Modifier.matchParentSize(),
+                    event = currentMoment.event,
+                    sharedMotion = sharedMotion,
+                )
                 // 预测性返回：底层压暗，露出背景；上层内容跟手右移 + 缩放 + 圆角
                 Box(
                     Modifier
@@ -1200,24 +1417,54 @@ private fun App() {
                                             val over = (p - 1f).coerceAtLeast(0f)
                                             translationX = size.width * (0.24f * p + 1.9f * over)
                                             alpha = if (p > 1.2f) ((1.4f - p) / 0.2f).coerceIn(0f, 1f) else 1f
-                                            val s = 1f - 0.07f * p.coerceAtMost(1f)
+                                            var s = 1f - 0.07f * p.coerceAtMost(1f)
+                                            var tx = 0f
+                                            var ty = 0f
+                                            // 返回：向来源卡片收缩（容器变换的反向）
+                                            val r = exitRect
+                                            if (r != null && size.width > 0f && size.height > 0f) {
+                                                val startScale = maxOf(r.width / size.width, r.height / size.height)
+                                                    .coerceIn(0.35f, 1f)
+                                                val k = p.coerceAtMost(1f)
+                                                s *= 1f + (startScale - 1f) * k
+                                                tx = (r.center.x - size.width / 2f) * k
+                                                ty = (r.center.y - size.height / 2f) * k
+                                            }
                                             scaleX = s
                                             scaleY = s
-                                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+                                            translationX += tx
+                                            translationY = ty
+                                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.5f)
                                         } else if (e < 0.999f) {
-                                            // 进入：从点击位置展开
-                                            val s = 0.90f + 0.10f * e
-                                            scaleX = s
-                                            scaleY = s
-                                            alpha = 0.55f + 0.45f * e
-                                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(enterOriginX, enterOriginY)
+                                            // 进入：从来源卡片的矩形长成整页
+                                            val r = enterRect
+                                            if (r != null && size.width > 0f && size.height > 0f) {
+                                                val startScale = maxOf(r.width / size.width, r.height / size.height)
+                                                    .coerceIn(0.35f, 1f)
+                                                val k = 1f - e
+                                                val s = startScale + (1f - startScale) * e
+                                                scaleX = s
+                                                scaleY = s
+                                                translationX = (r.center.x - size.width / 2f) * k
+                                                translationY = (r.center.y - size.height / 2f) * k
+                                                alpha = 0.35f + 0.65f * e
+                                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.5f)
+                                            } else {
+                                                val s = 0.90f + 0.10f * e
+                                                scaleX = s
+                                                scaleY = s
+                                                alpha = 0.55f + 0.45f * e
+                                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(enterOriginX, enterOriginY)
+                                            }
                                         }
                                     } else {
                                         val p2 = p.coerceAtMost(1f)
                                         val s = 0.94f + 0.06f * p2
                                         scaleX = s
                                         scaleY = s
-                                        translationX = -size.width * 0.05f * (1f - p2)
+                                        // 背景页做反向视差：往左让出 -8%，跟随手指更自然
+                                        translationX = -size.width * (0.05f + 0.03f * p2) * (1f - p2) -
+                                            size.width * 0.03f * p2
                                     }
                                 }
                                 .clip(
@@ -1233,22 +1480,35 @@ private fun App() {
                                     ),
                                 ),
                         ) {
-                            // 每一页都带自己的背景：从底层升到前景时亮度不变，避免切换瞬间闪一下
-                            if (isFront || backAnim.value > 0.01f) {
-                                app.lumen.player.ui.ExpressiveBackdrop(
-                                    Modifier.matchParentSize(),
-                                    drivePulse = isFront,
-                                    event = currentMoment.event,
-                                )
-                            }
+                            // P0-1：只有前景页绘制动态背景；退到后面的页用纯底色，转场少一半绘制
+                            app.lumen.player.ui.ExpressiveBackdrop(
+                                Modifier.matchParentSize(),
+                                drivePulse = isFront,
+                                event = currentMoment.event,
+                                animate = isFront && playback.playing && !powerSave.value,
+                                sharedMotion = sharedMotion,
+                            )
                             screenContent(pageKey)
                         }
                     }
                 }
 
 
-                // 播放页有自己的控制区，不再显示底栏
-                if (screen != 2) {
+                // 播放页有自己的控制区，不再显示底栏（用动画隐显，避免"啪"地出现）
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = screen != 2,
+                    enter = androidx.compose.animation.fadeIn(
+                        androidx.compose.animation.core.tween(180),
+                    ) + androidx.compose.animation.slideInVertically(
+                        androidx.compose.animation.core.tween(220),
+                    ) { it / 2 },
+                    exit = androidx.compose.animation.fadeOut(
+                        androidx.compose.animation.core.tween(140),
+                    ) + androidx.compose.animation.slideOutVertically(
+                        androidx.compose.animation.core.tween(180),
+                    ) { it / 2 },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                ) {
                     YoinBar(
                         modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 6.dp),
                         title = current?.title ?: "",
@@ -1256,7 +1516,6 @@ private fun App() {
                         coverUrl = current?.let { client.coverUrl(it.albumId, 200) } ?: "",
                         playing = playback.playing,
                         enabled = current != null,
-                        eventLabel = currentMoment.detail,
                         onHome = { navStack.clear(); screen = 0; openAlbum = null },
                         onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
                         onToggle = {
@@ -1265,7 +1524,52 @@ private fun App() {
                         },
                     )
                 }
+
+                if (showMoodHint) {
+                    MoodNoticeDialog(
+                        onDismiss = {
+                            showMoodHint = false
+                            ctx.getSharedPreferences("lumen_mood", android.content.Context.MODE_PRIVATE)
+                                .edit().putBoolean("hint_shown", true).apply()
+                        },
+                    )
+                }
             }
         }
     }
+}
+
+
+/** 首次登录后的后台分析提示：说明可能的短暂卡顿/发热，分析结束自动恢复。 */
+@Composable
+private fun MoodNoticeDialog(onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                L10n.t("正在后台分析曲库"),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        },
+        text = {
+            Text(
+                L10n.t(
+                    "为了让配色、氛围电台与节拍动效贴合每首歌，Lumen 会在后台逐首分析曲库（每首约 1~2 秒）。" +
+                        "分析期间可能出现短暂卡顿或设备发热，属于正常现象，全部分析结束后会自动恢复正常。" +
+                        "你可以继续听歌，切到后台也会继续。",
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+                lineHeight = 20.sp,
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(L10n.t("知道了"), color = MaterialTheme.colorScheme.primary)
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    )
 }

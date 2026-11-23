@@ -63,8 +63,11 @@ import app.lumen.player.data.Account
 import app.lumen.player.data.ServerConfig
 import app.lumen.player.util.L10n
 import com.gpo.yoin.symbols.YoinSymbols
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -72,15 +75,37 @@ import java.io.File
 @Composable
 fun SettingsScreen(
     cfg: ServerConfig,
-    cacheDir: File,
     onBack: () -> Unit,
     onLogout: () -> Unit,
     downloadCount: Int,
     downloadBytes: Long,
     onManageDownloads: () -> Unit,
-    onClearCache: () -> Unit,
-    contrast: Float = 0f,
+    onClearSongCache: suspend () -> Unit = {},
+    onClearImageCache: suspend () -> Unit = {},
+    onClearLyricsCache: suspend () -> Unit = {},
+    onClearMoodAbnormal: suspend () -> Unit = {},
+    onIgnoreFailedTracks: suspend () -> Int = { 0 },
+    onRestoreIgnoredTracks: suspend () -> Int = { 0 },
+    contrast: Float = 0.45f,
     onContrast: (Float) -> Unit = {},
+    themeMode: String = "system",
+    onThemeMode: (String) -> Unit = {},
+    paletteStyle: String = "tonal",
+    onPaletteStyle: (String) -> Unit = {},
+    amoled: Boolean = false,
+    onAmoled: (Boolean) -> Unit = {},
+    moodTint: Boolean = true,
+    onMoodTint: (Boolean) -> Unit = {},
+    gradientTheme: Boolean = false,
+    onGradientTheme: (Boolean) -> Unit = {},
+    materialYou: Boolean = false,
+    onMaterialYou: (Boolean) -> Unit = {},
+    perPageColor: Boolean = false,
+    onPerPageColor: (Boolean) -> Unit = {},
+    pinned: Boolean = false,
+    paletteStatus: String = "",
+    onPinColor: () -> Unit = {},
+    onUnpinColor: () -> Unit = {},
     fadeMs: Long = 260L,
     onFadeMs: (Long) -> Unit = {},
     smartFade: Boolean = true,
@@ -92,7 +117,6 @@ fun SettingsScreen(
     onSwitchAccount: (Account) -> Unit = {},
     onAddAccount: (String, String, String) -> Unit = { _, _, _ -> },
     onRemoveAccount: (Account) -> Unit = {},
-    onOpenMood: () -> Unit = {},
     onOpenLicenses: () -> Unit = {},
     versionName: String = "",
     onClearLocalData: () -> Unit = {},
@@ -102,34 +126,27 @@ fun SettingsScreen(
     onOpenTerms: () -> Unit = {},
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    var cacheBytes by remember { mutableStateOf(0L) }
     var freed by remember { mutableStateOf(false) }
     var showAccounts by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     var confirmWipe by remember { mutableStateOf(false) }
 
-    var moodTotal by remember { mutableIntStateOf(0) }
-    var moodRunning by remember { mutableStateOf(false) }
-    var moodCount by remember { mutableIntStateOf(0) }
+    var cacheSongs by remember { mutableStateOf(0L) }
+    var cacheImages by remember { mutableStateOf(0L) }
+    var cacheLyrics by remember { mutableStateOf(0L) }
+    var moodAbnormal by remember { mutableIntStateOf(0) }
+    var moodIgnored by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(freed) {
-        cacheBytes = withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             runCatching {
-                val total = cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                (total - downloadBytes).coerceAtLeast(0L)
-            }.getOrDefault(0L)
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            val (_, t, r) = app.lumen.player.playback.MoodWorker.progress(ctx)
-            moodTotal = t
-            moodRunning = r
-            moodCount = withContext(Dispatchers.IO) {
-                app.lumen.player.data.MoodStore.count(ctx)
+                cacheSongs = app.lumen.player.playback.MediaCache.streamingBytes(ctx)
+                cacheImages = app.lumen.player.playback.MediaCache.imageBytes(ctx)
+                cacheLyrics = app.lumen.player.data.LyricsCache.bytes(ctx)
+                moodAbnormal = app.lumen.player.data.MoodStore.abnormalCount(ctx)
+                moodIgnored = app.lumen.player.data.MoodStore.ignoredCount(ctx)
             }
-            delay(1500)
         }
     }
 
@@ -233,26 +250,121 @@ fun SettingsScreen(
             // 02 外观
             item {
                 ExpressiveSection("02", L10n.t("外观")) {
-                    SettingLabel(L10n.t("对比度"), L10n.t("文字与背景的分离程度"))
+                    SettingLabel(L10n.t("深浅模式"), L10n.t("跟随系统 / 强制深色 / 强制浅色"))
                     SegmentedControl(
-                        labels = listOf(L10n.t("标准"), L10n.t("中"), L10n.t("高")),
-                        selected = if (contrast >= 0.75f) 2 else if (contrast >= 0.25f) 1 else 0,
-                        onSelect = { index -> onContrast(listOf(0f, 0.5f, 1f)[index]) },
+                        labels = listOf(L10n.t("跟随系统"), L10n.t("深色"), L10n.t("浅色")),
+                        selected = listOf("system", "dark", "light").indexOf(themeMode).coerceAtLeast(0),
+                        onSelect = { i -> onThemeMode(listOf("system", "dark", "light")[i]) },
                     )
+
+                    SettingLabel(
+                        L10n.t("配色风格"),
+                        L10n.t("从封面取色后按此风格展开"),
+                        Modifier.padding(top = 18.dp),
+                    )
+                    SegmentedControl(
+                        labels = listOf(L10n.t("色相"), L10n.t("活力"), L10n.t("表现"), L10n.t("中性")),
+                        selected = listOf("tonal", "vibrant", "expressive", "neutral").indexOf(paletteStyle).coerceAtLeast(0),
+                        onSelect = { i -> onPaletteStyle(listOf("tonal", "vibrant", "expressive", "neutral")[i]) },
+                    )
+
+                    SettingLabel(L10n.t("对比度"), L10n.t("文字与背景的分离程度"), Modifier.padding(top = 18.dp))
+                    SegmentedControl(
+                        labels = listOf(L10n.t("标准"), L10n.t("增强"), L10n.t("最高")),
+                        selected = when {
+                            contrast >= 0.6f -> 2
+                            contrast >= 0.2f -> 1
+                            else -> 0
+                        },
+                        onSelect = { index -> onContrast(listOf(0f, 0.45f, 0.7f)[index]) },
+                    )
+
+                    // 冲突规则：Material You 接管后，封面系开关与锁色全部失效；锁色开启时其余封面开关也失效
+                    val youTakeover = materialYou
+                    val colorLocked = pinned
+                    val coverSwitchEnabled = !youTakeover && !colorLocked
+
+                    SettingLabel(L10n.t("颜色开关"), L10n.t("Lumoo 取色 · 按需启用"), Modifier.padding(top = 18.dp))
+                    ToggleRow(
+                        L10n.t("情绪配色"),
+                        L10n.t("配色随心情分析结果轻微偏移"),
+                        moodTint,
+                        coverSwitchEnabled,
+                        onMoodTint,
+                    )
+                    ToggleRow(
+                        L10n.t("封面渐变配色"),
+                        L10n.t("用封面前三主色分给主/副/第三色"),
+                        gradientTheme,
+                        coverSwitchEnabled,
+                        onGradientTheme,
+                    )
+                    ToggleRow(
+                        L10n.t("每页独立取色"),
+                        L10n.t("进入专辑等页面时改用该页封面配色"),
+                        perPageColor,
+                        coverSwitchEnabled,
+                        onPerPageColor,
+                    )
+                    ToggleRow(
+                        L10n.t("Material You"),
+                        if (colorLocked) L10n.t("已锁定专辑配色，先解锁才能启用")
+                        else L10n.t("Android 12+ 用系统壁纸配色（接管封面取色）"),
+                        materialYou,
+                        !colorLocked,
+                        onMaterialYou,
+                    )
+                    ToggleRow(
+                        L10n.t("AMOLED 纯黑"),
+                        if (themeMode == "light") L10n.t("仅深色模式可用，当前是浅色")
+                        else L10n.t("深色模式下背景压到纯黑，更省电"),
+                        amoled,
+                        themeMode != "light",
+                        onAmoled,
+                    )
+
+                    SettingLabel(L10n.t("专辑锁色"), L10n.t("固定当前配色，不随切歌变化"), Modifier.padding(top = 18.dp))
+                    Box(Modifier.alpha(if (youTakeover) 0.38f else 1f)) {
+                        SegmentedControl(
+                            labels = listOf(L10n.t("跟随封面"), L10n.t("锁定当前")),
+                            selected = if (pinned) 1 else 0,
+                            onSelect = { i ->
+                                if (youTakeover) return@SegmentedControl
+                                if (i == 1) onPinColor() else onUnpinColor()
+                            },
+                        )
+                    }
                     Text(
-                        L10n.t("对比度越高，文字与背景越分明；越低，整体更柔和。默认「高」。"),
+                        when {
+                            youTakeover -> L10n.t("Material You 生效中：封面相关开关与专辑锁色已禁用。")
+                            colorLocked -> L10n.t("已锁定专辑配色：情绪/渐变/每页取色暂不可用，解锁后恢复。")
+                            else -> L10n.t("以上开关按需组合；互相冲突时会自动禁用。")
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+
+                    Text(
+                        "Lumoo · " + if (paletteStatus.isBlank()) L10n.t("封面取色") else paletteStatus,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         lineHeight = 16.sp,
                         modifier = Modifier.padding(top = 8.dp),
                     )
-                    SettingLabel(L10n.t("切歌淡入淡出"), L10n.t("旧曲淡出，新曲淡入"), Modifier.padding(top = 18.dp))
+                }
+            }
+
+            // 03 播放（衔接相关设置从「外观」移出）
+            item {
+                ExpressiveSection("03", L10n.t("播放")) {
+                    SettingLabel(L10n.t("切歌淡入淡出"), L10n.t("旧曲淡出，新曲淡入"))
                     SegmentedControl(
                         labels = listOf(L10n.t("关闭"), L10n.t("短"), L10n.t("标准"), L10n.t("长")),
                         selected = listOf(0L, 150L, 260L, 420L).indexOf(fadeMs).coerceAtLeast(0),
                         onSelect = { index -> onFadeMs(listOf(0L, 150L, 260L, 420L)[index]) },
                     )
-
                     SettingLabel(
                         L10n.tf("智能衔接", "Smart transition"),
                         L10n.tf("按当前曲目 BPM 调整淡入淡出", "Adjust crossfade to the current BPM"),
@@ -273,85 +385,82 @@ fun SettingsScreen(
                 }
             }
 
-            // 03 心情分析
-            item {
-                val percent = when {
-                    moodTotal > 0 -> (moodCount * 100 / moodTotal).coerceIn(0, 100)
-                    moodCount > 0 -> 100
-                    else -> 0
-                }
-                ExpressiveSection("03", L10n.t("心情分析")) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    L10n.tf("$moodCount 首", "$moodCount tracks"),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                MoodStatus(running = moodRunning, hasData = moodCount > 0)
-                            }
-                            Text(
-                                if (moodTotal > 0) L10n.tf("本库 $moodTotal 首 · 覆盖 $percent%", "$moodTotal tracks · $percent% covered")
-                                else L10n.t("在本机提取节奏与情绪，不上传文件"),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
-                        }
-                        PillButton(L10n.t("管理"), primary = true) { onOpenMood() }
-                    }
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(top = 14.dp)
-                            .height(8.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                    ) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth(percent / 100f)
-                                .height(8.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary),
-                                    ),
-                                ),
-                        )
-                    }
-                }
-            }
 
-            // 04 存储
+            // 04 存储：四类缓存分开管理，主按钮只清歌曲缓存
             item {
                 ExpressiveSection("04", L10n.t("存储")) {
+                    CacheRow(
+                        title = L10n.t("歌曲缓存"),
+                        size = cacheSongs,
+                        hint = L10n.t("边下边播的流缓存，清理后下次播放重新缓冲"),
+                        onClear = { scope.launch { onClearSongCache(); freed = !freed } },
+                    )
+                    CacheRow(
+                        title = L10n.t("封面缓存"),
+                        size = cacheImages,
+                        hint = L10n.t("清理后封面需重新下载，不影响已下载歌曲"),
+                        onClear = { scope.launch { onClearImageCache(); freed = !freed } },
+                    )
+                    CacheRow(
+                        title = L10n.t("歌词缓存"),
+                        size = cacheLyrics,
+                        hint = L10n.t("已保存的歌词文本，清理后需重新获取"),
+                        onClear = { scope.launch { onClearLyricsCache(); freed = !freed } },
+                    )
                     StorageRow(
-                        title = L10n.t("清理缓存"),
-                        value = L10n.tf("${"%.1f".format(cacheBytes / 1024f / 1024f)} MB", "${"%.1f".format(cacheBytes / 1024f / 1024f)} MB"),
-                        hint = L10n.tf("不含已下载", "excludes downloads"),
+                        title = L10n.t("分析异常数据"),
+                        value = L10n.tf("${moodAbnormal} 条", "${moodAbnormal} items"),
+                        hint = L10n.t("清理后这些曲目会在下次启动时重试；想彻底不分析请用「忽略」"),
                         action = {
-                            IconButton(onClick = {
-                                onClearCache()
-                                freed = !freed
-                            }) {
-                                Icon(
-                                    YoinSymbols.Delete,
-                                    contentDescription = L10n.t("清理缓存"),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    L10n.tf("忽略", "Ignore"),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .padding(horizontal = 6.dp)
+                                        .clickable {
+                                            scope.launch {
+                                                onIgnoreFailedTracks()
+                                                freed = !freed
+                                            }
+                                        },
                                 )
+                                IconButton(onClick = {
+                                    scope.launch {
+                                        onClearMoodAbnormal()
+                                        freed = !freed
+                                    }
+                                }) {
+                                    Icon(
+                                        YoinSymbols.Delete,
+                                        contentDescription = L10n.t("清理异常数据"),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                         },
                     )
-                    if (freed) {
-                        Text(
-                            L10n.t("缓存已清理（下载不受影响）"),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(top = 2.dp),
+                    if (moodIgnored > 0) {
+                        StorageRow(
+                            title = L10n.t("已忽略曲目"),
+                            value = L10n.tf("${moodIgnored} 首", "${moodIgnored} tracks"),
+                            hint = L10n.t("这些曲目不再参与分析，恢复后下次启动重试"),
+                            action = {
+                                Text(
+                                    L10n.tf("恢复", "Restore"),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .padding(horizontal = 6.dp)
+                                        .clickable {
+                                            scope.launch {
+                                                onRestoreIgnoredTracks()
+                                                freed = !freed
+                                            }
+                                        },
+                                )
+                            },
                         )
                     }
                     Spacer(Modifier.height(10.dp))
@@ -365,7 +474,6 @@ fun SettingsScreen(
                     )
                 }
             }
-
             // 05 语言
             item {
                 ExpressiveSection("05", L10n.tf("语言", "Language")) {
@@ -381,7 +489,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 06 关于
+            // 06 关于：检查更新紧跟版本号；隐私条款并入关于；使用引导在问题反馈上方
             item {
                 ExpressiveSection("06", L10n.t("关于")) {
                     AboutRow(
@@ -390,9 +498,6 @@ fun SettingsScreen(
                         onClick = null,
                         onLongClick = onOpenChangelog,
                     )
-                    AboutRow(L10n.tf("使用引导", "Walkthrough"), L10n.tf("重新查看", "View again"), onClick = onOpenGuide)
-                    AboutRow(L10n.t("开源信息"), L10n.t("技术栈与许可"), onClick = onOpenLicenses, chevron = true)
-                    AboutRow(L10n.tf("用户协议", "Terms of Service"), L10n.tf("查看", "View"), onClick = onOpenTerms, chevron = true)
                     AboutRow(
                         L10n.tf("检查更新", "Check for updates"),
                         L10n.tf("夸克网盘 · 3GF3", "Quark · 3GF3"),
@@ -411,26 +516,12 @@ fun SettingsScreen(
                             ).show()
                         },
                     )
+                    AboutRow(L10n.t("开源信息"), L10n.t("技术栈与许可"), onClick = onOpenLicenses, chevron = true)
+                    AboutRow(L10n.tf("用户协议", "Terms of Service"), L10n.tf("查看", "View"), onClick = onOpenTerms, chevron = true)
+                    AboutRow(L10n.tf("隐私条款", "Privacy Policy"), L10n.tf("查看", "View"), onClick = onOpenPrivacy, chevron = true)
+                    AboutRow(L10n.tf("使用引导", "Walkthrough"), L10n.tf("重新查看", "View again"), onClick = onOpenGuide)
                     FeedbackBlock()
                     AiCodedBadge(Modifier.padding(top = 14.dp))
-                }
-            }
-
-            // 07 隐私
-            item {
-                ExpressiveSection("07", L10n.tf("隐私条款", "Privacy")) {
-                    Text(
-                        L10n.tf(
-                            "说明 Lumen 收集哪些信息、为什么使用、如何存储与保护，以及你的删除与联系权利。",
-                            "How Lumen handles information, why it is used, how it is stored and protected, plus your deletion and contact rights.",
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
-                    )
-                    TextButton(onClick = onOpenPrivacy, contentPadding = PaddingValues(0.dp)) {
-                        Text(L10n.tf("查看完整条款 →", "Read the full policy →"), fontSize = 13.sp)
-                    }
                 }
             }
         }
@@ -501,6 +592,34 @@ private fun SettingLabel(title: String, hint: String, modifier: Modifier = Modif
         Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.weight(1f))
         Text(hint, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
+    }
+}
+
+/** 开关行：左侧标题 + 说明，右侧 Switch。 */
+@Composable
+private fun ToggleRow(
+    title: String,
+    hint: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp)
+            .alpha(if (enabled) 1f else 0.38f),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(hint, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, lineHeight = 14.sp)
+        }
+        androidx.compose.material3.Switch(
+            checked = checked,
+            onCheckedChange = if (enabled) onChange else null,
+            enabled = enabled,
+        )
     }
 }
 
@@ -665,28 +784,23 @@ private fun AccountRow(
     }
 }
 
+
 @Composable
-private fun MoodStatus(running: Boolean, hasData: Boolean) {
-    val color = when {
-        running -> MaterialTheme.colorScheme.primary
-        hasData -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Row(
-        Modifier
-            .clip(CircleShape)
-            .background(color.copy(alpha = 0.14f))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(6.dp).clip(CircleShape).background(color))
-        Spacer(Modifier.width(5.dp))
-        Text(
-            if (running) L10n.t("进行中") else if (hasData) L10n.tf("已保存", "Saved") else L10n.t("未开始"),
-            color = color,
-            fontSize = 10.sp,
-        )
-    }
+private fun CacheRow(title: String, size: Long, hint: String, onClear: () -> Unit) {
+    StorageRow(
+        title = title,
+        value = "%.1f".format(size / 1048576.0) + " MB",
+        hint = hint,
+        action = {
+            IconButton(onClick = onClear) {
+                Icon(
+                    YoinSymbols.Delete,
+                    contentDescription = L10n.t("清理"),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+    )
 }
 
 @Composable
@@ -696,24 +810,28 @@ private fun StorageRow(
     hint: String,
     action: @Composable () -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f)) {
             Text(title, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    value,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    hint,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    modifier = Modifier.padding(start = 6.dp, bottom = 3.dp),
-                )
-            }
+            Text(
+                value,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Text(
+                hint,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp,
+                lineHeight = 14.sp,
+                modifier = Modifier.padding(top = 1.dp),
+            )
         }
+        Spacer(Modifier.width(8.dp))
         action()
     }
 }
