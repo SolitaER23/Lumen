@@ -54,7 +54,11 @@ internal fun AnimatedCover(
     }
 
     LumooCover(
-        modifier = modifier,
+        modifier = if (albumId != null) {
+            modifier.albumSharedElement("cover-$albumId")
+        } else {
+            modifier
+        },
         albumId = albumId,
         cornerRadius = cornerRadius,
         elevation = 20.dp,

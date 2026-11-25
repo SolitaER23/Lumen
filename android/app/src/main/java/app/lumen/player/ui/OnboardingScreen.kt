@@ -154,6 +154,19 @@ fun OnboardingScreen(onDone: () -> Unit) {
             ),
         ),
         GuidePage(
+            tag = L10n.tf("统计", "STATS"),
+            title = L10n.tf("看见你的\n聆听轨迹", "See how you\nreally listen"),
+            body = L10n.tf(
+                "如果你自建了 navidrome-stat，可在「统计」里填入地址与令牌：总播放、时长、每日趋势、星期与时段分布、常听艺人与专辑一目了然；统计请求直达你的服务器，不经过任何第三方。",
+                "If you self-host navidrome-stat, add its URL and token under Stats: total plays, listening time, daily trend, weekday and time-of-day breakdown, top artists and albums. Requests go straight to your server, never to a third party.",
+            ),
+            bullets = listOf(
+                L10n.tf("关键指标与短期趋势", "Key metrics and short-term trend"),
+                L10n.tf("星期 / 时段分类汇总", "Weekday and time-of-day breakdown"),
+                L10n.tf("常听艺人与专辑排行", "Top artists and albums"),
+            ),
+        ),
+        GuidePage(
             tag = L10n.tf("电台", "RADIO"),
             title = L10n.tf("长按，\n进入氛围", "Press and hold\nfor a station"),
             body = L10n.tf(

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- KTX 建议属于重构风格，不是缺陷；62 条噪声不值得逐条改 -->
+    <issue id="UseKtx" severity="informational" />
+
+    <!-- 刻意的实现选择，代码里有注释说明 -->
+    <!-- commit() 用于「必须同步落盘并拿到结果」的场景（凭据/统计 Token 保存） -->
+    <issue id="ApplySharedPref" severity="ignore" />
+    <!-- 自托管场景需要局域网明文 HTTP，策略由 NetworkPolicy 在应用层把关 -->
+    <issue id="InsecureBaseConfiguration" severity="ignore" />
+    <!-- MediaSessionService 必须 exported，控制器鉴权在 onConnect 里做 -->
+    <issue id="ExportedService" severity="ignore" />
+    <!-- allowBackup=false，不需要 dataExtractionRules -->
+    <issue id="DataExtractionRules" severity="ignore" />
+    <!-- 只构建 arm64-v8a，不支持 ChromeOS -->
+    <issue id="ChromeOsAbiSupport" severity="ignore" />
+    <!-- 版本升级提示由发版流程人工确认，不在 CI 里卡 -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="NewerVersionAvailable" severity="ignore" />
+    <!-- 自适应图标已用 anydpi 提供前景/背景，暂无单色图层 -->
+    <issue id="MonochromeLauncherIcon" severity="ignore" />
+    <!-- 模型落盘空间检查用 usableSpace 即可；allocateBytes 会让系统清理缓存，副作用过大 -->
+    <issue id="UsableSpace" severity="ignore" />
+    <!-- ACCESS_LOCAL_NETWORK 是 API 37 常量，取值处已有 SDK 判断 -->
+    <issue id="InlinedApi" severity="ignore" />
+    <!-- 自适应图标目录保留 -v26 后缀：去掉后 aapt2 找不到 mipmap/ic_launcher（实测） -->
+    <issue id="ObsoleteSdkInt" severity="ignore" />
+</lint>

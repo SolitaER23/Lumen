@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  明文 HTTP 策略说明（配合 app.lumen.player.data.NetworkPolicy 使用）：
+
+  - Android 的 network security config 只能按「域名/主机名」放行，**不支持 CIDR 网段**，
+    因此无法在这里表达「仅允许局域网明文」。
+  - 现实做法：这里保持 permitted=true（否则自托管用户全部不可用），
+    由应用层 NetworkPolicy 决定哪些地址允许走 http：
+      · 私网/回环/链路本地/*.local/单标签主机名 → 允许；
+      · 公网地址 → 默认阻止，需用户在登录页显式勾选风险开关。
+  - 将来若接入固定域名（如官方统计服务），可在下面继续收窄。
+
+  Subsonic 的 u/t/s 是可重放凭据，明文链路上等同于账号访问权，改动此文件前请先读
+  OPTIMIZATION_PLAN.md 的 B3 与审查报告 P0-3。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

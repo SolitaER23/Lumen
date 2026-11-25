@@ -1,5 +1,7 @@
 package app.lumen.player.data
 
+import app.lumen.player.util.L10n
+
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
@@ -38,6 +40,83 @@ data class MoodResult(
 )
 
 object MoodStore {
+    /**
+     * 当前特征模型标识；与行内 model_id 不一致即视为需要重算。
+     *
+     * 0.74.0 起权重从 fp32 换成 fp16（体积减半，APK 278→151 MB）。fp16 与 fp32 的
+     * 输出在「频谱较稀疏」的曲目上会有可测差异（真实音频抽样：clipwise 余弦 0.91），
+     * 因此**必须换 id**让旧结果作废重算 —— 否则同一曲库里一半是 fp32 特征、
+     * 一半是 fp16 特征，相似度与电台排序会自相矛盾。
+     */
+    const val CURRENT_MODEL_ID = "clap-fp16-v1"
+
+    private val meanCache = HashMap<Int, FloatArray>()
+
+    /**
+     * 计算指定维度的均值向量（相似度去偏用）。
+     * CLAP 向量在所有曲目上共享一个很大的公共分量（实测余弦常年 0.97+），
+     * 不减去均值时「相似度」几乎恒为常数，排序失去意义。
+     */
+    private val stdCache = HashMap<Int, FloatArray>()
+
+    /** 逐维标准差（配合均值做 z-score 标准化）。 */
+    fun featureStd(ctx: Context, dim: Int): FloatArray? {
+        stdCache[dim]?.let { return it }
+        val mean = meanFeature(ctx, dim) ?: return null
+        val acc = DoubleArray(dim)
+        var n = 0
+        runCatching {
+            db(ctx).rawQuery("SELECT feature FROM $TABLE", null).use { c ->
+                while (c.moveToNext()) {
+                    val raw = c.getString(0) ?: continue
+                    if (raw.isEmpty()) continue
+                    val parts = raw.split(',')
+                    if (parts.size != dim) continue
+                    for (i in 0 until dim) {
+                        val d = (parts[i].toFloatOrNull() ?: 0f) - mean[i]
+                        acc[i] += (d * d).toDouble()
+                    }
+                    n++
+                }
+            }
+        }
+        if (n == 0) return null
+        val std = FloatArray(dim) { kotlin.math.sqrt((acc[it] / n).toDouble()).toFloat().coerceAtLeast(1e-4f) }
+        stdCache[dim] = std
+        return std
+    }
+
+    fun meanFeature(ctx: Context, dim: Int): FloatArray? {
+        meanCache[dim]?.let { return it }
+        val acc = FloatArray(dim)
+        var n = 0
+        runCatching {
+            db(ctx).rawQuery("SELECT feature FROM $TABLE", null).use { c ->
+                while (c.moveToNext()) {
+                    val raw = c.getString(0) ?: continue
+                    if (raw.isEmpty()) continue
+                    val parts = raw.split(',')
+                    if (parts.size != dim) continue
+                    for (i in 0 until dim) {
+                        parts[i].toFloatOrNull()?.let { acc[i] += it }
+                    }
+                    n++
+                }
+            }
+        }
+        if (n == 0) return null
+        for (i in 0 until dim) acc[i] /= n
+        meanCache[dim] = acc
+        return acc
+    }
+
+    /** 该曲是否已是当前模型的结果。 */
+    fun isCurrentModel(ctx: Context, trackId: String): Boolean = runCatching {
+        db(ctx).rawQuery("SELECT model_id FROM $TABLE WHERE track_id=?", arrayOf(trackId)).use { c ->
+            if (c.moveToFirst()) (c.getString(0) ?: "") == CURRENT_MODEL_ID else false
+        }
+    }.getOrDefault(false)
+
     private const val DB = "moods.db"
     private const val TABLE = "moods"
 
@@ -45,12 +124,12 @@ object MoodStore {
 
     private const val IGNORE_TABLE = "mood_ignored"
 
-    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 10) {
+    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 14) {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS $TABLE (" +
                     "track_id TEXT PRIMARY KEY, valence REAL, arousal REAL, label TEXT, tempo REAL, " +
-                    "beats TEXT, env TEXT, env_step INTEGER, updated INTEGER, tags TEXT, feature TEXT, segments TEXT)",
+                    "beats TEXT, env TEXT, env_step INTEGER, updated INTEGER, tags TEXT, feature TEXT, segments TEXT, model_id TEXT)",
             )
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS $FAIL_TABLE (track_id TEXT PRIMARY KEY, attempts INTEGER, last INTEGER)",
@@ -60,28 +139,64 @@ object MoodStore {
             )
         }
 
+        /**
+         * 迁移必须**按版本升序**执行：旧实现把 `< 13` 的 DELETE 放在 `< 12` 回填与
+         * `< 11` 加列之前，导致从 v10 升级时 model_id 列还不存在、语句抛错被
+         * runCatching 静默吞掉 —— 旧 YAMNet 结果永远清不掉。
+         *
+         * 失败不再完全静默：记日志（Logx.w 仅在 debug 输出），避免"看起来迁移成功"。
+         */
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            // v6 只增加内部标签列，保留已有分析结果
-            if (oldVersion < 6) {
-                runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN tags TEXT") }
-            }
-            if (oldVersion < 7) {
-                runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN feature TEXT") }
-            }
-            if (oldVersion < 8) {
-                runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN segments TEXT") }
-            }
-            if (oldVersion < 9) {
-                runCatching {
-                    db.execSQL(
-                        "CREATE TABLE IF NOT EXISTS $FAIL_TABLE (track_id TEXT PRIMARY KEY, attempts INTEGER, last INTEGER)",
+            fun step(label: String, sql: String) {
+                runCatching { db.execSQL(sql) }.onFailure {
+                    app.lumen.player.util.Logx.w(
+                        "LumenMood",
+                        "migration " + label + " (v" + oldVersion + "->" + newVersion + ") failed: " + it.message,
                     )
                 }
             }
+
+            // v6/v7/v8：补列，保留已有分析结果
+            if (oldVersion < 6) step("v6.tags", "ALTER TABLE $TABLE ADD COLUMN tags TEXT")
+            if (oldVersion < 7) step("v7.feature", "ALTER TABLE $TABLE ADD COLUMN feature TEXT")
+            if (oldVersion < 8) step("v8.segments", "ALTER TABLE $TABLE ADD COLUMN segments TEXT")
+            // v9/v10：失败/忽略表
+            if (oldVersion < 9) {
+                step(
+                    "v9.failures",
+                    "CREATE TABLE IF NOT EXISTS $FAIL_TABLE (track_id TEXT PRIMARY KEY, attempts INTEGER, last INTEGER)",
+                )
+            }
             if (oldVersion < 10) {
-                runCatching {
-                    db.execSQL("CREATE TABLE IF NOT EXISTS $IGNORE_TABLE (track_id TEXT PRIMARY KEY, at INTEGER)")
-                }
+                step(
+                    "v10.ignored",
+                    "CREATE TABLE IF NOT EXISTS $IGNORE_TABLE (track_id TEXT PRIMARY KEY, at INTEGER)",
+                )
+            }
+            // v11：加 model_id 列（必须在 v12 回填之前）
+            if (oldVersion < 11) step("v11.model_id", "ALTER TABLE $TABLE ADD COLUMN model_id TEXT")
+            // v12：按特征长度回填来源模型
+            if (oldVersion < 12) {
+                step(
+                    "v12.backfill",
+                    "UPDATE $TABLE SET model_id = CASE WHEN length(feature) > 3500 " +
+                        "THEN 'clap-music-v1' ELSE 'yamnet-v1' END " +
+                        "WHERE model_id IS NULL AND feature IS NOT NULL AND length(feature) > 0",
+                )
+            }
+            // v13：旧 YAMNet 结果与 CLAP 特征不兼容，清除后等待重新分析
+            if (oldVersion < 13) {
+                step(
+                    "v13.purge_yamnet",
+                    "DELETE FROM $TABLE WHERE model_id IS NULL OR model_id != 'clap-music-v1'",
+                )
+            }
+            // v14：fp32 权重换成 fp16，旧特征与新特征不可混用（见 CURRENT_MODEL_ID 注释）
+            if (oldVersion < 14) {
+                step(
+                    "v14.purge_fp32",
+                    "DELETE FROM $TABLE WHERE model_id IS NULL OR model_id != 'clap-fp16-v1'",
+                )
             }
         }
 
@@ -97,7 +212,23 @@ object MoodStore {
         }
     }
 
-    private fun db(ctx: Context) = Helper(ctx).writableDatabase
+    /**
+     * 进程级单例 helper。
+     *
+     * 旧实现是 `Helper(ctx).writableDatabase` —— **每次查询都新建一个 SQLiteOpenHelper**，
+     * 从不 close：全库统计一次会创建几十个 helper / SQLiteDatabase 包装，
+     * 每次都跑 onOpen 的 PRAGMA table_info，且长期占着文件句柄。
+     */
+    private var helper: Helper? = null
+
+    private fun db(ctx: Context): SQLiteDatabase = synchronized(this) {
+        val h = helper ?: Helper(ctx.applicationContext).also {
+            // WAL：分析线程写入与 UI 读取并发时，避免 "database is locked"
+            it.setWriteAheadLoggingEnabled(true)
+            helper = it
+        }
+        h.writableDatabase
+    }
 
     private fun encodeInts(a: IntArray): String =
         if (a.isEmpty()) "" else a.joinToString(",")
@@ -105,8 +236,15 @@ object MoodStore {
     private fun decodeInts(s: String?): IntArray =
         if (s.isNullOrBlank()) IntArray(0) else s.split(',').mapNotNull { it.toIntOrNull() }.toIntArray()
 
-    private fun encodeFloats(a: FloatArray): String =
-        if (a.isEmpty()) "" else a.joinToString(",") { "%.2f".format(it) }
+    /**
+     * 浮点编码**必须**用 Locale.ROOT。
+     *
+     * 默认 Locale 下 `"%.2f".format()` 在德语/法语等区域会输出 `0,123`，
+     * 而这里的分隔符正是逗号 —— 结果整行特征解析失败被静默丢弃，
+     * 表现为「换个系统语言，氛围电台的相似度就整体退化」。
+     */
+    internal fun encodeFloats(a: FloatArray): String =
+        if (a.isEmpty()) "" else a.joinToString(",") { String.format(java.util.Locale.ROOT, "%.2f", it) }
 
     private fun decodeFloats(s: String?): FloatArray =
         if (s.isNullOrBlank()) FloatArray(0) else s.split(',').mapNotNull { it.toFloatOrNull() }.toFloatArray()
@@ -120,8 +258,8 @@ object MoodStore {
         return arr.toString()
     }
 
-    private fun encodeFeature(feature: FloatArray): String =
-        if (feature.isEmpty()) "" else feature.joinToString(",") { "%.3f".format(it) }
+    internal fun encodeFeature(feature: FloatArray): String =
+        if (feature.isEmpty()) "" else feature.joinToString(",") { String.format(java.util.Locale.ROOT, "%.3f", it) }
 
     private fun decodeFeature(raw: String?): FloatArray =
         if (raw.isNullOrBlank()) FloatArray(0)
@@ -169,6 +307,12 @@ object MoodStore {
     }
 
     fun put(ctx: Context, r: MoodResult) {
+        // 新增/覆盖一条结果后，全库均值与标准差不再准确 —— 不失效会让「氛围电台」
+        // 一直用旧的中心点去偏，越听越偏。
+        synchronized(this) {
+            meanCache.clear()
+            stdCache.clear()
+        }
         val v = ContentValues().apply {
             put("track_id", r.trackId)
             put("valence", r.valence)
@@ -182,6 +326,7 @@ object MoodStore {
             put("tags", encodeTags(r.tags))
             put("feature", encodeFeature(r.feature))
             put("segments", encodeSegments(r.segments))
+            put("model_id", if (r.feature.size >= 1024) CURRENT_MODEL_ID else "yamnet-v1")
         }
         runCatching { db(ctx).insertWithOnConflict(TABLE, null, v, SQLiteDatabase.CONFLICT_REPLACE) }
             .onFailure { android.util.Log.e("LumenMood", "mood put failed", it) }
@@ -373,6 +518,21 @@ object MoodStore {
         runCatching { db(ctx).delete(TABLE, null, null) }
     }
 
+    /**
+     * 整库删除（「清除本机数据」用）：moods + mood_failures + mood_ignored 一起消失。
+     * 只清 moods 表会留下「哪些曲目分析过/失败过」的曲目 ID 清单，属于隐私残留。
+     */
+    fun clearAll(ctx: Context) {
+        // 必须先关掉单例 helper：deleteDatabase 在还有连接打开时会失败并留下空库
+        synchronized(this) {
+            runCatching { helper?.close() }
+            helper = null
+        }
+        runCatching { ctx.deleteDatabase(DB) }
+        runCatching { ctx.deleteDatabase(DB + "-wal") }
+        runCatching { ctx.deleteDatabase(DB + "-shm") }
+    }
+
     data class MoodDay(val date: String, val label: String?, val count: Int)
 
     /** 最近 N 天的分析量，label 为当天占比最高的情绪。 */
@@ -408,8 +568,9 @@ object MoodStore {
 
 /** 融合 YAMNet 分数 + DSP，得到 Russell 坐标、标签、tempo 与节拍包络。 */
 object MoodMath {
-    // YAMNet（521 类）的 mood 类索引，顺序：Happy, Sad, Tender, Exciting, Angry, Scary
-    val YAMNET_IDX = intArrayOf(271, 272, 273, 274, 275, 276)
+    // CLAP（527 类）的 mood 类索引，顺序：Happy, Sad, Tender, Exciting, Angry, Scary
+    // 注意：不是 YAMNet 的 271–276（那里是 Lullaby/Video game/Christmas/Dance/Wedding/Happy）
+    val MOOD_IDX = intArrayOf(276, 278, 279, 280, 281, 282)
 
     private fun sigmoid(x: Float) = 1f / (1f + kotlin.math.exp(-x))
 
@@ -433,6 +594,19 @@ object MoodMath {
         val centroidHz: Float,
         val onsetRate: Float,
         val tempoBpm: Float,
+        /** 近似整体响度（LUFS 风格：-0.691 + 10·log10(均方)，未做 K 加权） */
+        val lufs: Float = 0f,
+        /** 动态范围：短时响度的 P95 − P10（dB） */
+        val dynamicRange: Float = 0f,
+        /** 谱平坦度（几何均值 / 算术均值），0=纯音，1=白噪 */
+        val flatness: Float = 0f,
+        /** 谱滚降：85% 能量所在频率 */
+        val rolloffHz: Float = 0f,
+        /** 主导音高类 0–11（C=0），-1 表示无法判定 */
+        val keyIndex: Int = -1,
+        val keyMinor: Boolean = false,
+        /** 调性置信度 0–1 */
+        val keyConfidence: Float = 0f,
         val beatsMs: IntArray = IntArray(0),
         val env: FloatArray = FloatArray(0),
         val envStepMs: Int = 100,
@@ -441,18 +615,66 @@ object MoodMath {
     /** 从 YAMNet 521 类平均分中取 top-K；仅供内部使用，不在 UI 展示。 */
     fun topTags(yamnet: FloatArray?, limit: Int = 8, minScore: Float = 0.02f): List<AudioTag> {
         if (yamnet == null) return emptyList()
-        val n = minOf(yamnet.size, YAMNET_LABELS.size)
+        val n = minOf(yamnet.size, CLAP_LABELS.size)
         return (0 until n)
-            .map { AudioTag(YAMNET_LABELS[it], yamnet[it]) }
+            .map { AudioTag(CLAP_LABELS[it], yamnet[it]) }
             .filter { it.score >= minScore }
             .sortedByDescending { it.score }
             .take(limit)
     }
 
+    /**
+     * 用 CLAP 文本锚点的概率直接给出情绪坐标。
+     * 锚点顺序：happy, sad, calm, angry, tender, exciting, dark, nostalgic。
+     */
+    fun fuseAnchors(probs: FloatArray, dsp: Dsp, trackId: String): MoodResult {
+        val pHappy = probs.getOrElse(0) { 0f }
+        val pSad = probs.getOrElse(1) { 0f }
+        val pCalm = probs.getOrElse(2) { 0f }
+        val pAngry = probs.getOrElse(3) { 0f }
+        val pTender = probs.getOrElse(4) { 0f }
+        val pExciting = probs.getOrElse(5) { 0f }
+        val pDark = probs.getOrElse(6) { 0f }
+        val pNost = probs.getOrElse(7) { 0f }
+
+        // 极性投影：正向（happy/tender/calm/exciting/nostalgic）− 负向（sad/angry/dark）
+        val vRaw = pHappy * 1.0f + pTender * 0.55f + pCalm * 0.35f + pExciting * 0.15f +
+            pNost * 0.25f - pSad * 0.85f - pAngry * 0.65f - pDark * 0.55f
+        // 唤醒度：高强度（exciting/angry/dark）− 低强度（calm/tender/sad）
+        val aRaw = pExciting * 1.0f + pAngry * 0.85f + pDark * 0.60f + pHappy * 0.35f +
+            pNost * 0.10f - pCalm * 0.55f - pTender * 0.35f - pSad * 0.25f
+
+        // 概率和恒为 1，vRaw ∈ [-1,1]、aRaw ∈ [-1,1]，映射到 0–1
+        val v = (0.5f + vRaw * 0.95f).coerceIn(0f, 1f)
+        var ar = (0.5f + aRaw * 1.05f).coerceIn(0f, 1f)
+        // 用 DSP 的节奏/响度做小幅修正
+        val tempoNorm = ((dsp.tempoBpm - 60f) / 120f).coerceIn(0f, 1f)
+        ar = (ar * 0.85f + tempoNorm * 0.15f).coerceIn(0f, 1f)
+
+        val label = when {
+            v >= 0.56f && ar >= 0.52f -> L10n.t("Happy")
+            v >= 0.56f -> L10n.t("Calm")
+            v < 0.46f && ar >= 0.52f -> L10n.t("Angry")
+            v < 0.46f -> L10n.t("Sad")
+            ar >= 0.62f -> L10n.t("Tense")
+            else -> L10n.t("Tender")
+        }
+        return MoodResult(
+            trackId = trackId,
+            valence = v,
+            arousal = ar,
+            label = label,
+            tempo = dsp.tempoBpm,
+            beatsMs = dsp.beatsMs,
+            env = dsp.env,
+            envStepMs = dsp.envStepMs,
+        )
+    }
+
     fun fuse(yamnet: FloatArray?, dsp: Dsp, trackId: String): MoodResult {
         val names = listOf("Happy", "Sad", "Tender", "Exciting", "Angry", "Scary")
         val fused = names.associateWith { name ->
-            calibrate(pick(yamnet, YAMNET_IDX, name))
+            calibrate(pick(yamnet, MOOD_IDX, name))
         }
         val h = fused["Happy"] ?: 0f
         val s = fused["Sad"] ?: 0f
@@ -466,11 +688,27 @@ object MoodMath {
         val onsetNorm = (dsp.onsetRate / 8f).coerceIn(0f, 1f)
         val centroidNorm = (dsp.centroidHz / 4000f).coerceIn(0f, 1f)
 
-        var v = 0.95f * h + 0.40f * t - 0.85f * s - 0.55f * a - 0.20f * sc + 0.18f
-        var ar = 0.70f * e + 0.55f * a + 0.40f * sc + 0.55f * tempoNorm +
-            0.40f * rmsNorm + 0.35f * onsetNorm + 0.20f * centroidNorm - 0.35f * t - 0.20f * s
-        v = ((v + 1f) / 2f).coerceIn(0f, 1f)
-        ar = ar.coerceIn(0f, 1f)
+        // CLAP 的 clipwise 分数整体高于 YAMNet（情绪类常在 0.5–0.9），
+        // 直接套用原系数会让 arousal 长期顶到 1.0（实测 mean 0.969 / sd 0.083），
+        // 于是几乎全部落进 Angry 分支。这里把「分类分数项」整体降权，
+        // 并用 tanh 做软压缩，让 arousal 展开到 0–1 的中段。
+        // 用 softmax 把 6 个情绪类转成概率，再做极性投影。
+        // 线性加权 + 硬缩放会把结果推到 0/1 两端（实测 p5=0、p50=0、p95=1），
+        // softmax 天然有界且保留相对差异。
+        val scores = floatArrayOf(h, s, t, e, a, sc)
+        val mx = scores.max()
+        val exps = FloatArray(6) { kotlin.math.exp((scores[it] - mx) * 6f) }
+        var esum = 0f
+        for (x in exps) esum += x
+        val prob = FloatArray(6) { exps[it] / esum }
+        val pHappy = prob[0]; val pSad = prob[1]; val pTender = prob[2]
+        val pExciting = prob[3]; val pAngry = prob[4]; val pScary = prob[5]
+
+        var vRaw = pHappy + 0.55f * pTender - 0.75f * pSad - 0.60f * pAngry - 0.25f * pScary
+        var arRaw = pExciting + 0.85f * pAngry + 0.55f * pScary
+
+        var v = (0.5f + vRaw * 1.1f).coerceIn(0f, 1f)
+        var ar = (0.18f + arRaw * 0.75f + 0.30f * tempoNorm + 0.12f * rmsNorm).coerceIn(0f, 1f)
 
         val label = when {
             v >= 0.56f && ar >= 0.52f -> "Happy"

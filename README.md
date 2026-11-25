@@ -10,10 +10,10 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - **首页**：专辑 / 艺人 / 最近 / 收藏四个分区；专辑多碟分页
 - **播放页**：歌词（逐行滚动、可点按跳转）、0–10 评分、心情分析、下载、收藏、播放模式（列表 / 单曲 / 随机）
 - **最近**：最近播放按单曲展示（本地历史），最近添加按专辑，已下载单独一栏
-- **氛围电台**：长按首页「专辑」标签进入，基于 YAMNet 521 维特征的本地电台
+- **氛围电台**：长按首页「专辑」标签进入，基于 CLAP 1024 维音乐特征 + 情绪坐标的本地电台
 - **多账号**：设置里保存多个 Navidrome 账号并切换，密码与令牌使用 Android Keystore 加密
 - **Navidrome Stat**：可选接入，展示播放统计
-- **心情分析**：端侧 YAMNet + DSP，结果只保存在本机，用于动态背景与配色
+- **心情分析**：端侧 CLAP + DSP（ONNX Runtime），结果只保存在本机，用于动态背景与配色
 - **交互**：预测性返回（跟手、上一页实时露出、无闪跳）、从点击位置展开的进入动画、封面交叉溶解、切歌音量淡入淡出
 - **离线**：边下边播缓存、整张专辑/单曲下载、独立的缓存清理
 
@@ -26,7 +26,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 | 音频 | Media3 ExoPlayer 1.11.1（磁盘缓存 + 解码失败自动转码兜底） |
 | 网络 | OkHttp 5.5.1 + Retrofit 3.0.0 + Gson 2.15.0（Subsonic token + salt 认证） |
 | 图片 | Coil 3.6.3（coil-compose + coil-network-okhttp）+ Material Color Utilities 封面取色 |
-| 端侧模型 | LiteRT 2.4.0（YAMNet） |
+| 端侧模型 | ONNX Runtime 1.22.0（XNNPACK）+ LAION-CLAP HTSAT-base 音乐版（约 295 MB，见 [MODELS.md](MODELS.md)） |
 | 构建 | Gradle 9.9.2（Wrapper）+ AGP 9.5.2 + Kotlin 2.4.21 |
 
 ## 首次启动
@@ -57,7 +57,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 ## 关键附件
 
-当前正式直发版本：**0.54.0 / versionCode 157**
+当前正式直发版本：**0.74.0 / versionCode 203**
 
 - [分发包与校验说明](docs/distribution.md)
 - [用户指南](docs/user-guide.md)
@@ -65,10 +65,10 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - [用户协议](docs/terms-of-service.md)
 - [兼容性说明](docs/compatibility.md)
 - [测试设备档案](docs/device.md)
-- [YAMNet 功能路线图](docs/feature-plan.md)
+- [功能路线图](docs/feature-plan.md)
 - [Release CI](.github/workflows/release.yml)
 - 官方更新渠道：[夸克网盘](https://pan.quark.cn/s/f35d0450e4b1?pwd=3GF3)，提取码 `3GF3`
-- 分发包：`dist/Lumen-0.54.0.apk`、`dist/SHA256SUMS.txt`
+- 分发包：`dist/Lumen-0.74.0.apk`、`dist/SHA256SUMS.txt`
 - 发布后同步元数据：`python scripts/update-release-metadata.py`
 
 ## 构建
@@ -83,9 +83,13 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Windows 下把 `./gradlew` 换成 `gradlew.bat`。
 
-> Release 构建只接受正式证书；缺少密钥时生成的是 **unsigned APK**，不再回退 debug 签名。签名材料放在 `android/keystore.properties` 或环境变量中：
+> Release 构建只接受正式证书；缺少密钥时生成的是 **unsigned APK**，不再回退 debug 签名。
+> 签名材料**不在仓库内**：默认读取 `~/.lumen/keystore.properties`（同目录放 `.jks`），CI 用环境变量
 > `LUMEN_KEYSTORE_FILE`、`LUMEN_KEYSTORE_PASSWORD`、`LUMEN_KEY_ALIAS`、`LUMEN_KEY_PASSWORD`。
-> 密钥文件与 `keystore.properties` 已被 `.gitignore` 排除，请离线备份。
+> 仓库内残留的 `keystore.properties` 仅作兼容回退并会打印告警；`scripts/check-secrets.ps1` 可校验。
+
+> 情绪分析所需的 ONNX 模型（`assets/mood/*.onnx`，约 298 MB）**不在仓库内**，来源、许可与校验值见
+> [MODELS.md](MODELS.md)。缺少模型时构建仍可通过，但「心情分析」会报「模型落盘失败」，播放与其它功能不受影响。
 
 ## 测试
 
@@ -102,10 +106,10 @@ cd android
 android/app/src/main/java/app/lumen/player/
   MainActivity.kt        应用壳、导航与页面装配
   data/                  配置/账号、Subsonic、缓存、心情、统计、历史
-  playback/              ExoPlayer、下载服务、后台分析 Worker
+  playback/              ExoPlayer、下载服务、后台分析执行器
   ui/                    各页面与主题/背景组件
 android/app/src/main/assets/
-  mood/                  YAMNet 模型（约 4.1 MB）
+  mood/                  CLAP 音频塔 + 情绪投影层（约 298 MB，不进 git）
   licenses/              第三方许可全文
 ```
 
@@ -121,4 +125,4 @@ android/app/src/main/assets/
 
 Lumen 以 **MIT License** 发布，见 [LICENSE](LICENSE)。
 
-预训练模型：YAMNet（Apache-2.0，未修改）；心情分析仅使用 YAMNet 与本地 DSP。Navidrome（GPL-3.0）与 Navidrome Stat（MIT）仅通过网络协议对接，代码未打包进本应用。
+预训练模型：LAION-CLAP HTSAT-base 音乐版（MIT，随上游发布）；推理由 ONNX Runtime（MIT）完成，音乐分析仅使用该模型与本地 DSP。Navidrome（GPL-3.0）与 Navidrome Stat（MIT）仅通过网络协议对接，代码未打包进本应用。

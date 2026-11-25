@@ -203,7 +203,10 @@ fun HomeScreen(
     coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
     val ctx = LocalContext.current
-    var sortIndex by remember(tab) { mutableIntStateOf(0) }
+    // 排序偏好按标签分别记住：切走再切回不会被重置
+    val sortByTab = remember { androidx.compose.runtime.mutableStateMapOf<Int, Int>() }
+    val sortIndex = sortByTab[tab] ?: 0
+    val setSortIndex: (Int) -> Unit = { sortByTab[tab] = it }
     var showSort by remember { mutableStateOf(false) }
     // tab 由上层持有，返回首页时能保持原来的标签
     val artists = cache.artists
@@ -266,9 +269,17 @@ fun HomeScreen(
         1 -> listOf(L10n.t("名称"), L10n.t("专辑数量"))
         2 -> listOf(L10n.t("最近添加"), L10n.t("名称"), L10n.t("发行年份"))
         3 -> listOf(L10n.t("收藏顺序"), L10n.t("名称"), L10n.t("艺人"), L10n.t("我的评分"))
-        else -> listOf(L10n.t("字母顺序"), L10n.t("发行年份"), L10n.t("歌曲数量"), L10n.t("艺人"))
+        else -> listOf(
+            L10n.t("字母顺序"), L10n.t("发行年份"), L10n.t("歌曲数量"), L10n.t("艺人"), L10n.t("最近播放"),
+        )
     }
-    val sortedAlbums = sortAlbums(albums, sortIndex)
+    // 最近播放排序：用本机播放历史的先后给专辑排位
+    val recentAlbumRank = remember(recentTracks) {
+        recentTracks.mapIndexedNotNull { index, t ->
+            t.album.takeIf { it.isNotBlank() }?.let { it to index }
+        }.toMap()
+    }
+    val sortedAlbums = sortAlbums(albums, sortIndex, recentAlbumRank)
     val sortedArtists = sortArtists(artists, sortIndex)
     val sortedNewest = sortAlbums(newest, sortIndex)
 
@@ -410,7 +421,7 @@ fun HomeScreen(
                         Modifier
                             .fillMaxWidth()
                             .clickable {
-                                sortIndex = i
+                                setSortIndex(i)
                                 showSort = false
                             }
                             .padding(horizontal = 24.dp, vertical = 14.dp),
@@ -444,10 +455,15 @@ fun HomeScreen(
     }
 }
 
-private fun sortAlbums(list: List<Album>, mode: Int): List<Album> = when (mode) {
+private fun sortAlbums(
+    list: List<Album>,
+    mode: Int,
+    recentRank: Map<String, Int> = emptyMap(),
+): List<Album> = when (mode) {
     1 -> list.sortedWith(compareByDescending<Album> { it.year }.thenBy { it.name.lowercase() })
     2 -> list.sortedByDescending { it.songCount }
     3 -> list.sortedBy { it.artist.lowercase() + "|" + it.name.lowercase() }
+    4 -> list.sortedBy { recentRank[it.name] ?: Int.MAX_VALUE }
     else -> list.sortedBy { it.name.lowercase() }
 }
 
@@ -545,7 +561,15 @@ private fun HomeHeader(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = 34.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        title,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
                     if (analyzing) {
                         Spacer(Modifier.width(8.dp))
                         AnalysisChip(
@@ -561,7 +585,7 @@ private fun HomeHeader(
                 Spacer(Modifier.height(4.dp))
                 Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
-            HomeCircleButton(onClick = onStats) {
+            HomeCircleButton(originKey = "stats", onClick = onStats) {
                 val c = MaterialTheme.colorScheme.onBackground
                 Canvas(Modifier.size(20.dp)) {
                     val barW = size.width / 5f
@@ -579,7 +603,7 @@ private fun HomeHeader(
                 }
             }
             Spacer(Modifier.width(10.dp))
-            HomeCircleButton(onClick = onSearch) {
+            HomeCircleButton(originKey = "search", onClick = onSearch) {
                 Icon(YoinSymbols.Search, contentDescription = L10n.t("搜索"), tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(10.dp))
@@ -596,7 +620,7 @@ private fun HomeHeader(
                 }
             }
             Spacer(Modifier.width(10.dp))
-            HomeCircleButton(onClick = onSettings) {
+            HomeCircleButton(originKey = "settings", onClick = onSettings) {
                 Icon(YoinSymbols.Settings, contentDescription = L10n.t("设置"), tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(21.dp))
             }
         }
@@ -644,18 +668,37 @@ private fun HomeHeader(
 }
 
 @Composable
-private fun HomeCircleButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun HomeCircleButton(
+    onClick: () -> Unit,
+    originKey: String? = null,
+    content: @Composable () -> Unit,
+) {
     // P2：按下时轻微缩放，反馈更"实"，不再只有 ripple
     val interaction = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by androidx.compose.animation.core.animateFloatAsState(
+    val pressScale by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (pressed) 0.94f else 1f,
         animationSpec = androidx.compose.animation.core.tween(120),
         label = "circle-press",
     )
+    // 页面缩回入口后的回弹：1.00 → 1.04 → 1.00
+    val bounceKey = 0
+    val hits = if (originKey != null) EntryBounce.count(originKey) else 0
+    // 必须 remember：否则每次重组都新建 Animatable，回弹动画会被反复重置
+    val bounce = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(1f) }
+    androidx.compose.runtime.LaunchedEffect(hits) {
+        if (hits > 0) {
+            bounce.animateTo(1.04f, androidx.compose.animation.core.tween(60))
+            bounce.animateTo(1f, androidx.compose.animation.core.tween(60))
+        }
+    }
+    val scale = pressScale * bounce.value
     Box(
         Modifier
             .size(40.dp)
+            .onGloballyPositioned { c ->
+                if (originKey != null) NavOriginStore.put(originKey, c.boundsInRoot())
+            }
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -720,8 +763,20 @@ private fun AlbumGrid(
     coverShared: @Composable (String) -> Modifier,
     progressOf: (Album) -> Float? = { null },
 ) {
-    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    // 跨「单栏 / 双栏」续接滚动位置
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(
+        initialFirstVisibleItemIndex = HomeScrollStore.albumIndex,
+        initialFirstVisibleItemScrollOffset = HomeScrollStore.albumOffset,
+    )
+    androidx.compose.runtime.LaunchedEffect(gridState) {
+        snapshotFlow { gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                HomeScrollStore.albumIndex = index
+                HomeScrollStore.albumOffset = offset
+                HomeScrollStore.persist(ctx, force = true)
+            }
+    }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
     // 解码尺寸对齐：两列、左右各 20dp、列间距 24dp
@@ -798,6 +853,9 @@ private fun ArtistGrid(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .onGloballyPositioned { c ->
+                        runCatching { NavOriginStore.put(artist.id, c.boundsInRoot()) }
+                    }
                     .clickable { onOpen(artist) }
                     .padding(vertical = 14.dp),
             )
@@ -1237,6 +1295,7 @@ private fun AlbumCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
+                .albumSharedElement("cover-${album.id}")
                 .onGloballyPositioned { c ->
                     runCatching {
                         app.lumen.player.ui.NavOriginStore.put(album.id, c.boundsInRoot())
@@ -1337,6 +1396,8 @@ private fun AnalysisChip(
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
         }
@@ -1397,6 +1458,24 @@ private fun AnalysisChip(
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val paused = app.lumen.player.playback.MoodAnalysisRunner.isPaused()
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                app.lumen.player.playback.MoodAnalysisRunner.pause()
+                                open = false
+                            },
+                            enabled = !paused,
+                        ) { Text(L10n.t("暂停")) }
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                app.lumen.player.playback.MoodAnalysisRunner.resume()
+                                open = false
+                            },
+                            enabled = paused,
+                        ) { Text(L10n.t("开始")) }
                     }
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.Bottom) {

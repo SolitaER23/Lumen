@@ -55,6 +55,8 @@ fun ArtistScreen(
     onBack: () -> Unit,
     onOpenAlbum: (Album) -> Unit,
 ) {
+    // 页面内返回按钮 / 系统返回统一走同一入口
+    androidx.activity.compose.BackHandler { onBack() }
     // 内存缓存：返回手势时上一页会被实时重新组合，命中缓存可避免出现一帧加载态
     var albums by remember(artist.id) {
         mutableStateOf(ArtistAlbumCache.get(artist.id))

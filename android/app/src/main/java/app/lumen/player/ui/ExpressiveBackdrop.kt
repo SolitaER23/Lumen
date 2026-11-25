@@ -47,6 +47,14 @@ class BackdropMotion(
 
 @Composable
 fun rememberBackdropMotion(): BackdropMotion {
+    if (!AmbientFx.enabled) {
+        // 关闭动效：返回恒定相位，Canvas 仍然只绘制一帧静态背景
+        return BackdropMotion(
+            androidx.compose.runtime.rememberUpdatedState(0f),
+            androidx.compose.runtime.rememberUpdatedState(1f),
+            androidx.compose.runtime.rememberUpdatedState(1f),
+        )
+    }
     val transition = rememberInfiniteTransition(label = "expressive-bg")
     val drift by transition.animateFloat(
         initialValue = 0f,
@@ -54,16 +62,17 @@ fun rememberBackdropMotion(): BackdropMotion {
         animationSpec = infiniteRepeatable(tween(36_000, easing = LinearEasing)),
         label = "drift",
     )
+    // 呼吸：幅度加大（0.82–1.20）、周期放慢到 11s，观感更明显但仍平缓
     val breathe by transition.animateFloat(
-        initialValue = 0.86f,
-        targetValue = 1.12f,
-        animationSpec = infiniteRepeatable(tween(9_000, easing = LinearEasing), RepeatMode.Reverse),
+        initialValue = 0.82f,
+        targetValue = 1.20f,
+        animationSpec = infiniteRepeatable(tween(11_000, easing = LinearEasing), RepeatMode.Reverse),
         label = "breathe",
     )
     val sheen by transition.animateFloat(
-        initialValue = 0.5f,
+        initialValue = 0.45f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(6_500, easing = LinearEasing), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(7_500, easing = LinearEasing), RepeatMode.Reverse),
         label = "sheen",
     )
     return BackdropMotion(
@@ -224,6 +233,24 @@ fun ExpressiveBackdrop(
             val ex = w * (eventX + 0.02f * cos(drift * 0.8f).toFloat())
             val ey = h * (eventY + 0.02f * sin(drift * 0.9f).toFloat())
             blob(ex, ey, w * eventRadius, eventColorA, eventAlpha)
+
+            // AMBIENT_PARTICLES：随心情/事件变化的轻量装饰粒子（18 个，纯数学摆动，无额外动画状态）
+            if (AmbientFx.enabled && animate) {
+                val particleCount = 18
+                val phase = drift
+                val breatheNow = breathe
+                for (i in 0 until particleCount) {
+                    val t = (i / particleCount.toFloat() + phase / (2f * Math.PI.toFloat())) % 1f
+                    val sway = kotlin.math.sin((t * 6.283f) + i * 1.7f)
+                    val px = w * (0.10f + 0.80f * ((i * 37 % 100) / 100f)) + sway * w * 0.035f
+                    val py = h * (1.05f - t * 1.10f)
+                    val radius = (2.2f + 2.0f * ((i * 13 % 7) / 7f)) * breatheNow
+                    val alphaBase = if (event != null) 0.10f + 0.14f * event.intensity else 0.08f
+                    val a = (alphaBase * (0.55f + 0.45f * kotlin.math.sin(t * 6.283f + i))).coerceIn(0f, 0.32f)
+                    val c = if (i % 3 == 0) eventColorA else if (i % 3 == 1) eventColorB else scheme.primary
+                    drawCircle(color = c.copy(alpha = a), radius = radius, center = androidx.compose.ui.geometry.Offset(px, py))
+                }
+            }
         }
     }
 }

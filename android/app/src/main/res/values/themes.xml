@@ -1,9 +1,14 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Lumen" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#000000</item>
-        <item name="android:statusBarColor">#000000</item>
-        <item name="android:navigationBarColor">#000000</item>
-        <item name="android:windowLightStatusBar">false</item>
+    <!--
+      仅影响 Compose 首帧之前的窗口背景与系统栏（应用内主题由 Compose 的
+      ThemeOptions/ColorScheme 接管）。这里给浅色模式一个浅色底，避免
+      「系统浅色 + 启动瞬间闪黑」。深色模式见 values-night/themes.xml。
+    -->
+    <style name="Theme.Lumen" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFFBFE</item>
+        <item name="android:statusBarColor">#FFFBFE</item>
+        <item name="android:navigationBarColor">#FFFBFE</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

@@ -58,16 +58,36 @@ object MediaCache {
             .setCache(cache(ctx))
             .setUpstreamDataSourceFactory(DefaultDataSource.Factory(ctx.applicationContext, http))
             .setCacheKeyFactory(object : CacheKeyFactory {
-                override fun buildCacheKey(spec: androidx.media3.datasource.DataSpec): String {
-                    // 已下载的曲目直接读下载 key；否则用 URI（流缓存/网络）
-                    val id = trackIdOf(spec.uri)
-                    val key = id?.let { downloadKey(it) }
-                    return if (key != null && runCatching { cache(ctx).getCachedSpans(key).isNotEmpty() }.getOrDefault(false)) key
-                    else spec.uri.toString()
-                }
+                override fun buildCacheKey(spec: androidx.media3.datasource.DataSpec): String =
+                    cacheKeyFor(spec.uri) { k -> runCatching { cache(ctx).getCachedSpans(k).isNotEmpty() }.getOrDefault(false) }
             })
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
+
+    /**
+     * 流缓存的键：**不能**直接用 URI——Subsonic 的 `u/t/s` 参数是可重放凭据，
+     * 写进 SimpleCache 索引库（cacheDir/media）等于把账号访问权留在磁盘上。
+     *
+     * 有 `id`（音频流）时用 `track:<id>#<format|raw>[@bitrate]`：
+     * 同一首歌的原始流与转码流字节不同，必须区分 format/bitRate，否则会串味。
+     * 没有 `id` 的罕见请求退回 URI 的 SHA-256 摘要。
+     */
+    internal fun cacheKeyFor(uri: android.net.Uri, hasDownloadSpans: (String) -> Boolean): String {
+        val id = trackIdOf(uri)
+        if (id != null) {
+            val dl = downloadKey(id)
+            if (hasDownloadSpans(dl)) return dl
+            val format = uri.getQueryParameter("format")?.takeIf { it.isNotBlank() } ?: "raw"
+            val bitrate = uri.getQueryParameter("maxBitRate")?.takeIf { it.isNotBlank() }
+            return "track:" + id + "#" + format + if (bitrate != null) "@" + bitrate else ""
+        }
+        return "uri:" + sha256Hex(uri.toString())
+    }
+
+    private fun sha256Hex(raw: String): String = runCatching {
+        val d = java.security.MessageDigest.getInstance("SHA-256").digest(raw.toByteArray())
+        d.joinToString("") { b -> "%02x".format(java.util.Locale.ROOT, b) }.take(32)
+    }.getOrDefault(Integer.toHexString(raw.hashCode()))
 
     /** 只清歌曲流缓存，保留 [keepKeys]（已下载曲目的 cache key = 下载 URI）。封面/歌词/分析结果不受影响。 */
     fun clearSongCache(ctx: Context, keepKeys: Set<String>) {

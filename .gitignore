@@ -18,3 +18,13 @@ android/.kotlin/
 keystore.properties
 *.jks
 *.keystore
+
+# 端侧模型（294 MB，不进 git；分发方式见 MODELS.md）
+/models
+
+# mock 服务器的测试音频（用 tools/mock-subsonic/gen-media.ps1 重新生成）
+/tools/mock-subsonic/media/
+
+# 调试期的分析基线（DB/截图/临时导出）与临时抓取文件
+/baseline/
+/.tmp-*

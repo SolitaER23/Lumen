@@ -187,6 +187,33 @@ internal fun parseSearch(root: JSONObject): Pair<List<Artist>, List<Album>> {
     } ?: emptyList()
     return artists to albums
 }
+/** search3 全量解析：艺人 + 专辑 + 曲目。 */
+internal fun parseSearchFull(root: JSONObject): Triple<List<Artist>, List<Album>, List<Track>> {
+    val (artists, albums) = parseSearch(root)
+    val songs = ArrayList<Track>()
+    root.optJSONObject("searchResult3")?.optJSONArray("song")?.let { arr ->
+        for (k in 0 until arr.length()) {
+            val o = arr.optJSONObject(k) ?: continue
+            val id = o.optString("id")
+            if (id.isBlank()) continue
+            songs.add(
+                Track(
+                    id = id,
+                    title = o.optString("title", ""),
+                    artist = o.optString("artist", ""),
+                    albumId = o.optString("albumId", ""),
+                    album = o.optString("album", ""),
+                    disc = o.optInt("discNumber", 1).coerceAtLeast(1),
+                    track = o.optInt("track", 0),
+                    seconds = o.optInt("duration", 0),
+                    suffix = o.optString("suffix", ""),
+                ),
+            )
+        }
+    }
+    return Triple(artists, albums, songs)
+}
+
 
 /** `getStarred2` → 收藏的单曲 */
 internal fun parseStarred(root: JSONObject): List<Track> {
@@ -347,11 +374,11 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
     fun artistDetail(id: String): Pair<Artist, List<Album>>? =
         parseArtistDetail(get("getArtist.view", mapOf("id" to id)))
 
-    fun search(query: String): Pair<List<Artist>, List<Album>> =
-        parseSearch(
+    fun search(query: String): Triple<List<Artist>, List<Album>, List<Track>> =
+        parseSearchFull(
             get(
                 "search3.view",
-                mapOf("query" to query, "artistCount" to "20", "albumCount" to "30", "songCount" to "0"),
+                mapOf("query" to query, "artistCount" to "20", "albumCount" to "30", "songCount" to "60"),
             ),
         )
 

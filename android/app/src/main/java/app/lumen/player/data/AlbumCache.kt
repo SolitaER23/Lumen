@@ -1,4 +1,4 @@
-﻿package app.lumen.player.data
+package app.lumen.player.data
 
 import android.content.Context
 import kotlinx.serialization.json.Json
@@ -17,5 +17,9 @@ object AlbumCache {
 
     fun save(ctx: Context, albums: List<Album>) {
         runCatching { file(ctx).writeText(json.encodeToString(albums)) }
+    }
+
+    fun clear(ctx: Context) {
+        runCatching { file(ctx).delete() }
     }
 }

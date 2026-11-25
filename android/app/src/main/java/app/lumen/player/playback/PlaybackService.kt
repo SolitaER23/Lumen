@@ -1,4 +1,4 @@
-﻿package app.lumen.player.playback
+package app.lumen.player.playback
 
 import app.lumen.player.util.L10n
 import android.app.Notification
@@ -12,6 +12,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import java.util.UUID
 
 /**
  * 媒体会话服务：通知栏 / 锁屏控制 + 播放前台化（退到后台不会被回收）。
@@ -28,7 +29,32 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
         createChannel()
         val player = PlaybackEngine.get(this).player
-        session = MediaSession.Builder(this, player).build()
+        session = MediaSession.Builder(this, player)
+            .setCallback(object : MediaSession.Callback {
+                /**
+                 * 只接受可信控制器。
+                 *
+                 * 服务必须 exported（系统媒体控件 / 蓝牙要连），但不加限制时**任意应用**
+                 * 都能作为 controller 读取正在播放的曲目元数据并远程切歌/暂停。
+                 */
+                override fun onConnect(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo,
+                ): MediaSession.ConnectionResult {
+                    val trusted = runCatching {
+                        controller.packageName == packageName ||
+                            controller.uid == android.os.Process.myUid() ||
+                            controller.uid == android.os.Process.SYSTEM_UID ||
+                            controller.isTrusted
+                    }.getOrDefault(false)
+                    return if (trusted) {
+                        MediaSession.ConnectionResult.AcceptedResultBuilder(session).build()
+                    } else {
+                        MediaSession.ConnectionResult.reject()
+                    }
+                }
+            })
+            .build()
         listener = object : Player.Listener {
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) = post()
             override fun onIsPlayingChanged(isPlaying: Boolean) = post()
@@ -41,14 +67,18 @@ class PlaybackService : MediaSessionService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        val p = PlaybackEngine.peek()
-        when (intent?.action) {
-            ACTION_PREV -> p?.prev()
-            ACTION_NEXT -> p?.next()
-            ACTION_TOGGLE -> p?.toggle()
+        // 通知栏按钮用本进程生成的随机 token 签发；服务的 exported=true 意味着
+        // 任意应用都能 startService 一个带 ACTION_TOGGLE 的 Intent —— 没有 token 就忽略。
+        if (intent?.getStringExtra(EXTRA_ACTION_TOKEN) == ACTION_TOKEN) {
+            val p = PlaybackEngine.peek()
+            when (intent.action) {
+                ACTION_PREV -> p?.prev()
+                ACTION_NEXT -> p?.next()
+                ACTION_TOGGLE -> p?.toggle()
+            }
         }
         post()
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -79,7 +109,9 @@ class PlaybackService : MediaSessionService() {
         val pi = PendingIntent.getService(
             this,
             action.hashCode(),
-            Intent(this, PlaybackService::class.java).setAction(action),
+            Intent(this, PlaybackService::class.java)
+                .setAction(action)
+                .putExtra(EXTRA_ACTION_TOKEN, ACTION_TOKEN),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         return Notification.Action.Builder(Icon.createWithResource(this, icon), title, pi).build()
@@ -127,8 +159,9 @@ class PlaybackService : MediaSessionService() {
         }
         if (Build.VERSION.SDK_INT >= 31) builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
 
-        // 后台启动可能被系统拒绝（ForegroundServiceStartNotAllowed），忽略即可，播放本身不受影响
+        // 后台启动可能被系统拒绝（ForegroundServiceStartNotAllowed），播放本身不受影响但要留痕
         runCatching { startForeground(NOTIF_ID, builder.build()) }
+            .onFailure { app.lumen.player.util.Logx.w("LumenPlayback", "startForeground 失败: " + it.message) }
     }
 
     companion object {
@@ -137,5 +170,9 @@ class PlaybackService : MediaSessionService() {
         const val ACTION_PREV = "app.lumen.player.PREV"
         const val ACTION_NEXT = "app.lumen.player.NEXT"
         const val ACTION_TOGGLE = "app.lumen.player.TOGGLE"
+
+        /** 通知栏 action 的签名 token：进程内随机，外部应用无法伪造。 */
+        private const val EXTRA_ACTION_TOKEN = "app.lumen.player.ACTION_TOKEN"
+        private val ACTION_TOKEN: String = UUID.randomUUID().toString()
     }
 }

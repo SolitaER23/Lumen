@@ -2,6 +2,8 @@ package app.lumen.player.data
 
 import android.content.Context
 import app.lumen.player.util.L10n
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -70,12 +72,52 @@ object Radio {
         runCatching { File(ctx.filesDir, CACHE).delete() }
     }
 
-    fun build(
+    /** trackId → 最近一次播放时间（毫秒）；用于新鲜度降权。 */
+    private val lastPlayed = HashMap<String, Long>()
+
+    /** 播放时调用，记录时间戳（进程内）。 */
+    fun notePlayed(trackId: String) {
+        lastPlayed[trackId] = System.currentTimeMillis()
+    }
+
+    /** 依据种子曲目坐标自动挑选最接近的氛围（省级用户一次点击）。 */
+    fun autoVibe(valence: Float, arousal: Float, tempo: Float): RadioVibe {
+        return RadioVibe.entries.minByOrNull { v ->
+            val dv = (v.valence - valence) / 0.35f
+            val da = (v.arousal - arousal) / 0.35f
+            val dt = (v.tempo - tempo) / 60f
+            dv * dv + da * da + dt * dt
+        } ?: RadioVibe.NIGHT
+    }
+
+    /**
+     * 选曲主流程。
+     *
+     * 必须跑在后台线程：它会 `SELECT` 整张 mood 表、解析每行 1024 维 CSV 特征，
+     * 再对候选做 O(n·k) 的 1024 维点积（MMR 去同质化）。放主线程等于必然卡顿/ANR。
+     */
+    suspend fun build(
         ctx: Context,
         tracks: List<Track>,
         seedId: String?,
         vibe: RadioVibe,
         limit: Int = LIMIT,
+        /** 0 = 完全贴近种子曲目，1 = 完全按氛围目标。 */
+        strength: Float = 0.4f,
+        /** true 时忽略传入的 vibe，按种子自动选择。 */
+        autoPick: Boolean = false,
+    ): List<Track> = withContext(Dispatchers.Default) {
+        buildOnCurrentThread(ctx, tracks, seedId, vibe, limit, strength, autoPick)
+    }
+
+    internal fun buildOnCurrentThread(
+        ctx: Context,
+        tracks: List<Track>,
+        seedId: String?,
+        vibe: RadioVibe,
+        limit: Int = LIMIT,
+        strength: Float = 0.4f,
+        autoPick: Boolean = false,
     ): List<Track> {
         if (tracks.isEmpty()) return emptyList()
         val moods = MoodStore.radio(ctx)
@@ -87,41 +129,96 @@ object Radio {
         val seed = candidates.firstOrNull { it.first.id == seedId }
             ?: candidates[Random.nextInt(candidates.size)]
         val seedMood = seed.second
+        val effectiveVibe = if (autoPick) autoVibe(seedMood.valence, seedMood.arousal, seedMood.tempo) else vibe
+        // 该维度的全库均值（去偏用）；解析失败时为 null，退回原始余弦
+        val mean = runCatching { MoodStore.meanFeature(ctx, seedMood.feature.size) }.getOrNull()
+        val std = runCatching { MoodStore.featureStd(ctx, seedMood.feature.size) }.getOrNull()
 
         val scored = candidates.map { (track, mood) ->
-            val seedSim = similarity(seedMood, mood)
-            val vibeSim = 1f - moodDistance(mood, vibe)
-            val score = 0.60f * seedSim + 0.40f * vibeSim
+            val seedSim = similarity(seedMood, mood, mean, std)
+            val vibeSim = 1f - moodDistance(mood, effectiveVibe)
+            // 节奏连续性：与种子的 BPM 差越大扣分越多（±60 BPM 内线性衰减）
+            val bpmGap = abs(mood.tempo - seedMood.tempo).coerceAtMost(60f)
+            val tempoSim = 1f - bpmGap / 60f
+            // 标签重合（Jaccard）：piano/electronic 这类音色层面的相似
+            val tagSim = tagOverlap(seedMood.tags, mood.tags)
+            // 新鲜度：最近播放过的曲子降权（24 小时内线性衰减到 0.5 倍）
+            val last = lastPlayed[track.id] ?: 0L
+            val ageH = if (last == 0L) 999f else ((System.currentTimeMillis() - last) / 3_600_000f)
+            val fresh = (0.5f + 0.5f * (ageH / 24f).coerceAtMost(1f))
+            val s = strength.coerceIn(0f, 1f)
+            // 贴近度混音：s 越大越贴近氛围，越小越贴近种子本身的风格
+            val mix = (1f - s) * seedSim + s * vibeSim
+            val score = (0.70f * mix + 0.16f * tempoSim + 0.14f * tagSim) * fresh
             Triple(track, mood, score)
         }.sortedByDescending { it.third }
 
-        val picked = ArrayList<Track>(limit)
+        // MMR 多样性：候选分 = score − λ·max(与已选曲目的嵌入相似度)
+        val mmrLambda = 0.30f
+        val picked = ArrayList<Track>()
+        val pickedWithMood = ArrayList<Triple<Track, MoodResult, Float>>()
         val artistCount = HashMap<String, Int>()
+        val albumCount = HashMap<String, Int>()
 
-        for ((track, _, _) in scored) {
-            if (picked.size >= limit) break
-            // 种子只用于相似度，不强制放在队首，避免切换氛围时重启当前曲目
-            if (track.id == seed.first.id) continue
-            val count = artistCount[track.artist] ?: 0
-            if (count >= 2) continue
+        val remaining = scored.toMutableList()
+        while (picked.size < limit && remaining.isNotEmpty()) {
+            var bestIdx = -1
+            var bestVal = -1e9f
+            for ((idx, item) in remaining.withIndex()) {
+                val (track, mood, score) = item
+                if (track.id == seed.first.id) continue
+                val count = artistCount[track.artist] ?: 0
+                if (count >= 2) continue
+                val ac = albumCount[track.albumId] ?: 0
+                if (ac >= 2) continue
+                var maxSim = 0f
+                for ((pt, pm, _) in pickedWithMood) {
+                    val s2 = similarity(pm, mood, mean, std)
+                    if (s2 > maxSim) maxSim = s2
+                }
+                val val2 = score - mmrLambda * maxSim
+                if (val2 > bestVal) { bestVal = val2; bestIdx = idx }
+            }
+            if (bestIdx < 0) break
+            val (track, mood, _) = remaining.removeAt(bestIdx)
             picked.add(track)
-            artistCount[track.artist] = count + 1
+            pickedWithMood.add(Triple(track, mood, 0f))
+            artistCount[track.artist] = (artistCount[track.artist] ?: 0) + 1
+            albumCount[track.albumId] = (albumCount[track.albumId] ?: 0) + 1
         }
         return picked
     }
 
-    private fun similarity(a: MoodResult, b: MoodResult): Float {
+
+    /** 两组标签的 Jaccard 重合度（只比较近义的名字，避免大小写差异）。 */
+    private fun tagOverlap(a: List<AudioTag>, b: List<AudioTag>): Float {
+        if (a.isEmpty() || b.isEmpty()) return 0f
+        val sa = a.take(8).map { it.name.lowercase() }.toSet()
+        val sb = b.take(8).map { it.name.lowercase() }.toSet()
+        val inter = sa.intersect(sb).size
+        val union = sa.union(sb).size
+        return if (union == 0) 0f else inter.toFloat() / union
+    }
+
+    private fun similarity(a: MoodResult, b: MoodResult, mean: FloatArray? = null, std: FloatArray? = null): Float {
         val fa = a.feature
         val fb = b.feature
-        if (fa.size >= 100 && fb.size >= 100) {
+        // 只比较同维度向量：521（YAMNet）与 1024（CLAP）混算是无意义的
+        if (fa.size >= 100 && fa.size == fb.size) {
             val n = minOf(fa.size, fb.size)
             var dot = 0.0
             var na = 0.0
             var nb = 0.0
+            // 去偏：减去全库均值，消除公共分量后再算余弦
+            val m = mean?.takeIf { it.size == fa.size }
+            val sd = std?.takeIf { it.size == fa.size }
             for (i in 0 until n) {
-                dot += fa[i] * fb[i]
-                na += fa[i] * fa[i]
-                nb += fb[i] * fb[i]
+                // z-score：先减均值再除以逐维标准差，等价于白化的对角近似
+                val x = if (m != null) (fa[i] - m[i]) / (sd?.get(i) ?: 1f) else fa[i]
+                val y = if (m != null) (fb[i] - m[i]) / (sd?.get(i) ?: 1f) else fb[i]
+                dot += x * y
+                na += x * x
+                nb += y * y
             }
             if (na > 0.0 && nb > 0.0) return (dot / (kotlin.math.sqrt(na) * kotlin.math.sqrt(nb))).toFloat()
         }

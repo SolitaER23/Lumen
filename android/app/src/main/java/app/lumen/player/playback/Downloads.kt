@@ -2,7 +2,9 @@ package app.lumen.player.playback
 
 import app.lumen.player.util.L10n
 import android.content.Context
+import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.offline.Download
+import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService as Media3DownloadService
 import app.lumen.player.data.Album
@@ -38,6 +40,75 @@ object Downloads {
     private fun keyOf(d: Download): String =
         d.request.data?.let { String(it, Charsets.UTF_8) } ?: ""
 
+    // ---------------- 事件驱动的状态通知 ----------------
+    //
+    // 旧实现由各页面按 1s / 1.5s / 2s 轮询 summaries()，而 summaries() 对每个下载都要
+    // 查一次 SimpleCache 的 span（SQLite）。1000 首下载 = 每秒上千次查询。
+    // 现在改为监听 DownloadManager：进度回调节流到 500ms，天然只在下载时触发。
+
+    private val observers = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
+
+    @Volatile
+    private var observing = false
+
+    /** 订阅下载状态变化（回调在主线程）。与 [unobserve] 成对使用。 */
+    fun observe(ctx: Context, onChange: () -> Unit) {
+        observers.add(onChange)
+        ensureObserver(ctx)
+    }
+
+    fun unobserve(onChange: () -> Unit) {
+        observers.remove(onChange)
+    }
+
+    private fun ensureObserver(ctx: Context) {
+        if (observing) return
+        synchronized(this) {
+            if (observing) return
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            var lastNotify = 0L
+            fun publish() {
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - lastNotify < 500L) return
+                lastNotify = now
+                observers.forEach { cb -> runCatching { cb() } }
+            }
+            runCatching {
+                MediaCache.downloadManager(ctx).addListener(
+                    object : DownloadManager.Listener {
+                        override fun onDownloadChanged(
+                            downloadManager: DownloadManager,
+                            download: Download,
+                            finalException: Exception?,
+                        ) {
+                            handler.post { publish() }
+                        }
+
+                        override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+                            handler.post { publish() }
+                        }
+                    },
+                )
+                observing = true
+            }.onFailure {
+                app.lumen.player.util.Logx.w("LumenDownloads", "订阅下载状态失败: " + it.message)
+            }
+        }
+    }
+
+    /** 单个下载占用的字节数：优先用自定义 cache key，取不到再回退到旧 URI key。 */
+    private fun cachedBytesFor(cache: SimpleCache, id: String, uri: android.net.Uri): Long {
+        val byKey = runCatching { cache.getCachedSpans(MediaCache.downloadKey(id)).sumOf { it.length } }
+            .getOrDefault(0L)
+        if (byKey > 0) return byKey
+        return runCatching { cache.getCachedSpans(uri.toString()).sumOf { it.length } }.getOrDefault(0L)
+    }
+
+    /** 清理下载元数据（名称/艺人/专辑）；下载内容由 MediaCache 单独清理。 */
+    fun clearMeta(ctx: Context) {
+        runCatching { ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply() }
+    }
+
     private fun saveName(ctx: Context, key: String, name: String) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString("name_$key", name).apply()
@@ -50,10 +121,27 @@ object Downloads {
         }
     }
 
-    private fun request(id: String, url: String, key: String): DownloadRequest =
+    /**
+     * 下载的 MIME 必须按**实际字节**判断：`streamUrl()` 会把 m4a/ALAC 改写成
+     * `format=mp3` 的转码流，此时后缀是 m4a 但内容是 mp3。写死 "audio/mpeg" 会让
+     * flac/opus 的离线播放被平台按错误容器处理。
+     */
+    private fun mimeFor(url: String, suffix: String): String {
+        val fmt = runCatching { android.net.Uri.parse(url).getQueryParameter("format") }.getOrNull()
+        return when ((fmt ?: suffix).orEmpty().lowercase()) {
+            "mp3" -> "audio/mpeg"
+            "flac" -> "audio/flac"
+            "ogg", "opus" -> "audio/ogg"
+            "m4a", "aac", "mp4" -> "audio/mp4"
+            "wav" -> "audio/wav"
+            else -> "audio/*"
+        }
+    }
+
+    private fun request(id: String, url: String, key: String, suffix: String): DownloadRequest =
         DownloadRequest.Builder(id, android.net.Uri.parse(url))
             .setData(key.toByteArray(Charsets.UTF_8))
-            .setMimeType("audio/mpeg")
+            .setMimeType(mimeFor(url, suffix))
             // 独立 cache key：既不与在线播放同一 URI 并发冲突，也方便“清缓存”时保留
             .setCustomCacheKey(MediaCache.downloadKey(id))
             .build()
@@ -65,7 +153,12 @@ object Downloads {
         saveName(ctx, key, album.name)
         tracks.forEach { t ->
             saveTrackTitle(ctx, t.id, if (t.artist.isBlank()) t.title else "${t.title} · ${t.artist}")
-            Media3DownloadService.sendAddDownload(ctx, DownloadService::class.java, request(t.id, urlFor(t), key), true)
+            Media3DownloadService.sendAddDownload(
+                ctx,
+                DownloadService::class.java,
+                request(t.id, urlFor(t), key, t.suffix),
+                true,
+            )
         }
     }
 
@@ -83,7 +176,7 @@ object Downloads {
         Media3DownloadService.sendAddDownload(
             ctx,
             DownloadService::class.java,
-            request(track.id, urlFor(track), key),
+            request(track.id, urlFor(track), key, track.suffix),
             true,
         )
     }
@@ -113,15 +206,7 @@ object Downloads {
                     name = prefs.getString("name_$key", null) ?: key,
                     total = list.size,
                     done = list.count { it.state == Download.STATE_COMPLETED },
-                    bytes = list.sumOf { d ->
-                        runCatching {
-                            runCatching {
-                                val byKey = cache.getCachedSpans(MediaCache.downloadKey(d.request.id)).sumOf { it.length }
-                                val byUri = cache.getCachedSpans(d.request.uri.toString()).sumOf { it.length }
-                                maxOf(byKey, byUri)
-                            }.getOrDefault(0L)
-                        }.getOrDefault(0L)
-                    },
+                    bytes = list.sumOf { d -> cachedBytesFor(cache, d.request.id, d.request.uri) },
                     failed = list.any { it.state == Download.STATE_FAILED },
                     isSingle = key.startsWith(PREFIX_TRACK),
                     albumId = prefs.getString("album_$key", null).orEmpty(),
@@ -192,12 +277,7 @@ object Downloads {
             while (c.moveToNext()) {
                 val d = c.download
                 if (keyOf(d) != groupKey) continue
-                val size = runCatching {
-                    maxOf(
-                        cache.getCachedSpans(MediaCache.downloadKey(d.request.id)).sumOf { it.length },
-                        cache.getCachedSpans(d.request.uri.toString()).sumOf { it.length },
-                    )
-                }.getOrDefault(0L)
+                val size = cachedBytesFor(cache, d.request.id, d.request.uri)
                 out.add(
                     DownloadTrack(
                         id = d.request.id,

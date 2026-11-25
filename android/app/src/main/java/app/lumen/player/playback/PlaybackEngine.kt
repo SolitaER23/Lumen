@@ -1,9 +1,11 @@
-﻿package app.lumen.player.playback
+package app.lumen.player.playback
 
 import android.content.Context
 
 /** 全进程唯一的播放器：Activity 与 MediaSessionService 共用同一份。 */
 object PlaybackEngine {
+    /** 单例只持有 applicationContext（见 get()），不会泄漏 Activity；lint 看不到这层，显式抑制。 */
+    @android.annotation.SuppressLint("StaticFieldLeak")
     @Volatile
     private var instance: Playback? = null
 

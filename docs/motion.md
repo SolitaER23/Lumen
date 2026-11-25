@@ -21,8 +21,9 @@
 
 ## 已知差距
 
-1. **非真共享元素**：容器变换是"矩形 + 缩放/位移"模拟，源卡片不会同步 morph；真共享元素需改用 `SharedTransitionLayout` + `sharedElement`。
-2. **转场未帧级验证**：`screencap` 延迟 ≈200ms，转场 ≈300ms，只能用 `animator_duration_scale 5` 慢放人工确认。
+1. ~~非真共享元素~~：0.54.1 已改为 `SharedTransitionLayout` + `sharedElement`，封面在卡片/专辑头图/播放页之间真实 morph。
+2. **返回为对称转场**：已取消跟手式预测性返回，返回与进入走同一条共享元素转场（0.54.2）。
+3. **转场未帧级验证**：`screencap` 延迟 ≈200ms，转场 ≈300ms，只能用 `animator_duration_scale 5` 慢放人工确认。
 3. **未覆盖**：页面内局部展开（如设置分组）仍无过渡；多窗口/分屏下的转场未测。
 
 ## 复验命令

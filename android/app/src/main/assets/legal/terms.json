@@ -1,0 +1,280 @@
+{
+  "version": "2026-11-25",
+  "updated": "2026-11-25",
+  "sections": [
+    {
+      "zh": {
+        "title": "1. 定义与协议范围",
+        "body": [
+          "1.1 “本应用”指 Lumen Android 客户端及其后续版本；“开发者”指本应用的开发者（以下称“我方”）。",
+          "1.2 “服务”指本应用提供的客户端功能，包括连接你自行部署的 Navidrome / OpenSubsonic 兼容服务器、播放、缓存、离线下载、歌词、评分、端侧音频分析与氛围电台。",
+          "1.3 “你的服务器”指由你或第三方自行搭建、运营与维护的音乐服务端；我方不提供、不托管、不运营该服务器及其中的任何内容。",
+          "1.4 本协议与《隐私条款》《开源信息》共同构成完整约定；冲突时以本协议为准。",
+          "1.5 本协议不适用于你与你的服务器运营方之间的法律关系。"
+        ]
+      },
+      "en": {
+        "title": "1. Definitions and scope",
+        "body": [
+          "1.1 “App” means the Lumen Android client and its later versions; “Developer” means the developer of the App (“we”, “us”).",
+          "1.2 “Service” means the client features: connecting to a Navidrome / OpenSubsonic-compatible server you operate, playback, caching, offline downloads, lyrics, ratings, on-device audio analysis and mood radio.",
+          "1.3 “Your server” means the music backend built, operated and maintained by you or a third party. We neither provide, host nor operate it or its content.",
+          "1.4 This Agreement, the Privacy Policy and the Open-Source Notices form the entire agreement; this Agreement prevails on conflict.",
+          "1.5 This Agreement does not govern your relationship with your server operator."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "2. 用户资格",
+        "body": [
+          "2.1 你须具备与你所在司法辖区相适应的完全民事行为能力。未达法定年龄者，应在监护人同意与监督下使用。",
+          "2.2 你声明并保证：你访问你的服务器及其中内容已获得合法授权，且不违反任何适用法律。",
+          "2.3 我方不主动收集年龄信息；如依法律要求需进行年龄核验，将在相应辖区单独说明。"
+        ]
+      },
+      "en": {
+        "title": "2. Eligibility",
+        "body": [
+          "2.1 You must have legal capacity under the law of your jurisdiction. Minors may use the App only with guardian consent and supervision.",
+          "2.2 You represent and warrant that your access to your server and its content is lawfully authorised and complies with applicable law.",
+          "2.3 We do not actively collect age data; where age verification is legally required, it will be described separately for that jurisdiction."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "3. 许可与使用规范",
+        "body": [
+          "3.1 在我方拥有权利的范围内，授予你一项个人、非独占、不可转让、可撤销的有限许可，用于在你拥有或控制的设备上安装与使用本应用。",
+          "3.2 你不得：(a) 以违反适用法律的方式使用本应用；(b) 绕过或破坏本应用的技术保护措施；(c) 未经授权访问他人服务器或数据；(d) 利用本应用传播恶意代码或实施干扰、拒绝服务等行为；(e) 删除或篡改版权、许可与归属标识。",
+          "3.3 本应用以 MIT 许可开源；对源代码的使用、修改与再分发依该许可执行，不受本条限制。",
+          "3.4 你对自己在设备上生成的数据（缓存、下载、分析结果）负全部责任。"
+        ]
+      },
+      "en": {
+        "title": "3. Licence and acceptable use",
+        "body": [
+          "3.1 To the extent we hold the rights, we grant you a personal, non-exclusive, non-transferable, revocable, limited licence to install and use the App on devices you own or control.",
+          "3.2 You must not: (a) use the App unlawfully; (b) circumvent technical protection measures; (c) access servers or data without authorisation; (d) distribute malware or interfere with, or deny service to, any system; (e) remove copyright, licence or attribution notices.",
+          "3.3 The App is open source under the MIT licence; use, modification and redistribution of the source are governed by that licence and are not restricted by this clause.",
+          "3.4 You are solely responsible for data generated on your device (cache, downloads, analysis results)."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "4. 第三方服务与外部依赖",
+        "body": [
+          "4.1 本应用需连接你配置的第三方服务器；该服务的可用性、准确性、安全性与合法性由运营方负责。",
+          "4.2 本应用可能调用第三方开源组件（详见《开源信息》）。各组件依其原始许可提供，我方不对其缺陷或由此产生的损失作出超出法律强制范围的承诺。",
+          "4.3 你与任何第三方之间的争议，由你与该第三方自行解决；我方不作为当事方介入。"
+        ]
+      },
+      "en": {
+        "title": "4. Third-party services",
+        "body": [
+          "4.1 The App connects to a third-party server you configure. Its availability, accuracy, security and legality are the operator's responsibility.",
+          "4.2 The App includes third-party open-source components (see Open-Source Notices), provided under their original licences. We make no commitments beyond mandatory law regarding their defects or resulting loss.",
+          "4.3 Disputes between you and any third party are resolved between you; we are not a party to them."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "5. 隐私与数据处理",
+        "body": [
+          "5.1 我方处理数据的方式以《隐私条款》为准；该条款构成本协议不可分割的组成部分。",
+          "5.2 核心原则：音频与曲库数据默认仅在设备端与你的服务器之间流转；端侧音频分析在设备内完成，音频不上传至我方。",
+          "5.3 本应用不设开发者后台账号体系；我方不因使用本应用而获得你的服务器凭据。",
+          "5.4 在适用法律要求数据保护影响评估、数据处理协议或特定跨境机制时，你应自行确保满足相应义务。"
+        ]
+      },
+      "en": {
+        "title": "5. Privacy and data",
+        "body": [
+          "5.1 Our data practices are governed by the Privacy Policy, which forms an integral part of this Agreement.",
+          "5.2 Core principle: audio and library data flow only between your device and your server by default; on-device analysis runs locally and audio is never uploaded to us.",
+          "5.3 The App has no developer-operated account system; we do not obtain your server credentials through use of the App.",
+          "5.4 Where applicable law requires impact assessments, data processing agreements or specific transfer mechanisms, you are responsible for compliance."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "6. 知识产权",
+        "body": [
+          "6.1 本应用的源代码、名称、标识与文档受著作权及商标法保护；除本协议与开源许可明确授予外，未授予任何权利。",
+          "6.2 第三方模型、字体、图标与库的权利归其各自权利人；相关许可与版权声明详见应用内《开源信息》。",
+          "6.3 你服务器中的音乐、封面与元数据权利归相应权利人；我方不主张任何权利，也不对其合法性作出保证。",
+          "6.4 你向本应用提供的内容（如评分、标签）仅存储于本机或你的服务器。"
+        ]
+      },
+      "en": {
+        "title": "6. Intellectual property",
+        "body": [
+          "6.1 The App's source code, name, marks and documentation are protected by copyright and trademark law. No rights are granted except as expressly stated here or in the open-source licence.",
+          "6.2 Rights in third-party models, fonts, icons and libraries remain with their owners; see the Open-Source Notices for licences and attributions.",
+          "6.3 Rights in music, artwork and metadata on your server belong to their respective owners. We claim no rights and make no warranty as to their legality.",
+          "6.4 Content you provide to the App (e.g. ratings, tags) is stored only on your device or your server."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "7. 收费、订阅与退款",
+        "body": [
+          "7.1 本应用当前免费提供，不含内购、订阅或广告。",
+          "7.2 若未来引入收费功能，将在应用内明确标示价格、计费周期、自动续订规则与取消方式，并在购买前取得你的明示同意。",
+          "7.3 退款依你获取本应用的渠道（应用商店、网盘或其它分发渠道）所适用的规则执行；我方无法直接处理由第三方代收款项的退款。",
+          "7.4 依适用法律的强制性规定（如部分辖区的消费者撤回权），你享有的权利不受本条限制。"
+        ]
+      },
+      "en": {
+        "title": "7. Fees, subscriptions and refunds",
+        "body": [
+          "7.1 The App is currently free of charge, with no in-app purchases, subscriptions or advertising.",
+          "7.2 If paid features are introduced, pricing, billing cycle, auto-renewal terms and cancellation will be clearly disclosed in-app, with your express consent obtained beforehand.",
+          "7.3 Refunds follow the rules of the channel through which you obtained the App (app store, file-hosting service or other distributor); we cannot directly process refunds for payments collected by a third party.",
+          "7.4 Mandatory consumer rights (such as withdrawal rights in some jurisdictions) are not limited by this clause."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "8. 免责声明",
+        "body": [
+          "8.1 本应用按“现状”与“可用”基础提供，不附带任何明示或默示保证，包括适销性、特定用途适用性与不侵权。",
+          "8.2 我方不保证：服务不中断、无错误、与所有服务器版本或设备兼容、分析结果符合你的主观预期。",
+          "8.3 端侧音频分析（情绪、节拍、标签、相似度）为统计性推测，仅供展示与排序参考，不构成对作品内容的权威判断。",
+          "8.4 因你的服务器配置、网络环境、设备故障、操作系统变更或第三方软件导致的问题，我方不承担责任。",
+          "8.5 本条不排除或限制依适用法律不得排除或限制的责任。"
+        ]
+      },
+      "en": {
+        "title": "8. Disclaimers",
+        "body": [
+          "8.1 The App is provided “as is” and “as available”, without warranties of any kind, including merchantability, fitness for a particular purpose and non-infringement.",
+          "8.2 We do not warrant uninterrupted or error-free operation, compatibility with every server version or device, or that analysis results will match your subjective expectations.",
+          "8.3 On-device analysis (mood, tempo, tags, similarity) is statistical inference for display and ranking only, not an authoritative judgement about any work.",
+          "8.4 We are not liable for issues caused by your server configuration, network, device faults, OS changes or third-party software.",
+          "8.5 Nothing in this clause excludes liability that cannot be excluded under applicable law."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "9. 责任限制",
+        "body": [
+          "9.1 在适用法律允许的最大范围内，我方对间接、附带、特殊、惩罚性或后果性损害（含利润、数据、商誉损失）不承担责任。",
+          "9.2 我方就本协议承担的累计责任总额，以你为使用本应用实际支付的金额为上限；本应用为免费软件，若你未支付任何费用，该上限为零。",
+          "9.3 上述限制不适用于故意或重大过失、人身伤害，以及法律禁止限制的责任。",
+          "9.4 你因违反本协议或侵害第三方权利导致我方遭受索赔时，应予以赔偿并使我方免受损害。"
+        ]
+      },
+      "en": {
+        "title": "9. Limitation of liability",
+        "body": [
+          "9.1 To the maximum extent permitted by law, we are not liable for indirect, incidental, special, punitive or consequential damages (including lost profits, data or goodwill).",
+          "9.2 Our aggregate liability under this Agreement is capped at the amount you actually paid to use the App; the App is free software, so where you paid nothing the cap is zero.",
+          "9.3 These limits do not apply to wilful misconduct or gross negligence, personal injury, or liability that cannot lawfully be limited.",
+          "9.4 You will indemnify and hold us harmless against claims arising from your breach of this Agreement or infringement of third-party rights."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "10. 协议变更",
+        "body": [
+          "10.1 我方可能因功能调整、法律变化或安全需要修订本协议。",
+          "10.2 重大变更将在应用内以显著方式提示，并更新本页顶部的版本日期；变更生效后继续使用视为接受。",
+          "10.3 如你不同意变更，应停止使用并卸载本应用；这不影响你在变更前已产生的权利。"
+        ]
+      },
+      "en": {
+        "title": "10. Changes",
+        "body": [
+          "10.1 We may revise this Agreement for feature changes, legal requirements or security reasons.",
+          "10.2 Material changes will be prominently notified in-app and the effective date above will be updated; continued use after the effective date constitutes acceptance.",
+          "10.3 If you disagree, stop using and uninstall the App; rights accrued before the change are unaffected."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "11. 终止与中止",
+        "body": [
+          "11.1 你可随时停止使用并卸载本应用，本协议随之终止。",
+          "11.2 如你严重违反本协议或利用本应用实施违法行为，我方可中止或终止向你提供支持与更新。",
+          "11.3 终止不影响知识产权、免责声明、责任限制、争议解决等依其性质应继续有效的条款。"
+        ]
+      },
+      "en": {
+        "title": "11. Termination",
+        "body": [
+          "11.1 You may stop using and uninstall the App at any time; this Agreement then terminates.",
+          "11.2 If you materially breach this Agreement or use the App unlawfully, we may suspend or end support and updates for you.",
+          "11.3 Termination does not affect clauses that by their nature survive, including intellectual property, disclaimers, liability limits and dispute resolution."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "12. 通知",
+        "body": [
+          "12.1 我方向你发出的通知，可通过应用内公告、更新说明或你提供的联系邮箱（如有）送达。",
+          "12.2 你向我方发出的通知，应通过应用内「设置 → 问题反馈」所列的官方渠道发送；以该渠道的送达记录为准。"
+        ]
+      },
+      "en": {
+        "title": "12. Notices",
+        "body": [
+          "12.1 Notices to you may be delivered via in-app announcements, release notes or any contact email you provided.",
+          "12.2 Notices to us must be sent through the official channel listed under Settings → Feedback in the App; delivery records on that channel prevail."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "13. 争议解决与适用法律",
+        "body": [
+          "13.1 本协议适用开发者所在地的法律，排除其冲突规范。",
+          "13.2 因本协议产生的争议，双方应先友好协商；协商不成的，提交开发者所在地有管辖权的法院解决。",
+          "13.3 若你为消费者，本条不剥夺你依住所地强制性消费者保护法律享有的管辖与救济权利。"
+        ]
+      },
+      "en": {
+        "title": "13. Governing law and disputes",
+        "body": [
+          "13.1 This Agreement is governed by the law of the developer's place of residence, excluding conflict-of-law rules.",
+          "13.2 Disputes shall first be resolved through good-faith negotiation; failing that, they shall be submitted to the competent courts at the developer's place of residence.",
+          "13.3 If you are a consumer, this clause does not deprive you of mandatory jurisdiction and remedies under the consumer law of your habitual residence."
+        ]
+      }
+    },
+    {
+      "zh": {
+        "title": "14. 附则",
+        "body": [
+          "14.1 可分割性：任何条款被认定无效或不可执行，不影响其余条款的效力。",
+          "14.2 弃权：我方未行使或延迟行使任何权利，不构成对该权利的放弃。",
+          "14.3 转让：未经我方书面同意，你不得转让本协议项下权利义务；我方可在合并、收购或资产转让时转让本协议。",
+          "14.4 完整协议：本协议连同《隐私条款》与《开源信息》构成双方完整约定，取代此前口头或书面的相关陈述。",
+          "14.5 语言：本协议以中英文提供，如两个版本存在歧义，以中文版本为准。",
+          "14.6 生效日期：本页所示版本日期。"
+        ]
+      },
+      "en": {
+        "title": "14. General",
+        "body": [
+          "14.1 Severability: if any clause is held invalid or unenforceable, the remaining clauses stay in effect.",
+          "14.2 No waiver: failure or delay in exercising a right is not a waiver of that right.",
+          "14.3 Assignment: you may not assign your rights or obligations without our written consent; we may assign this Agreement in a merger, acquisition or asset transfer.",
+          "14.4 Entire agreement: this Agreement, together with the Privacy Policy and Open-Source Notices, supersedes prior statements.",
+          "14.5 Language: this Agreement is provided in Chinese and English; in case of ambiguity, the Chinese version prevails.",
+          "14.6 Effective date: the version date shown on this page."
+        ]
+      }
+    }
+  ]
+}

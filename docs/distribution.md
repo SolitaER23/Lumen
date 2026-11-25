@@ -4,10 +4,10 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 版本 | `0.54.0` / `versionCode 157` |
-| APK | `Lumen-0.54.0.apk` |
-| 文件大小 | `13,807,523` 字节（约 13.2 MiB） |
-| SHA-256 | `5ACE7CE5634C2B3D6636ECA0470DA4613E95FCC37F241F8F7A5FD44F5959AA17` |
+| 版本 | `0.74.0` / `versionCode 203` |
+| APK | `Lumen-0.74.0.apk` |
+| 文件大小 | `158,103,016` 字节（约 150.8 MiB） |
+| SHA-256 | `C1F0F52B8C91F91A25E0A36C4403DDF90F1531139813FEAB897888967ED0C641` |
 | 签名证书 DN | `CN=Lumen, OU=Release, O=Lumen, L=Shanghai, ST=Shanghai, C=CN` |
 | 证书 SHA-256 | `c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37` |
 | 最低系统 | Android 8.0（API 26） |
@@ -30,12 +30,12 @@
 校验示例：
 
 ```bash
-sha256sum Lumen-0.54.0.apk
-# 应输出 5ACE7CE5634C2B3D6636ECA0470DA4613E95FCC37F241F8F7A5FD44F5959AA17
+sha256sum Lumen-0.74.0.apk
+# 应输出 C1F0F52B8C91F91A25E0A36C4403DDF90F1531139813FEAB897888967ED0C641
 ```
 
 ```bash
-apksigner verify --print-certs Lumen-0.54.0.apk
+apksigner verify --print-certs Lumen-0.74.0.apk
 # 证书 SHA-256 应为 c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37
 ```
 
@@ -104,7 +104,7 @@ apksigner verify --print-certs Lumen-0.54.0.apk
 | 登录与曲库同步 | ✅ | 0.51.0 回归时 95 张专辑，封面与动态取色正常 |
 | 播放 | ✅ | MediaSession `state=PLAYING`，元数据正确 |
 | 后台播放与通知 | ✅ | `lumen_playback` 渠道 MediaStyle 前台通知，切后台继续播放 |
-| 端侧分析（LiteRT 2.4.0） | ✅ | `LitertSmokeTest` 在设备上通过（XNNPACK delegate，`.so` 正常加载） |
+| 端侧分析（ONNX Runtime 1.22.0） | ✅ | `ClapAssetCopyTest` 在设备上通过（模型落盘一次、标记校验、自愈） |
 | 条款门禁 | ✅ | 用户协议 / 隐私条款分别滚动到底后才可同意；在线版本文案显示正确 |
 | 权限流程 | ✅ | Android 17 首次启动请求「本地网络」权限；授权后自动重试登录成功 |
 | 0.52.0 后台分析 | ✅ | 登录后立即开始；首页「专辑」右侧出现「正在分析」胶囊，提示弹窗只出现一次；切换账号后自动续跑 |
@@ -151,7 +151,7 @@ CI 手动 release 使用以下 secrets：
 - [x] `apksigner verify` 证书与上表一致
 - [x] `versionName` / `versionCode` / `targetSdk` 与 build.gradle.kts 一致
 - [ ] 16 KB page 校验：`llvm-readelf -l` 的 LOAD Align 为 `0x4000`
-- [ ] 设备端 YAMNet 冒烟测试通过（`connectedDebugAndroidTest`）
+- [ ] 设备端 CLAP/ONNX 冒烟测试通过（`connectedDebugAndroidTest`）
 - [ ] SHA-256 与分发包一致（`sha256sum -c`）
 - [ ] 在 Pixel 10a 完成冒烟：登录、播放、后台播放、下载、通知、分析、电台
 - [ ] 同一签名覆盖安装上一版，账号/历史/评分/心情数据保留

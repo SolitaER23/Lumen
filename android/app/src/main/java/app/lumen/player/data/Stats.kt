@@ -1,4 +1,4 @@
-﻿package app.lumen.player.data
+package app.lumen.player.data
 
 import app.lumen.player.util.L10n
 import android.content.Context
@@ -22,7 +22,7 @@ object StatsStore {
         val token = when {
             enc != null -> SettingsStore.decryptString(ctx, enc).orEmpty()
             legacy.isNotBlank() -> {
-                // 旧版本明文：迁移为 Keystore 密文后删除明文
+                // 旧版本明文：迁移为 Keystore 密文后删除明文；加密不可用时先保留明文，下次再试
                 val migrated = SettingsStore.encryptString(ctx, legacy)
                 if (migrated != null) {
                     p.edit().putString("token_enc", migrated).remove("token").apply()
@@ -41,18 +41,91 @@ object StatsStore {
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().clear().apply()
     }
 
-    fun save(ctx: Context, cfg: StatsConfig) {
+    /**
+     * 保存统计配置；返回 false 表示 Token **没能加密落盘**。
+     *
+     * 旧实现在 Keystore 不可用时把 Token 明文写进 prefs，直接违反隐私条款
+     * 「统计 Token 使用 Android Keystore 加密」的承诺。现在宁可保存失败（由 UI 提示），
+     * 也不写明文。
+     */
+    fun save(ctx: Context, cfg: StatsConfig): Boolean {
+        val token = cfg.token.trim()
+        val enc = if (token.isBlank()) "" else {
+            SettingsStore.encryptString(ctx, token)
+                ?: return false
+        }
         val editor = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
             .putString("base", cfg.base.trim().trimEnd('/'))
-        val token = cfg.token.trim()
-        val enc = if (token.isBlank()) null else SettingsStore.encryptString(ctx, token)
-        if (enc != null) {
-            editor.putString("token_enc", enc).remove("token").apply()
+        if (token.isBlank()) {
+            editor.remove("token_enc").remove("token")
         } else {
-            // Keystore 不可用时退回明文，避免丢配置
-            editor.putString("token", token).remove("token_enc").apply()
+            editor.putString("token_enc", enc).remove("token")
         }
+        return editor.commit()
     }
+}
+
+/** 由 dashboard 数据推导出的洞察：活跃度、趋势、时段/星期分布。 */
+data class StatsInsights(
+    val activeDays: Int,
+    val avgPerDay: Int,
+    val peakDay: StatsDay?,
+    /** 后半程相对前半程的变化百分比（短期趋势） */
+    val trendPct: Int,
+    /** 0=周日 … 6=周六 */
+    val weekday: IntArray,
+    /** 6 个时段：Ф0-4, 4-8, 8-12, 12-16, 16-20, 20-24 */
+    val hourBuckets: IntArray,
+    /** 24 小时逐时计数，用于热力条 */
+    val hourCounts: IntArray,
+    val uniqueArtists: Int,
+    val uniqueAlbums: Int,
+) {
+    override fun equals(other: Any?): Boolean = this === other
+    override fun hashCode(): Int = System.identityHashCode(this)
+}
+
+internal fun parsePlayedAt(raw: String): java.time.LocalDateTime? {
+    if (raw.isBlank()) return null
+    val s = raw.trim().replace(" ", "T")
+    runCatching { return java.time.Instant.parse(raw.trim()).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime() }
+    runCatching { return java.time.OffsetDateTime.parse(raw.trim()).toLocalDateTime() }
+    runCatching { return java.time.LocalDateTime.parse(s.take(19)) }
+    return null
+}
+
+fun StatsDashboard.insights(): StatsInsights {
+    val active = days.filter { it.count > 0 }
+    val peak = days.maxByOrNull { it.count }
+    val total = days.sumOf { it.count }
+    val half = days.size / 2
+    val first = days.take(half).sumOf { it.count }
+    val second = days.drop(half).sumOf { it.count }
+    val trend = when {
+        first <= 0 && second <= 0 -> 0
+        first <= 0 -> 100
+        else -> ((second - first) * 100.0 / first).toInt()
+    }
+    val weekday = IntArray(7)
+    val hours = IntArray(6)
+    val hourCounts = IntArray(24)
+    history.mapNotNull { parsePlayedAt(it.playedAt) }.forEach { t ->
+        // DayOfWeek: MONDAY=1 … SUNDAY=7 → 0=周日
+        weekday[t.dayOfWeek.value % 7]++
+        hours[(t.hour / 4).coerceIn(0, 5)]++
+        hourCounts[t.hour.coerceIn(0, 23)]++
+    }
+    return StatsInsights(
+        activeDays = active.size,
+        avgPerDay = if (days.isEmpty()) 0 else (total.toFloat() / days.size).toInt(),
+        peakDay = peak,
+        trendPct = trend,
+        weekday = weekday,
+        hourBuckets = hours,
+        hourCounts = hourCounts,
+        uniqueArtists = artists.size,
+        uniqueAlbums = albums.size,
+    )
 }
 
 /** 一眼能看懂的统计结果。 */

@@ -58,6 +58,8 @@ fun DownloadsScreen(
     onResumeAll: () -> Unit,
     onClearAll: () -> Unit,
 ) {
+    // 页面内返回按钮 / 系统返回统一走同一入口
+    androidx.activity.compose.BackHandler { onBack() }
     var expanded by remember { mutableStateOf<Set<String>>(emptySet()) }
     val totalTracks = summaries.sumOf { it.total }
     val totalBytes = summaries.sumOf { it.bytes }

@@ -15,14 +15,63 @@ data class ServerConfig(
     val base: String,
     val user: String,
     val password: String,
+    /**
+     * 已保存的密码解不开（Keystore 被重置、密文损坏）。
+     * UI 应提示「请重新输入密码」，而不是把账号当空密码静默处理。
+     */
+    val passwordUnreadable: Boolean = false,
 ) {
-    val complete: Boolean get() = base.trim().startsWith("http", ignoreCase = true) && user.isNotBlank() && password.isNotBlank()
+    /**
+     * 配置是否完整可用。注意不要用 `startsWith("http")`——它会把 `httpfoo://` 也放进来。
+     * 明文 HTTP 的地址策略由 [NetworkPolicy] 在登录页把关。
+     */
+    val complete: Boolean
+        get() {
+            val uri = runCatching { java.net.URI(base.trim()) }.getOrNull() ?: return false
+            val scheme = uri.scheme?.lowercase()
+            if (scheme != "http" && scheme != "https") return false
+            if (uri.host.isNullOrBlank()) return false
+            return user.isNotBlank() && password.isNotBlank()
+        }
 }
 
-/** 外观偏好：MCU 对比度（0=标准，0.5=中，1=高）。 */
+/**
+ * 外观偏好：MCU 对比度（0=标准，0.5=中，1=高）。
+ *
+ * 与登录凭据分开存放（历史版本共用 lumen_settings，导致「退出登录」会连带把
+ * 主题/对比度/淡入淡出一起清空）。旧文件保留不删，便于回滚。
+ */
 object Appearance {
-    private const val FILE = "lumen_settings"
+    private const val FILE = "lumen_appearance"
+    private const val LEGACY_FILE = "lumen_settings"
     private const val KEY_CONTRAST = "mcu_contrast"
+    private const val KEY_MIGRATED = "migrated_from_legacy"
+
+    /** 从旧文件迁移过来的外观键（与写入端保持一致）。 */
+    private val APPEARANCE_KEYS = setOf(
+        KEY_CONTRAST, "theme_mode", "palette_style", "mood_tint", "gradient_theme",
+        "per_page_color", "material_you", "amoled", "pinned_album", "pinned_seeds",
+        "fade_ms", "smart_fade",
+    )
+
+    /** 幂等迁移：把旧 lumen_settings 里的外观键搬到 lumen_appearance。 */
+    fun migrate(ctx: Context) {
+        val target = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        if (target.getBoolean(KEY_MIGRATED, false)) return
+        val legacy = ctx.getSharedPreferences(LEGACY_FILE, Context.MODE_PRIVATE)
+        val editor = target.edit()
+        legacy.all.forEach { (key, value) ->
+            if (key !in APPEARANCE_KEYS) return@forEach
+            when (value) {
+                is Float -> editor.putFloat(key, value)
+                is Long -> editor.putLong(key, value)
+                is Int -> editor.putInt(key, value)
+                is Boolean -> editor.putBoolean(key, value)
+                is String -> editor.putString(key, value)
+            }
+        }
+        editor.putBoolean(KEY_MIGRATED, true).commit()
+    }
 
     /** 对比度：0 = 标准 / 0.45 = 增强 / 0.7 = 最高（旧值 1.0 收敛到 0.7）。 */
     fun contrast(ctx: Context): Float {
@@ -146,17 +195,30 @@ object SettingsStore {
 
     fun load(ctx: Context, file: String = FILE): ServerConfig {
         val p = ctx.getSharedPreferences(file, Context.MODE_PRIVATE)
+        var unreadable = false
         val enc = p.getString(PREF_PASSWORD_ENC, null)
         val password = when {
-            enc != null -> decrypt(ctx, enc).orEmpty()
-            // 旧版本明文：迁移成密文并删掉明文
+            enc != null -> try {
+                decrypt(ctx, enc)
+            } catch (e: CryptoException) {
+                // 关键：**不要**删掉密文。Keystore 可能只是暂时不可用（换锁屏方式、
+                // 恢复备份后首次解锁），删了就永久丢失凭据。保留并让 UI 提示重输。
+                unreadable = true
+                app.lumen.player.util.Logx.w("LumenCrypto", "解密失败（保留密文）: " + e.message)
+                ""
+            }
+            // 旧版本明文：迁移成密文并删掉明文；加密不可用时保留明文，下次再试
             p.contains(PREF_PASSWORD_LEGACY) -> {
                 val plain = p.getString(PREF_PASSWORD_LEGACY, "").orEmpty()
                 if (plain.isNotEmpty()) {
-                    p.edit()
-                        .putString(PREF_PASSWORD_ENC, encrypt(ctx, plain))
-                        .remove(PREF_PASSWORD_LEGACY)
-                        .apply()
+                    try {
+                        p.edit()
+                            .putString(PREF_PASSWORD_ENC, encrypt(ctx, plain))
+                            .remove(PREF_PASSWORD_LEGACY)
+                            .commit()
+                    } catch (e: CryptoException) {
+                        app.lumen.player.util.Logx.w("LumenCrypto", "明文迁移加密失败（保留明文）: " + e.message)
+                    }
                 } else {
                     p.edit().remove(PREF_PASSWORD_LEGACY).apply()
                 }
@@ -168,35 +230,72 @@ object SettingsStore {
             base = p.getString("base", "") ?: "",
             user = p.getString("user", "") ?: "",
             password = password,
+            passwordUnreadable = unreadable,
         )
     }
 
-    fun save(ctx: Context, cfg: ServerConfig, file: String = FILE) {
-        ctx.getSharedPreferences(file, Context.MODE_PRIVATE).edit()
+    /**
+     * 保存连接配置。
+     *
+     * 返回 false 表示密码**没能安全落盘**（Keystore 不可用）。此时不会写入任何字段、
+     * 也不会删掉旧密文 —— 旧实现是 `putString(key, null)`，等于把密码静默删掉，
+     * 用户只会看到「账号不完整」，完全不知道发生了什么。
+     */
+    fun save(ctx: Context, cfg: ServerConfig, file: String = FILE): Boolean {
+        val enc = try {
+            encrypt(ctx, cfg.password)
+        } catch (e: CryptoException) {
+            app.lumen.player.util.Logx.w("LumenCrypto", "保存密码失败: " + e.message)
+            return false
+        }
+        return ctx.getSharedPreferences(file, Context.MODE_PRIVATE).edit()
             .putString("base", cfg.base.trim().trimEnd('/'))
             .putString("user", cfg.user.trim())
-            .putString(PREF_PASSWORD_ENC, encrypt(ctx, cfg.password))
+            .putString(PREF_PASSWORD_ENC, enc)
             .remove(PREF_PASSWORD_LEGACY)
-            .apply()
+            .commit()
     }
 
-    /** 认证 salt：安装后固定，保证同一首曲目的 URL（= 缓存键）跨重启稳定。 */
+    /**
+     * 认证 salt：安装后固定，保证同一首曲目的 URL 跨重启稳定。
+     *
+     * 用 SecureRandom 而不是 `Random(nanoTime)`：subsonic 的 `t = md5(password + salt)`，
+     * 可预测的 salt 会让 token 更容易被离线枚举。
+     */
     fun salt(ctx: Context): String {
         val p = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
         p.getString("salt", null)?.let { return it }
-        val s = "%08x".format(java.util.Random(System.nanoTime()).nextInt())
+        val rnd = java.security.SecureRandom()
+        val s = String.format(java.util.Locale.ROOT, "%08x", rnd.nextInt())
         p.edit().putString("salt", s).apply()
         return s
     }
 
+    /** 清空全部连接配置（含 salt）；外观偏好已迁到独立文件，不受影响。 */
     fun clear(ctx: Context) {
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().clear().apply()
     }
 
-    /** 供其他模块复用 Keystore 加密（如统计 Token）。 */
-    fun encryptString(ctx: Context, plain: String): String? = encrypt(ctx, plain)
+    /**
+     * 只清凭据（登出用）：保留 salt（流缓存键稳定，避免登出后全量重下）与账号索引。
+     * 「清除本机数据」请走 [clear] / `LocalData.wipe`。
+     */
+    fun clearCredentials(ctx: Context, keepSalt: Boolean = true) {
+        val e = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .remove("base")
+            .remove("user")
+            .remove(PREF_PASSWORD_ENC)
+            .remove(PREF_PASSWORD_LEGACY)
+        if (!keepSalt) e.remove("salt")
+        e.apply()
+    }
 
-    fun decryptString(ctx: Context, enc: String): String? = decrypt(ctx, enc)
+    /** 供其他模块复用 Keystore 加密（如统计 Token）；失败返回 null，调用方不得回退明文。 */
+    fun encryptString(ctx: Context, plain: String): String? =
+        runCatching { encrypt(ctx, plain) }.getOrNull()
+
+    fun decryptString(ctx: Context, enc: String): String? =
+        runCatching { decrypt(ctx, enc) }.getOrNull()
 
     // ---- Keystore AES-GCM ----
 
@@ -217,19 +316,37 @@ object SettingsStore {
         return kg.generateKey()
     }
 
-    private fun encrypt(ctx: Context, plain: String): String? = runCatching {
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey())
-        val ct = cipher.doFinal(plain.toByteArray())
-        Base64.encodeToString(cipher.iv + ct, Base64.NO_WRAP)
-    }.getOrNull()
+    /** 密文格式：`v1:` + Base64(IV(12B) + GCM 密文)，带版本前缀便于以后换算法。 */
+    private const val ENC_PREFIX = "v1:"
 
-    private fun decrypt(ctx: Context, blob: String): String? = runCatching {
-        val bytes = Base64.decode(blob, Base64.NO_WRAP)
-        val iv = bytes.copyOfRange(0, 12)
-        val ct = bytes.copyOfRange(12, bytes.size)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, iv))
-        String(cipher.doFinal(ct))
-    }.getOrNull()
+    private fun encrypt(ctx: Context, plain: String): String {
+        try {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey())
+            val ct = cipher.doFinal(plain.toByteArray())
+            return ENC_PREFIX + Base64.encodeToString(cipher.iv + ct, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            throw CryptoException("Keystore 加密失败: " + e.message, e)
+        }
+    }
+
+    private fun decrypt(ctx: Context, blob: String): String {
+        try {
+            val body = if (blob.startsWith(ENC_PREFIX)) blob.substring(ENC_PREFIX.length) else blob
+            val bytes = Base64.decode(body, Base64.NO_WRAP)
+            if (bytes.size <= 12) throw CryptoException("密文长度异常: " + bytes.size)
+            val iv = bytes.copyOfRange(0, 12)
+            val ct = bytes.copyOfRange(12, bytes.size)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, iv))
+            return String(cipher.doFinal(ct))
+        } catch (e: CryptoException) {
+            throw e
+        } catch (e: Exception) {
+            throw CryptoException("Keystore 解密失败: " + e.message, e)
+        }
+    }
 }
+
+/** Keystore 不可用 / 密文损坏。调用方必须显式处理，不能把失败当成「空密码」。 */
+class CryptoException(message: String, cause: Throwable? = null) : Exception(message, cause)

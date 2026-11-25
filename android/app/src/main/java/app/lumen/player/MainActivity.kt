@@ -181,6 +181,12 @@ private fun loginErrorMessage(e: Exception): String {
     val message = e.message.orEmpty()
     val lower = message.lowercase()
     return when {
+        // 0) 本地网络权限（Android 17）：被拒时表现为"无法连接"，必须优先判定
+        lower.contains("access_local_network") || lower.contains("permission denial") ->
+            L10n.tf(
+                "系统拦截了本地网络访问。请在弹窗中允许「本地网络」权限后重试。",
+                "Local network access was blocked. Allow the Local Network permission and retry.",
+            )
         lower.contains("invalid url port") || lower.contains("invalid url") ->
             L10n.tf(
                 "服务器地址格式不正确。请包含 http:// 或 https://，端口示例：http://192.168.1.2:4533",
@@ -198,6 +204,15 @@ private fun loginErrorMessage(e: Exception): String {
             L10n.tf("用户名或密码错误，请修改后重新连接", "Wrong username or password. Edit and retry.")
         lower.contains("subsonic error 41") ->
             L10n.tf("该账号没有访问权限，请检查服务器权限配置", "This account cannot access the library. Check server permissions.")
+        // HTTP 层：给出可区分的状态提示
+        lower.contains("403") || lower.contains("forbidden") ->
+            L10n.tf("服务器拒绝访问（403）。请检查账号权限，或反向代理是否限制了访问来源。", "Forbidden (403). Check account permissions or reverse-proxy rules.")
+        lower.contains("401") || lower.contains("unauthorized") ->
+            L10n.tf("认证失败（401）。请确认用户名与密码，或服务器是否要求 token 认证。", "Unauthorized (401). Check the credentials or token auth.")
+        lower.contains("404") || lower.contains("not found") ->
+            L10n.tf("接口不存在（404）。请确认地址指向 Navidrome 的 Subsonic 接口根路径。", "Not found (404). Verify the Subsonic base path.")
+        lower.contains("500") || lower.contains("502") || lower.contains("503") ->
+            L10n.tf("服务器内部错误（5xx）。请查看 Navidrome 日志，可能正在扫描曲库。", "Server error (5xx). Check the Navidrome logs.")
         else -> message.ifBlank { L10n.tf("连接失败，请检查地址、用户名和密码", "Connection failed. Check the address, username and password.") }
     }
 }
@@ -209,14 +224,16 @@ class MainActivity : ComponentActivity() {
         // Pixel 10a 是 120Hz 面板：明确请求固定源 120Hz，动画期间才不会被降到 60
         window.attributes = window.attributes.apply { preferredRefreshRate = 120f }
 
-        setContent {
+        app.lumen.player.ui.AmbientFx.init(this)
+
+    setContent {
             App()
         }
     }
 }
 
 /** 页面栈的动画键：屏幕 + 当前专辑，用来判断方向与触发转场 */
-private data class NavKey(val screen: Int, val album: Album?)
+private data class NavKey(val screen: Int, val album: Album?, val artistId: String? = null)
 
 /** m4a（ALAC）在 Pixel 上能L10n.t("播")但无声，统一走 320k MP3 转码 */
 private fun streamUrl(client: SubsonicClient, t: Track): String =
@@ -232,12 +249,16 @@ private fun streamUrl(client: SubsonicClient, t: Track): String =
 private fun App() {
     val ctx = LocalContext.current
     var cfg by remember { mutableStateOf(SettingsStore.load(ctx)) }
+    var allowPublicCleartext by remember {
+        mutableStateOf(app.lumen.player.data.NetworkSettings.allowPublicCleartext(ctx))
+    }
     var accounts by remember { mutableStateOf<List<app.lumen.player.data.Account>>(emptyList()) }
     var activeAccountId by remember { mutableStateOf<String?>(null) }
     var albums by remember { mutableStateOf<List<Album>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var loggedIn by remember { mutableStateOf(false) }
+    var offline by remember { mutableStateOf(false) }
     var loginNonce by remember { mutableStateOf(0) }
     var openAlbum by remember { mutableStateOf<Album?>(null) }
     var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
@@ -245,6 +266,7 @@ private fun App() {
     var screen by remember { mutableStateOf(0) }
     var scheme by remember { mutableStateOf(FallbackScheme) }
     val animatedScheme = app.lumen.player.ui.rememberAnimatedColorScheme(scheme)
+    val adaptive = app.lumen.player.ui.rememberAdaptiveLayout()
     var contrast by remember { mutableFloatStateOf(app.lumen.player.data.Appearance.contrast(ctx)) }
     var themeMode by remember { mutableStateOf(app.lumen.player.data.Appearance.themeMode(ctx)) }
     var paletteStyle by remember { mutableStateOf(app.lumen.player.data.Appearance.paletteStyle(ctx)) }
@@ -291,6 +313,8 @@ private fun App() {
     var fadeMs by remember { mutableLongStateOf(app.lumen.player.data.Appearance.fadeMs(ctx)) }
     var smartFade by remember { mutableStateOf(app.lumen.player.data.Appearance.smartFade(ctx)) }
     var radioVibe by remember { mutableStateOf(app.lumen.player.data.RadioVibe.NIGHT) }
+    var radioStrength by remember { mutableStateOf(0.4f) }
+    var radioAuto by remember { mutableStateOf(true) }
     var radioTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var radioLoading by remember { mutableStateOf(false) }
     var radioProgress by remember { mutableFloatStateOf(0f) }
@@ -339,11 +363,28 @@ private fun App() {
     var mood by remember { mutableStateOf<app.lumen.player.data.MoodResult?>(null) }
     val navStack = remember { androidx.compose.runtime.mutableStateListOf<NavKey>() }
 
+    // 返回首页后让入口按钮回弹一下（仅视觉，不影响导航）
+    var lastScreenForBounce by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(screen) {
+        if (screen == 0 && lastScreenForBounce != 0) {
+            val key = when (lastScreenForBounce) {
+                3 -> "settings"
+                4 -> "downloads"
+                6 -> "search"
+                7 -> "stats"
+                else -> null
+            }
+            if (key != null) app.lumen.player.ui.EntryBounce.trigger(key)
+        }
+        lastScreenForBounce = screen
+    }
+
     /** 原路返回（立即执行，手势/动画在外部包一层） */
     fun performBack() {
         val prev = navStack.removeLastOrNull() ?: return
         screen = prev.screen
         openAlbum = prev.album
+        prev.artistId?.let { id -> selectedArtist = selectedArtist?.takeIf { it.id == id } }
     }
 
 
@@ -389,19 +430,41 @@ private fun App() {
                     withContext(Dispatchers.IO) { SubsonicClient(cfg).albums() }
                 }
                 if (list == null) {
-                    error = L10n.tf(
-                        "连接超时，请检查服务器地址与网络后重试",
-                        "Connection timed out. Check the server address and network, then retry.",
-                    )
-                    loggedIn = false
+                    // 服务器不可达：保留会话，用本地缓存进入离线模式，而不是退回登录页
+                    val cached = withContext(Dispatchers.IO) { AlbumCache.load(ctx) }
+                    if (cached.isNotEmpty()) {
+                        albums = cached
+                        libraryVersion += 1
+                        offline = true
+                        error = null
+                        loggedIn = true
+                    } else {
+                        error = L10n.tf(
+                            "连接超时，且本机还没有曲库缓存。请检查网络后重试",
+                            "Connection timed out and no local library cache exists. Check your network and retry.",
+                        )
+                        loggedIn = false
+                    }
                 } else {
                     albums = list
                     libraryVersion += 1
                     withContext(Dispatchers.IO) { AlbumCache.save(ctx, list) }
+                    // 认证已成功，此时才把凭据写盘；写不进去要明确告知（否则下次启动会「丢密码」）
+                    if (!SettingsStore.save(ctx, cfg)) {
+                        android.widget.Toast.makeText(
+                            ctx,
+                            L10n.tf(
+                                "无法安全保存密码（系统密钥库不可用），下次启动需要重新输入。",
+                                "Could not securely store the password (keystore unavailable); you will need to re-enter it next launch.",
+                            ),
+                            android.widget.Toast.LENGTH_LONG,
+                        ).show()
+                    }
                     app.lumen.player.data.Accounts.ensure(ctx, cfg)
                     accounts = app.lumen.player.data.Accounts.list(ctx)
                     activeAccountId = app.lumen.player.data.Accounts.activeId(ctx)
                     error = null
+                    offline = false
                     loggedIn = true
                     // 曲库拉取完成即开始后台分析（每次启动续跑未完成的曲目）
                     runCatching {
@@ -409,14 +472,56 @@ private fun App() {
                     }
                 }
             } catch (e: Exception) {
-                error = loginErrorMessage(e)
-                loggedIn = false
+                val cached = withContext(Dispatchers.IO) { AlbumCache.load(ctx) }
+                if (cached.isNotEmpty()) {
+                    albums = cached
+                    libraryVersion += 1
+                    offline = true
+                    error = null
+                    loggedIn = true
+                } else {
+                    error = loginErrorMessage(e)
+                    loggedIn = false
+                }
             } finally {
                 loading = false
             }
         }
     }
 
+
+    // 离线提示：进入离线态时提示一次（本地缓存仍可用）
+    val offlineToastCtx = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(offline) {
+        if (offline) {
+            android.widget.Toast.makeText(
+                offlineToastCtx,
+                L10n.tf("离线模式：使用本地缓存，恢复网络后会自动刷新", "Offline: using local cache; will refresh when reconnected"),
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
+    // 离线自动重试：网络或服务器恢复后自动刷新曲库并退出离线态
+    LaunchedEffect(offline, cfg) {
+        if (!offline || !cfg.complete) return@LaunchedEffect
+        while (offline && cfg.complete) {
+            kotlinx.coroutines.delay(20_000)
+            val ok = kotlinx.coroutines.withTimeoutOrNull(8_000) {
+                withContext(Dispatchers.IO) { runCatching { SubsonicClient(cfg).albums() }.getOrNull() }
+            }
+            if (ok != null) {
+                albums = ok
+                libraryVersion += 1
+                offline = false
+                withContext(Dispatchers.IO) { AlbumCache.save(ctx, ok) }
+                runCatching {
+                    app.lumen.player.playback.MoodAnalysisRunner.start(ctx, SubsonicClient(cfg), ok)
+                }
+                break
+            }
+        }
+    }
 
     if (!legalAccepted) {
         MaterialTheme(colorScheme = FallbackScheme) {
@@ -461,16 +566,86 @@ private fun App() {
         return
     }
 
+    // 本地网络权限（Android 17）：点「连接并同步」时若未授权，先弹系统授权框，授权后自动重试
+    var pendingConfig by remember { mutableStateOf<ServerConfig?>(null) }
+    val localNetworkPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val pending = pendingConfig
+        pendingConfig = null
+        if (granted && pending != null) {
+            // 同样先验证后落盘（成功后由下面的认证流程写盘）
+            cfg = pending
+            error = null
+            loginNonce += 1
+        } else if (!granted) {
+            error = L10n.tf(
+                "未授予「本地网络」权限，无法连接局域网服务器。请在设置中允许后重试。",
+                "Local Network permission denied; LAN servers are unreachable.",
+            )
+        }
+    }
+
+    // 登录页含密码输入框：禁止截屏与最近任务缩略图，避免锁屏通知/分享截图泄露。
+    // Context 可能是 ContextThemeWrapper 链，必须往上解包才能拿到 Activity 的 window。
+    androidx.compose.runtime.DisposableEffect(loggedIn) {
+        // LocalView.current 只能在组合中读取，这里用外层已取好的 rootView
+        val window = generateSequence(rootView.context) { (it as? android.content.ContextWrapper)?.baseContext }
+            .filterIsInstance<android.app.Activity>()
+            .firstOrNull()
+            ?.window
+        if (window != null) {
+            if (!loggedIn) {
+                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            } else {
+                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            }
+        } else {
+            app.lumen.player.util.Logx.w("LumenUi", "未找到 Activity window，无法设置 FLAG_SECURE")
+        }
+        onDispose { }
+    }
+
     if (!loggedIn) {
         // 登录页也要套主题，否则用的是 M3 默认浅色 → 深色字压在黑底上看不清
         MaterialTheme(colorScheme = FallbackScheme) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-                LoginScreen(cfg, loading, error) { c ->
+                LoginScreen(
+                    initial = cfg,
+                    loading = loading,
+                    error = error,
+                    allowPublicCleartext = allowPublicCleartext,
+                    onAllowPublicCleartextChange = { enabled ->
+                        allowPublicCleartext = enabled
+                        app.lumen.player.data.NetworkSettings.setAllowPublicCleartext(ctx, enabled)
+                    },
+                    onRequestLocalNetwork = {
+                        val target = cfg
+                        if (target != null) {
+                            pendingConfig = target
+                            runCatching {
+                                localNetworkPermission.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                            }
+                        }
+                    },
+                ) { c ->
                     error = null
-                    loading = true
-                    cfg = c
-                    SettingsStore.save(ctx, c)
-                    loginNonce += 1
+                    // Android 17：先确保本地网络权限，再发起连接；授权成功后自动重试
+                    val needsLocalNetwork = Build.VERSION.SDK_INT >= 37 &&
+                        ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_LOCAL_NETWORK) !=
+                        PackageManager.PERMISSION_GRANTED
+                    if (needsLocalNetwork) {
+                        pendingConfig = c
+                        SettingsStore.save(ctx, c)
+                        runCatching {
+                            localNetworkPermission.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                        }
+                    } else {
+                        // 先验证再落盘：连接成功后才写凭据，避免打错的地址/密码被持久化
+                        loading = true
+                        cfg = c
+                        loginNonce += 1
+                    }
                 }
             }
         }
@@ -532,6 +707,13 @@ private fun App() {
 
     fun addAccount(base: String, user: String, password: String) {
         val a = app.lumen.player.data.Accounts.add(ctx, base, user, password)
+        if (a == null) {
+            error = L10n.tf(
+                "无法安全保存该账号的密码（系统密钥库不可用）。请解锁设备后重试。",
+                "Could not securely store this account's password (keystore unavailable). Unlock the device and retry.",
+            )
+            return
+        }
         switchAccount(a)
     }
 
@@ -552,24 +734,17 @@ private fun App() {
 
     fun clearLocalData() {
         scope.launch {
-            app.lumen.player.playback.PlaybackEngine.get(ctx).stopAndClear()
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    Downloads.summaries(ctx).forEach { Downloads.delete(ctx, it.key) }
+            // 统一入口：新增落盘 store 只需在 LocalData 登记一次
+            runCatching { app.lumen.player.local.LocalData.wipe(ctx) }
+                .onFailure {
+                    error = L10n.tf(
+                        "清除数据失败：" + (it.message ?: ""),
+                        "Failed to wipe data: " + (it.message ?: ""),
+                    )
                 }
-                runCatching { MediaCache.clearStreamingCache(ctx, emptySet()) }
-                app.lumen.player.data.Accounts.clearAll(ctx)
-                app.lumen.player.data.PlayHistory.clear(ctx)
-                app.lumen.player.data.Ratings.clear(ctx)
-                app.lumen.player.data.StatsStore.clear(ctx)
-                app.lumen.player.data.MoodStore.clear(ctx)
-                app.lumen.player.playback.PlaybackStateStore.clear(ctx)
-            }
-            app.lumen.player.data.SettingsStore.clear(ctx)
             cfg = ServerConfig("", "", "")
             loggedIn = false
             loading = false
-            error = null
             albums = emptyList()
             downloads = emptyList()
             accounts = emptyList()
@@ -577,6 +752,15 @@ private fun App() {
             navStack.clear()
             screen = 0
             openAlbum = null
+            starred = emptyList()
+            starredIds = emptySet()
+            downloadedTrackIds = emptySet()
+            lyrics = null
+            lyricsTrackId = null
+            mood = null
+            rating = 0f
+            nowPlayingId = null
+            scrobbledId = null
         }
     }
 
@@ -606,37 +790,14 @@ private fun App() {
         }
     }
 
-    // 手势/按钮共用的返回进度：跟手拖动，松手后补完剩余动画再真正出栈
-    val backAnim = remember { Animatable(0f) }
-    // 返回出栈时跳过 AnimatedContent 的淡入/缩放，避免“上一页刚落地又弹一下”
-    // 返回手势开始时的“上一页” key，出栈后继续保持组合，避免切换瞬间重建
-    var heldBack by remember { mutableStateOf<NavKey?>(null) }
+    /**
+     * 返回：不再跟手拖动，直接改变导航状态。
+     * 让 AnimatedContent + SharedTransitionLayout 播放与进入完全对称的反向转场
+     * （封面从大图缩回卡片、页面淡出），路径和时长与进入一致。
+     */
     fun goBack() {
         if (navStack.isEmpty()) return
-        // 只有"返回首页"才收缩到卡片；播放页→专辑页应走普通反向转场
-        exitRect = if (navStack.lastOrNull()?.screen == 0) {
-            app.lumen.player.ui.NavOriginStore.get(openAlbum?.id)
-        } else {
-            null
-        }
-        heldBack = navStack.lastOrNull()
-        scope.launch {
-            if (backAnim.value < 1.4f) {
-                // 把当前页完全送出屏幕，再无缝切换（Expressive emphasized 缓动）
-                backAnim.animateTo(
-                    1.4f,
-                    tween(
-                        300,
-                        easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f),
-                    ),
-                )
-            }
-            // 等这一帧把“页面已送出”的画面渲染出来，再出栈，避免空白帧
-            kotlinx.coroutines.delay(48)
-            performBack()
-            backAnim.snapTo(0f)
-            androidx.compose.runtime.withFrameNanos { }
-        }
+        performBack()
     }
 
     fun toggleStar(track: Track) {
@@ -689,16 +850,34 @@ private fun App() {
     fun startRadio(vibe: app.lumen.player.data.RadioVibe, reseed: Boolean = false) {
         if (radioTracks.isEmpty()) return
         val seedId = if (reseed) null else playback.current?.id
-        val queue = app.lumen.player.data.Radio.build(ctx, radioTracks, seedId, vibe)
-        if (queue.isEmpty()) {
-            radioError = L10n.tf(
-                "还没有足够的分析数据。先运行心情分析，再回来生成电台。",
-                "Not enough analyzed tracks yet. Run mood analysis, then come back.",
-            )
-            return
+        // 选曲是全表特征点积（1024 维 × 候选数），必须放到 Default 线程，否则大库必卡
+        scope.launch {
+            radioLoading = true
+            val queue = runCatching {
+                app.lumen.player.data.Radio.build(
+                    ctx,
+                    radioTracks,
+                    seedId,
+                    vibe,
+                    strength = radioStrength,
+                    autoPick = radioAuto,
+                )
+            }.getOrElse { e ->
+                radioLoading = false
+                radioError = e.message ?: L10n.tf("生成电台失败", "Failed to build station")
+                return@launch
+            }
+            radioLoading = false
+            if (queue.isEmpty()) {
+                radioError = L10n.tf(
+                    "还没有足够的分析数据。先运行心情分析，再回来生成电台。",
+                    "Not enough analyzed tracks yet. Run mood analysis, then come back.",
+                )
+                return@launch
+            }
+            radioError = null
+            playback.play(queue, 0, L10n.tf("氛围电台", "Ambient Radio"))
         }
-        radioError = null
-        playback.play(queue, 0, L10n.tf("氛围电台", "Ambient Radio"))
     }
 
     fun loadRadio(vibe: app.lumen.player.data.RadioVibe) {
@@ -729,6 +908,7 @@ private fun App() {
 
     fun openRadio() {
         navigate(NavKey(10, null))
+        radioAuto = true
         if (radioTracks.isNotEmpty()) startRadio(radioVibe) else loadRadio(radioVibe)
     }
 
@@ -831,29 +1011,21 @@ private fun App() {
             }
         }
     }
-    LaunchedEffect(backAnim.value) {
-        if (backAnim.value == 0f) heldBack = null
-    }
     val current = playback.current
 
-    // 下载状态：设置/下载管理页才轮询；专辑页只在进入时查一次，避免转场期间每秒重组整个 App
-    LaunchedEffect(screen, openAlbum?.id, homeTab) {
-        when (screen) {
-            3, 4 -> while (true) {
-                downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
-                delay(1000)
-            }
-            2 -> while (true) {
-                downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
-                delay(1500)
-            }
-            0 -> if (homeTab == 2) {
-                while (true) {
-                    downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
-                    delay(2000)
-                }
-            }
-            // 1 -> 专辑页暂不查询下载状态（避免转场瞬间触发整页重组）
+    // 下载状态：事件驱动（下载开始/进度/完成/删除时刷新），不再按秒轮询
+    LaunchedEffect(screen, homeTab) {
+        val watched = screen == 3 || screen == 4 || (screen == 0 && homeTab == 2)
+        if (!watched) return@LaunchedEffect
+        val onChange: () -> Unit = {
+            scope.launch { downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) } }
+        }
+        Downloads.observe(ctx, onChange)
+        downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
+        try {
+            kotlinx.coroutines.awaitCancellation()
+        } finally {
+            Downloads.unobserve(onChange)
         }
     }
 
@@ -962,32 +1134,16 @@ private fun App() {
         }
     }
 
-    PredictiveBackHandler(enabled = screen > 0) { progress ->
-        heldBack = navStack.lastOrNull()
-        try {
-            progress.collect { backAnim.snapTo(it.progress) }
-            // 手势结束：补完剩余位移再出栈，保证与手指连续
-            if (backAnim.value < 1.4f) {
-                backAnim.animateTo(1.4f, tween(230, easing = FastOutSlowInEasing))
+    // 返回手势与返回键统一走 goBack()：与进入同一条共享元素转场，方向相反
+    androidx.activity.compose.BackHandler(enabled = screen > 0) {
+        when {
+            navStack.isNotEmpty() -> goBack()
+            // 从底栏直接进播放页时没有专辑上下文，返回应回首页
+            screen == 2 && openAlbum != null -> screen = 1
+            else -> {
+                screen = 0
+                openAlbum = null
             }
-            // 等这一帧把“页面已送出”的画面渲染出来，再出栈，避免空白帧
-            kotlinx.coroutines.delay(48)
-            // 出栈瞬间跳过 AnimatedContent 过渡，避免新页面再缩放闪一下
-            // 手势返回必须走页面栈，否则从「专辑歌曲列表」会直接跳回首页/艺人页
-            when {
-                navStack.isNotEmpty() -> performBack()
-                // 从底栏直接进播放页时没有专辑上下文，返回应回首页
-                screen == 2 && openAlbum != null -> screen = 1
-                else -> {
-                    screen = 0
-                    openAlbum = null
-                }
-            }
-            backAnim.snapTo(0f)
-            kotlinx.coroutines.delay(90)
-        } catch (_: CancellationException) {
-            // 手势取消：回到原位
-            backAnim.animateTo(0f, tween(220, easing = FastOutSlowInEasing))
         }
     }
 
@@ -997,11 +1153,12 @@ private fun App() {
     val onGoHome: () -> Unit = remember { { navStack.clear(); screen = 0; openAlbum = null } }
     val onOpenSettings: () -> Unit = remember { { navigate(NavKey(3, null)) } }
     val onOpenSearch: () -> Unit = remember { { navigate(NavKey(6, null)) } }
-    val onOpenArtist: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
+    val onOpenArtist: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null, a.id)) } }
     val onOpenArtistFromSearch: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
 
-    val screenContent: @Composable (NavKey) -> Unit = { key ->
-                saveableStates.SaveableStateProvider(stateKeyOf(key)) {
+    // suffix：宽屏双栏里同一个页面会与单栏版本共存，用后缀避免 SaveableStateProvider 重复注册
+    val screenContent: @Composable (NavKey, String) -> Unit = { key, suffix ->
+                saveableStates.SaveableStateProvider(stateKeyOf(key) + suffix) {
                 when {
                     key.screen == 9 -> LicensesScreen(onBack = { goBack() })
                     key.screen == 7 -> app.lumen.player.ui.StatsScreen(
@@ -1014,6 +1171,9 @@ private fun App() {
                         onBack = { goBack() },
                         onOpenAlbum = { al -> navigate(NavKey(1, al)) },
                         onOpenArtist = onOpenArtistFromSearch,
+                        onPlayTrack = { list, idx ->
+                            playback.play(list, idx, L10n.tf("搜索", "Search"))
+                        },
                     )
                     key.screen == 5 -> selectedArtist?.let { a ->
                         ArtistScreen(
@@ -1060,7 +1220,11 @@ private fun App() {
                         current = playback.current,
                         playing = playback.playing,
                         onBack = { goBack() },
-                        onVibe = { vibe ->
+                        strength = radioStrength,
+            onStrength = { radioStrength = it },
+            autoPick = radioAuto,
+            onVibe = { vibe ->
+                            radioAuto = false
                             radioVibe = vibe
                             if (radioTracks.isEmpty()) loadRadio(vibe) else startRadio(vibe)
                         },
@@ -1181,9 +1345,16 @@ private fun App() {
                         },
                         onBack = { goBack() },
                         onLogout = {
-                            ctx.getSharedPreferences("lumen_settings", android.content.Context.MODE_PRIVATE)
-                                .edit().clear().apply()
+                            // 登出 = 断开当前连接：停播、清队列与凭据，但保留账号列表与外观偏好
+                            runCatching { playback.stopAndClear() }
+                            app.lumen.player.data.SettingsStore.clearCredentials(ctx)
                             albums = emptyList()
+                            downloadedTrackIds = emptySet()
+                            lyrics = null
+                            lyricsTrackId = null
+                            mood = null
+                            nowPlayingId = null
+                            scrobbledId = null
                             openAlbum = null
                             navStack.clear()
                             screen = 0
@@ -1390,113 +1561,148 @@ private fun App() {
                     event = currentMoment.event,
                     sharedMotion = sharedMotion,
                 )
-                // 预测性返回：底层压暗，露出背景；上层内容跟手右移 + 缩放 + 圆角
+                // 返回不再跟手：压暗层只做极轻微的过渡底色，避免转场时露出直射背景
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .background(
-                            androidx.compose.ui.graphics.Color.Black.copy(
-                                alpha = 0.32f * backAnim.value.coerceAtMost(1f),
-                            ),
-                        ),
+                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.06f)),
                 )
-                // 页面层：始终保留「上一页 + 当前页」两份实时组合；返回时不重建，避免到位后闪一下
-                val pageBack = if (backAnim.value > 0.001f) (heldBack ?: navStack.lastOrNull()) else null
-                val pageKeys = listOfNotNull(pageBack, NavKey(screen, openAlbum)).distinct()
-                pageKeys.forEachIndexed { idx, pageKey ->
-                    val isFront = idx == pageKeys.lastIndex
-                    key(pageKey) {
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    val p = backAnim.value
-                                    val e = enterAnim.value
-                                    if (isFront) {
-                                        if (p > 0f) {
-                                            val over = (p - 1f).coerceAtLeast(0f)
-                                            translationX = size.width * (0.24f * p + 1.9f * over)
-                                            alpha = if (p > 1.2f) ((1.4f - p) / 0.2f).coerceIn(0f, 1f) else 1f
-                                            var s = 1f - 0.07f * p.coerceAtMost(1f)
-                                            var tx = 0f
-                                            var ty = 0f
-                                            // 返回：向来源卡片收缩（容器变换的反向）
-                                            val r = exitRect
-                                            if (r != null && size.width > 0f && size.height > 0f) {
-                                                val startScale = maxOf(r.width / size.width, r.height / size.height)
-                                                    .coerceIn(0.35f, 1f)
-                                                val k = p.coerceAtMost(1f)
-                                                s *= 1f + (startScale - 1f) * k
-                                                tx = (r.center.x - size.width / 2f) * k
-                                                ty = (r.center.y - size.height / 2f) * k
-                                            }
-                                            scaleX = s
-                                            scaleY = s
-                                            translationX += tx
-                                            translationY = ty
-                                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.5f)
-                                        } else if (e < 0.999f) {
-                                            // 进入：从来源卡片的矩形长成整页
-                                            val r = enterRect
-                                            if (r != null && size.width > 0f && size.height > 0f) {
-                                                val startScale = maxOf(r.width / size.width, r.height / size.height)
-                                                    .coerceIn(0.35f, 1f)
-                                                val k = 1f - e
-                                                val s = startScale + (1f - startScale) * e
-                                                scaleX = s
-                                                scaleY = s
-                                                translationX = (r.center.x - size.width / 2f) * k
-                                                translationY = (r.center.y - size.height / 2f) * k
-                                                alpha = 0.35f + 0.65f * e
-                                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.5f)
-                                            } else {
-                                                val s = 0.90f + 0.10f * e
-                                                scaleX = s
-                                                scaleY = s
-                                                alpha = 0.55f + 0.45f * e
-                                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(enterOriginX, enterOriginY)
-                                            }
-                                        }
-                                    } else {
-                                        val p2 = p.coerceAtMost(1f)
-                                        val s = 0.94f + 0.06f * p2
-                                        scaleX = s
-                                        scaleY = s
-                                        // 背景页做反向视差：往左让出 -8%，跟随手指更自然
-                                        translationX = -size.width * (0.05f + 0.03f * p2) * (1f - p2) -
-                                            size.width * 0.03f * p2
+                // 宽度 ≥ 600dp（平板 / 分屏 / 折叠展开）走双栏：左侧列表常驻，右侧详情
+                androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                    val wide = adaptive.twoPane
+                    if (wide && screen != 0) {
+                        androidx.compose.foundation.layout.Row(Modifier.fillMaxSize()) {
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.weight(adaptive.leftWeight).fillMaxHeight(),
+                            ) {
+                                app.lumen.player.ui.ExpressiveBackdrop(
+                                    Modifier.matchParentSize(),
+                                    drivePulse = false,
+                                    event = currentMoment.event,
+                                    animate = false,
+                                    sharedMotion = sharedMotion,
+                                )
+                                screenContent(NavKey(0, null), "-wide")
+                            }
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.weight(if (adaptive.twoPane) 1f - adaptive.leftWeight else 0.58f).fillMaxHeight(),
+                            ) {
+                                androidx.compose.material3.Surface(
+                                    color = MaterialTheme.colorScheme.surface,
+                                    modifier = Modifier.fillMaxSize(),
+                                ) {
+                                    androidx.compose.runtime.key(NavKey(screen, openAlbum)) {
+                                        app.lumen.player.ui.ExpressiveBackdrop(
+                                            Modifier.matchParentSize(),
+                                            drivePulse = true,
+                                            event = currentMoment.event,
+                                            animate = playback.playing && !powerSave.value,
+                                            sharedMotion = sharedMotion,
+                                        )
+                                        screenContent(NavKey(screen, openAlbum), "")
                                     }
                                 }
-                                .clip(
-                                    RoundedCornerShape(
-                                        when {
-                                            !isFront -> 0.dp
-                                            backAnim.value > 0f ->
-                                                (26.dp * backAnim.value.coerceAtMost(1f)).coerceAtLeast(0.dp)
-                                            enterAnim.value < 1f ->
-                                                (24.dp * (1f - enterAnim.value.coerceIn(0f, 1f))).coerceAtLeast(0.dp)
-                                            else -> 0.dp
+                                if (screen != 2) {
+                                    YoinBar(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .navigationBarsPadding()
+                                            .padding(bottom = 6.dp),
+                                        title = current?.title ?: "",
+                                        artist = current?.artist ?: "",
+                                        coverUrl = current?.let { client.coverUrl(it.albumId, 200) } ?: "",
+                                        playing = playback.playing,
+                                        enabled = current != null,
+                                        onHome = { navStack.clear(); screen = 0; openAlbum = null },
+                                        onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
+                                        onToggle = {
+                                            if (current != null) playback.toggle()
+                                            else if (albums.isNotEmpty()) openAlbum = albums.first()
                                         },
-                                    ),
-                                ),
-                        ) {
-                            // P0-1：只有前景页绘制动态背景；退到后面的页用纯底色，转场少一半绘制
-                            app.lumen.player.ui.ExpressiveBackdrop(
-                                Modifier.matchParentSize(),
-                                drivePulse = isFront,
-                                event = currentMoment.event,
-                                animate = isFront && playback.playing && !powerSave.value,
-                                sharedMotion = sharedMotion,
-                            )
-                            screenContent(pageKey)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // 页面宿主：SharedTransitionLayout + AnimatedContent —— 真共享元素，不再用矩形模拟
+                        val fadeSpecForPage =
+                            androidx.compose.material3.MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+                        val spatialSpecForPage =
+                            androidx.compose.material3.MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+                        val navDensity = androidx.compose.ui.platform.LocalDensity.current
+                        val navConfig = androidx.compose.ui.platform.LocalConfiguration.current
+                        val screenWidthPx = with(navDensity) { navConfig.screenWidthDp.dp.toPx() }
+                        val screenHeightPx = with(navDensity) { navConfig.screenHeightDp.dp.toPx() }
+                        app.lumen.player.ui.SharedPageHost(
+                            target = NavKey(screen, openAlbum),
+                            modifier = Modifier.fillMaxSize(),
+                            transitionSpec = {
+                                // 容器变换：从被点击的入口展开 / 收回，其余情况用标准淡入淡出
+                                val from = initialState as NavKey
+                                val to = targetState as NavKey
+                                fun originKeyOf(k: NavKey): String? = when (k.screen) {
+                                    // 专辑详情：封面用共享元素飞行，页面不再整体缩放
+                                    5 -> k.artistId
+                                    3 -> "settings"
+                                    4 -> "downloads"
+                                    6 -> "search"
+                                    7 -> "stats"
+                                    else -> null
+                                }
+                                val returning = to.screen == 0 && from.screen != 0
+                                val key = if (returning) originKeyOf(from) else originKeyOf(to)
+                                val origin = app.lumen.player.ui.NavOriginStore
+                                    .transformOrigin(key, screenWidthPx, screenHeightPx)
+                                val startScale = app.lumen.player.ui.NavOriginStore
+                                    .initialScale(key, screenWidthPx)
+                                if (origin != null) {
+                                    if (returning) {
+                                        androidx.compose.animation.fadeIn(fadeSpecForPage).togetherWith(
+                                            androidx.compose.animation.fadeOut(fadeSpecForPage) +
+                                                androidx.compose.animation.scaleOut(
+                                                    targetScale = startScale,
+                                                    animationSpec = spatialSpecForPage,
+                                                    transformOrigin = origin,
+                                                ),
+                                        ).using(null)
+                                    } else {
+                                        (
+                                            androidx.compose.animation.fadeIn(fadeSpecForPage) +
+                                                androidx.compose.animation.scaleIn(
+                                                    initialScale = startScale,
+                                                    animationSpec = spatialSpecForPage,
+                                                    transformOrigin = origin,
+                                                )
+                                            ).togetherWith(
+                                            androidx.compose.animation.fadeOut(fadeSpecForPage),
+                                        ).using(null)
+                                    }
+                                } else {
+                                    androidx.compose.animation.fadeIn(fadeSpecForPage)
+                                        .togetherWith(androidx.compose.animation.fadeOut(fadeSpecForPage))
+                                        .using(null)
+                                }
+                            },
+                        ) { pageKey ->
+                            Box(Modifier.fillMaxSize()) {
+                                app.lumen.player.ui.ExpressiveBackdrop(
+                                    Modifier.matchParentSize(),
+                                    drivePulse = true,
+                                    event = currentMoment.event,
+                                    animate = playback.playing && !powerSave.value,
+                                    sharedMotion = sharedMotion,
+                                )
+                                screenContent(pageKey as NavKey, "")
+                            }
                         }
                     }
                 }
 
 
                 // 播放页有自己的控制区，不再显示底栏（用动画隐显，避免"啪"地出现）
+                // 双栏时底栏属于「详情栏」，不再通栏压住左侧列表
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = screen != 2,
+                    visible = screen != 2 && !adaptive.twoPane,
                     enter = androidx.compose.animation.fadeIn(
                         androidx.compose.animation.core.tween(180),
                     ) + androidx.compose.animation.slideInVertically(

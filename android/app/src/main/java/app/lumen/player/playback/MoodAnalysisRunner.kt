@@ -60,6 +60,47 @@ object MoodAnalysisRunner {
 
     fun isActive(): Boolean = job?.isActive == true
 
+    @Volatile
+    private var paused = false
+
+    fun isPaused(): Boolean = paused
+
+    /** 用户主动暂停：循环在下一首之前检查并挂起（不退出协程，可原地恢复）。 */
+    fun pause() { paused = true }
+
+    fun resume() { paused = false }
+
+    /**
+     * 电量门控：低于阈值且未充电时暂停分析，避免把用户电量跑空。
+     * 返回 null 表示可继续，否则返回暂停原因（用于界面提示）。
+     */
+    private fun pauseReason(ctx: Context): String? {
+        val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+        val pm = ctx.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+
+        // 1) 电量过低且未充电
+        if (bm != null) {
+            val level = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            if (level in 0..14 && !bm.isCharging) return "电量过低（" + level + "%），已暂停分析"
+        }
+
+        // 2) 息屏且未充电：CLAP 推理会持续占用 CPU，息屏时暂停更省电
+        if (pm != null && !pm.isInteractive && bm?.isCharging != true) {
+            return "息屏且未充电，已暂停分析"
+        }
+
+        // 3) 过热降级：严重发热时停跑，避免持续高温
+        if (pm != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val thermal = pm.currentThermalStatus
+            if (thermal >= android.os.PowerManager.THERMAL_STATUS_SEVERE) {
+                return "设备温度过高（thermal=" + thermal + "），已暂停分析"
+            }
+        }
+
+        return null
+    }
+
+
     /** 幂等启动：已在跑就忽略；[albums] 用于首次枚举曲目（结果会缓存）。 */
     fun start(ctx: Context, client: SubsonicClient, albums: List<Album>) {
         if (isActive()) return
@@ -78,17 +119,46 @@ object MoodAnalysisRunner {
                 var segmentFailures = 0
                 var fallbackEma = 0.0
                 var samples = 0
+                // 清理历史遗留的 YAMNet 模型副本（已不再使用，占 4 MB）
+                runCatching { File(appCtx.filesDir, "yamnet.tflite").takeIf { it.exists() }?.delete() }
+                var clapSmokeDone = false
+                // 乱序分析：避免整张专辑先跑完、样本集中在某一风格；
+                // 用固定种子打散，保证同一设备多次运行顺序一致（便于对比）
+                val shuffledTracks = tracks.shuffled(kotlin.random.Random(tracks.size * 31 + 7))
                 MoodAnalyzer(appCtx).use { analyzer ->
-                    for (t in tracks) {
+                    for (t in shuffledTracks) {
                         if (!isActive) return@launch
-                        if (MoodStore.get(appCtx, t.id) != null) continue
+                        while (paused && isActive) kotlinx.coroutines.delay(400)
+                        // 电量过低/息屏未充电/过热：等条件恢复再继续。
+                        // 旧实现在这里 return@launch，等于「暂停」会永久结束本轮分析，
+                        // 用户插上电源也不会自动续跑。
+                        var blockReason = pauseReason(appCtx)
+                        if (blockReason != null) {
+                            app.lumen.player.util.Logx.i("LumenMood", "paused: " + blockReason)
+                            while (blockReason != null && isActive) {
+                                modeDetail = blockReason
+                                kotlinx.coroutines.delay(10_000)
+                                blockReason = pauseReason(appCtx)
+                            }
+                            if (!isActive) return@launch
+                            modeDetail = capability.label
+                        }
+                        // 只跳过「当前模型」已有结果；旧 YAMNet 结果会被重算覆盖
+                        if (MoodStore.isCurrentModel(appCtx, t.id)) { done++; continue }
                         if (!MoodStore.shouldAttempt(appCtx, t.id)) {
                             done++
                             continue
                         }
+                        // 原始流：mp3/m4a/aac/ogg/opus 可直接解码，省掉服务端转码等待
+                        val rawUrl = if (t.suffix.lowercase() in
+                            setOf("mp3", "m4a", "aac", "ogg", "opus", "flac")
+                        ) client.streamUrl(t.id) else null
                         val source = app.lumen.player.data.AudioSource(
                             transcodeUrl = transcodeUrl(client, t),
                             durationSec = t.seconds,
+                            rawUrl = rawUrl,
+                            // 只有帧式容器适合按字节切段；flac/wav 切在帧中间会解出损坏数据
+                            rawRangeSafe = t.suffix.lowercase() in setOf("mp3", "aac", "ogg", "opus"),
                         )
                         currentTitle = t.title
                         phase = "准备"
@@ -96,6 +166,34 @@ object MoodAnalysisRunner {
                             analyzer.analyze(t.id, source, capability) { name, _ -> phase = name }
                         }
                             .onSuccess {
+                                // P1-4 冒烟：首曲之后测一次 CLAP embedding 的维度与耗时
+                                if (!clapSmokeDone) {
+                                    clapSmokeDone = true
+                                    runCatching {
+                                        val t0 = System.currentTimeMillis()
+                                        app.lumen.player.data.ClapEmbedder(appCtx).use { emb ->
+                                            val loadMs = System.currentTimeMillis() - t0
+                                            val pcm = FloatArray(48000 * 120)
+                                            val offs = emb.windowOffsets(pcm.size)
+                                            val times = ArrayList<Long>()
+                                            var last = FloatArray(0)
+                                            for (o in offs) {
+                                                val t = System.currentTimeMillis()
+                                                last = emb.embedWindow(pcm, o)
+                                                times.add(System.currentTimeMillis() - t)
+                                            }
+                                            val v = last
+                                            val norm = kotlin.math.sqrt(v.fold(0f) { acc, x -> acc + x * x })
+                                            app.lumen.player.util.Logx.i(
+                                                "LumenClap",
+                                                "CLAP_SMOKE dim=" + v.size + " load=" + loadMs +
+                                                    "ms per=" + times + " norm=" + "%.3f".format(norm),
+                                            )
+                                        }
+                                    }.onFailure {
+                                        app.lumen.player.util.Logx.w("LumenClap", "CLAP_SMOKE failed: " + it.message)
+                                    }
+                                }
                                 MoodStore.put(appCtx, it)
                                 MoodStore.clearFailure(appCtx, t.id)
                                 app.lumen.player.util.Logx.i("LumenMood", "ok ${t.id} ${it.label}")
@@ -187,19 +285,43 @@ object MoodAnalysisRunner {
 
     private const val CACHE = "mood_tracklist.json"
 
+    /**
+     * 清理分析相关落盘数据：曲目清单缓存 + 被中断留下的临时音频片段。
+     * 临时文件正常情况下由 analyze() 的 finally 删除，进程被杀时会残留。
+     */
+    fun clearCache(ctx: Context) {
+        val app = ctx.applicationContext
+        runCatching { File(app.cacheDir, CACHE).delete() }
+        runCatching {
+            app.cacheDir.listFiles { f -> f.name.startsWith("mood_") }?.forEach { it.delete() }
+        }
+    }
+
+    /** 只读缓存曲目表（不联网），供音色搜索使用。 */
+    fun cachedTracks(ctx: Context): List<Track> =
+        runCatching { read(File(ctx.cacheDir, CACHE))?.second }.getOrNull() ?: emptyList()
+
+    /**
+     * 专辑集合签名。旧实现只比较专辑**数量**，增删各一张时数量不变、缓存永不刷新，
+     * 曲目表会一直停留在旧内容。
+     */
+    private fun signatureOf(albums: List<Album>): String =
+        albums.size.toString() + ":" + albums.joinToString(",") { it.id }.hashCode().toString()
+
     private fun loadTrackList(ctx: Context, client: SubsonicClient, albums: List<Album>): List<Track> {
         val file = File(ctx.cacheDir, CACHE)
+        val sig = signatureOf(albums)
         val cached = runCatching { read(file) }.getOrNull()
-        if (cached != null && cached.first == albums.size) return cached.second
+        if (cached != null && cached.first == sig) return cached.second
         val all = ArrayList<Track>()
         albums.forEach { a ->
             runCatching { client.tracks(a.id) }.getOrDefault(emptyList()).forEach { all.add(it) }
         }
-        if (all.isNotEmpty()) runCatching { write(file, albums.size, all) }
+        if (all.isNotEmpty()) runCatching { write(file, sig, all) }
         return all
     }
 
-    private fun read(file: File): Pair<Int, List<Track>>? {
+    private fun read(file: File): Pair<String, List<Track>>? {
         if (!file.isFile) return null
         val o = JSONObject(file.readText())
         val arr = o.optJSONArray("tracks") ?: return null
@@ -221,10 +343,12 @@ object MoodAnalysisRunner {
                 ),
             )
         }
-        return o.optInt("albums") to out
+        val sig = o.optString("sig")
+        if (sig.isBlank()) return null // 旧格式（只有专辑数量）：当作未命中，重拉一次
+        return sig to out
     }
 
-    private fun write(file: File, albums: Int, tracks: List<Track>) {
+    private fun write(file: File, signature: String, tracks: List<Track>) {
         val arr = JSONArray()
         tracks.forEach { t ->
             arr.put(
@@ -235,6 +359,6 @@ object MoodAnalysisRunner {
                     .put("suffix", t.suffix).put("starred", t.starred),
             )
         }
-        file.writeText(JSONObject().put("albums", albums).put("tracks", arr).toString())
+        file.writeText(JSONObject().put("sig", signature).put("tracks", arr).toString())
     }
 }

@@ -86,6 +86,8 @@ fun AlbumScreen(
     selfColor: Boolean = false,
     coverModifier: Modifier = Modifier,
 ) {
+    // 页面内返回按钮 / 系统返回统一走同一入口
+    androidx.activity.compose.BackHandler { onBack() }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // P1-2：与播放页同一口径（封面 + 情绪 + 同一套选项）
     // P0-F1：首帧就用内存里的配色，避免"先全局色再切专辑色"的一帧闪烁
@@ -128,7 +130,10 @@ fun AlbumScreen(
                     model = coverUrl,
                     contentDescription = album.name,
                     contentScale = ContentScale.Crop,
-                    modifier = coverModifier.size(150.dp).clip(RoundedCornerShape(24.dp)),
+                    modifier = coverModifier
+                        .size(150.dp)
+                        .albumSharedElement("cover-${album.id}")
+                        .clip(RoundedCornerShape(24.dp)),
                 )
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
@@ -287,6 +292,7 @@ fun AlbumScreen(
             val active = track.id == currentTrackId
             Row(
                 Modifier
+                    .animateItem()
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp)
                     .height(56.dp)

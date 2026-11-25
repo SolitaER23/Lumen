@@ -13,6 +13,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -58,8 +62,11 @@ import app.lumen.player.data.RadioVibe
 import app.lumen.player.data.Track
 import app.lumen.player.util.L10n
 import com.gpo.yoin.symbols.YoinSymbols
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 /** 氛围电台：参考播放页的封面 + 控制布局，下方直接选择场景。 */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun RadioScreen(
     vibe: RadioVibe,
@@ -70,6 +77,9 @@ fun RadioScreen(
     playing: Boolean,
     onBack: () -> Unit,
     onVibe: (RadioVibe) -> Unit,
+    strength: Float,
+    onStrength: (Float) -> Unit,
+    autoPick: Boolean,
     onRegenerate: () -> Unit,
     onToggle: () -> Unit,
     onNext: () -> Unit,
@@ -217,6 +227,36 @@ fun RadioScreen(
                 )
             }
 
+            item {
+                Column(Modifier.fillMaxWidth().padding(top = 18.dp, start = 4.dp, end = 4.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text(
+                            L10n.tf("贴近种子曲目", "Close to seed"),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            if (autoPick) L10n.tf("自动匹配氛围", "Auto vibe") else L10n.tf("跟随氛围", "Follow vibe"),
+                            color = accent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    androidx.compose.material3.Slider(
+                        value = strength,
+                        onValueChange = onStrength,
+                        valueRange = 0f..1f,
+                        colors = androidx.compose.material3.SliderDefaults.colors(
+                            thumbColor = accent,
+                            activeTrackColor = accent,
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    )
+                }
+            }
+
             items(RadioVibe.entries.chunked(2).size) { rowIndex ->
                 val pair = RadioVibe.entries.chunked(2)[rowIndex]
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -274,12 +314,24 @@ private fun StationCard(
         label = "station-${vibe.name}",
     )
     val border = if (active) MaterialTheme.colorScheme.primary else Color.Transparent
+    // Expressive：选中时圆角收紧、卡片轻微放大，spring 让形变有回弹
+    val radius by animateFloatAsState(
+        if (active) 14f else 22f,
+        spring(dampingRatio = 0.62f, stiffness = 420f),
+        label = "cr",
+    )
+    val cardScale by animateFloatAsState(
+        if (active) 1.03f else 1f,
+        spring(dampingRatio = 0.55f, stiffness = 480f),
+        label = "cs",
+    )
     Column(
         modifier
+            .graphicsLayer { scaleX = cardScale; scaleY = cardScale }
             .height(76.dp)
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(radius.dp))
             .background(color)
-            .border(1.2.dp, border, RoundedCornerShape(22.dp))
+            .border(1.2.dp, border, RoundedCornerShape(radius.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.Center,

@@ -1,7 +1,8 @@
-﻿* text=auto eol=lf
+* text=auto eol=lf
 *.bat text eol=crlf
-*.onnx binary
-*.tflite binary
+# 端侧模型 148 MB：走 Git LFS（未安装 lfs 时 clone 只会得到指针文件）
+*.onnx filter=lfs diff=lfs merge=lfs -text
+*.tflite filter=lfs diff=lfs merge=lfs -text
 *.ttf binary
 *.png binary
 *.jpg binary

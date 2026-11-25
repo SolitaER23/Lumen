@@ -49,6 +49,12 @@ import com.gpo.yoin.symbols.YoinSymbols
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import app.lumen.player.data.Track
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.Surface
 
 /** 搜索：艺人 + 专辑，输入停顿 300ms 后请求 `search3`。 */
 @Composable
@@ -58,10 +64,32 @@ fun SearchScreen(
     onBack: () -> Unit,
     onOpenAlbum: (Album) -> Unit,
     onOpenArtist: (Artist) -> Unit,
+    onPlayTrack: (List<Track>, Int) -> Unit,
 ) {
+    // 从搜索图标的圆形边界展开：进入时圆角由 999dp 收到 0
+    var searchCorner by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(999f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        androidx.compose.animation.core.animate(
+            999f, 0f,
+            animationSpec = androidx.compose.animation.core.tween(320),
+        ) { v, _ -> searchCorner = v }
+    }
+    // 页面内返回按钮 / 系统返回统一走同一入口
+    androidx.activity.compose.BackHandler { onBack() }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     var query by remember { mutableStateOf("") }
     var artists by remember { mutableStateOf<List<Artist>>(emptyList()) }
     var albums by remember { mutableStateOf<List<Album>>(emptyList()) }
+    var songs by remember { mutableStateOf<List<Track>>(emptyList()) }
+    // 0=全部 1=曲目 2=专辑 3=艺人
+    var tab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val histCtx = androidx.compose.ui.platform.LocalContext.current
+    val histPrefs = remember { histCtx.getSharedPreferences("lumen_search_hist", android.content.Context.MODE_PRIVATE) }
+    var history by remember {
+      androidx.compose.runtime.mutableStateOf(
+        histPrefs.getString("items", "")?.split("\n")?.filter { it.isNotBlank() }?.take(8) ?: emptyList()
+      )
+    }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val focus = remember { FocusRequester() }
@@ -73,6 +101,7 @@ fun SearchScreen(
         if (q.length < 1) {
             artists = emptyList()
             albums = emptyList()
+            songs = emptyList()
             error = null
             loading = false
             return@LaunchedEffect
@@ -81,9 +110,21 @@ fun SearchScreen(
         error = null
         delay(300)
         try {
-            val (a, al) = withContext(Dispatchers.IO) { client.search(q) }
+            val (a, al, sg) = withContext(Dispatchers.IO) { client.search(q) }
+            val local = withContext(Dispatchers.IO) {
+                runCatching {
+                    val byTag = app.lumen.player.data.TrackTagSearch.search(ctx, q)
+                    val byMood = app.lumen.player.data.TrackTagSearch.searchMood(ctx, q)
+                    (byTag + byMood.filter { m -> byTag.none { it.id == m.id } })
+                }.getOrDefault(emptyList())
+            }
             artists = a
             albums = al
+            songs = (sg + local.filter { t -> sg.none { it.id == t.id } })
+            if (q.length >= 2 && (a.isNotEmpty() || al.isNotEmpty() || sg.isNotEmpty())) {
+                history = (listOf(q) + history.filter { it != q }).take(8)
+                histPrefs.edit().putString("items", history.joinToString("\n")).apply()
+            }
         } catch (e: Exception) {
             error = e.message
         } finally {
@@ -91,7 +132,12 @@ fun SearchScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(searchCorner.dp)),
+    ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -102,7 +148,7 @@ fun SearchScreen(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text(L10n.t("搜索专辑、艺人")) },
+                placeholder = { Text(L10n.t("搜索曲目、专辑、艺人")) },
                 singleLine = true,
                 shape = RoundedCornerShape(percent = 50),
                 modifier = Modifier.weight(1f).focusRequester(focus),
@@ -123,13 +169,60 @@ fun SearchScreen(
             animationSpec = androidx.compose.animation.core.tween(160),
             label = "search-fade",
         )
+        if (query.isBlank() && history.isNotEmpty()) {
+            // search-history：输入为空时展示最近搜索，点击即填回
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    L10n.t("最近搜索"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                )
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    history.forEach { h ->
+                        Surface(
+                            onClick = { query = h },
+                            shape = RoundedCornerShape(percent = 50),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        ) {
+                            Text(
+                                h,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer { alpha = contentAlpha },
             contentPadding = PaddingValues(bottom = 120.dp),
         ) {
-            if (artists.isNotEmpty()) {
+            item {
+                TabRow(
+                    selectedTabIndex = tab,
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                ) {
+                    listOf(L10n.t("全部"), L10n.t("曲目"), L10n.t("专辑"), L10n.t("艺人")).forEachIndexed { i, label ->
+                        Tab(
+                            selected = tab == i,
+                            onClick = { tab = i },
+                            text = { Text(label, fontSize = 13.sp) },
+                        )
+                    }
+                }
+            }
+
+            if ((tab == 0 || tab == 3) && artists.isNotEmpty()) {
                 item {
                     Text(
                         L10n.t("艺人"),
@@ -164,7 +257,55 @@ fun SearchScreen(
                     Spacer(Modifier.height(8.dp))
                 }
             }
-            if (albums.isNotEmpty()) {
+            if ((tab == 0 || tab == 1) && songs.isNotEmpty()) {
+                item {
+                    Text(
+                        L10n.t("曲目"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    )
+                }
+                items(songs, key = { "t-" + it.id }) { song ->
+                    val idx = songs.indexOf(song)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                            .height(58.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainer)
+                            .clickable { onPlayTrack(songs, idx) }
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                song.title,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                song.artist + (if (song.album.isBlank()) "" else " · " + song.album),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Text(
+                            "%d:%02d".format(song.seconds / 60, song.seconds % 60),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+            if ((tab == 0 || tab == 2) && albums.isNotEmpty()) {
                 item {
                     Text(
                         L10n.t("专辑"),

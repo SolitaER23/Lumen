@@ -35,7 +35,7 @@ object Accounts {
     fun ensure(ctx: Context, current: ServerConfig): List<Account> {
         if (list(ctx).isEmpty() && current.complete) {
             val a = add(ctx, current.base, current.user, current.password)
-            setActive(ctx, a.id)
+            if (a != null) setActive(ctx, a.id)
         }
         return list(ctx)
     }
@@ -63,10 +63,15 @@ object Accounts {
 
     fun active(ctx: Context): Account? = list(ctx).firstOrNull { it.id == activeId(ctx) }
 
-    fun add(ctx: Context, base: String, user: String, password: String, label: String = ""): Account {
-        val id = UUID.randomUUID().toString().take(8)
+    /**
+     * 新增账号；凭据无法加密落盘时返回 null（由 UI 提示），不会留下「没有密码的账号」。
+     *
+     * id 用完整 UUID：截断到 8 位虽然碰撞概率低，但一旦碰撞会覆盖另一个账号的 prefs 文件。
+     */
+    fun add(ctx: Context, base: String, user: String, password: String, label: String = ""): Account? {
+        val id = UUID.randomUUID().toString()
         val cfg = ServerConfig(base.trim().trimEnd('/'), user.trim(), password)
-        SettingsStore.save(ctx, cfg, accountFile(id))
+        if (!SettingsStore.save(ctx, cfg, accountFile(id))) return null
         val shown = label.ifBlank {
             val host = cfg.base.removePrefix("https://").removePrefix("http://").trimEnd('/')
             "${cfg.user}@$host"
@@ -81,7 +86,10 @@ object Accounts {
     fun activate(ctx: Context, account: Account): ServerConfig {
         val cfg = SettingsStore.load(ctx, accountFile(account.id))
         val resolved = if (cfg.complete) cfg else ServerConfig(account.base, account.user, account.password)
-        SettingsStore.save(ctx, resolved)
+        // 保存失败（Keystore 不可用）不应阻塞本次会话，但下次冷启动会回到旧配置
+        if (!SettingsStore.save(ctx, resolved)) {
+            app.lumen.player.util.Logx.w("LumenAccounts", "切换账号时凭据未能落盘")
+        }
         setActive(ctx, account.id)
         return resolved
     }

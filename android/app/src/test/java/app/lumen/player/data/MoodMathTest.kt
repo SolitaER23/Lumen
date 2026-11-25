@@ -49,7 +49,7 @@ class MoodMathTest {
 
     @Test
     fun topTagsKeepsHighestScoresOnly() {
-        val scores = FloatArray(521)
+        val scores = FloatArray(527)
         scores[0] = 0.61f
         scores[1] = 0.34f
         scores[2] = 0.01f
@@ -61,8 +61,9 @@ class MoodMathTest {
     }
 
     @Test
-    fun labelsCoverWholeYamnetOutput() {
-        assertEquals(521, YAMNET_LABELS.size)
-        assertTrue(YAMNET_LABELS.all { it.isNotBlank() })
+    fun labelsCoverWholeClapOutput() {
+        // AudioSet 527 类，与 clap clipwise_output 一一对应
+        assertEquals(527, CLAP_LABELS.size)
+        assertTrue(CLAP_LABELS.all { it.isNotBlank() })
     }
 }

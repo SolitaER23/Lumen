@@ -20,6 +20,16 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Guard - no signing material in repo
+        run: |
+          if git ls-files | grep -E '\.(jks|keystore)$|(^|/)keystore\.properties$'; then
+            echo "::error::签名材料不应进入仓库（见 OPTIMIZATION_PLAN.md A2）"
+            exit 1
+          fi
+
+      - name: Guard - legal text has no placeholders
+        run: python3 scripts/check-legal.py
+
       - name: Unit tests
         run: |
           chmod +x android/gradlew
@@ -27,3 +37,12 @@ jobs:
 
       - name: Assemble debug
         run: android/gradlew -p android :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Compile instrumented tests
+        run: android/gradlew -p android :app:assembleDebugAndroidTest --no-daemon --stacktrace
+
+      - name: Lint
+        run: android/gradlew -p android :app:lintDebug --no-daemon --stacktrace
+
+      - name: Assemble release (R8/proguard validation, unsigned)
+        run: android/gradlew -p android :app:assembleRelease --no-daemon --stacktrace

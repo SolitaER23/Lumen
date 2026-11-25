@@ -106,6 +106,7 @@ class Playback(private val ctx: Context) {
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            mediaItem?.mediaId?.let { runCatching { app.lumen.player.data.Radio.notePlayed(it) } }
                 index = player.currentMediaItemIndex
                 if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) coverDirection = 1
                 loadTempo()
@@ -240,9 +241,11 @@ class Playback(private val ctx: Context) {
                 .build()
         }
         fallbackTrackId = null
+        // 注意：流 URL 带 Subsonic 的 u/t/s（可重放凭据），日志必须脱敏
         logi(
             "play album=$album start=$startIndex track=${tracks[startIndex].title} " +
-                "suffix=${tracks[startIndex].suffix} uri=${items[startIndex].localConfiguration?.uri}",
+                "suffix=${tracks[startIndex].suffix} " +
+                "uri=${app.lumen.player.util.Redact.url(items[startIndex].localConfiguration?.uri?.toString())}",
         )
         // 新队列：先把对外暴露的进度清零，避免播放页用上一首的 position/duration 算比例
         positionMs = 0L
@@ -264,6 +267,8 @@ class Playback(private val ctx: Context) {
         if (player.isPlaying) {
             cancelFade(true)
             player.pause()
+            // 暂停时 tick 不再跑，必须显式落一次进度，否则冷启动会回到 0:00
+            savePositionOnly()
             saveState()
         } else {
             if (player.mediaItemCount == 0 && queue.isNotEmpty()) {
@@ -318,11 +323,27 @@ class Playback(private val ctx: Context) {
         positionMs = 0L
         durationMs = 0L
         playing = false
+        savedQueueSignature = null
         runCatching { PlaybackStateStore.clear(ctx) }
     }
 
+    /** 队列签名：队列或索引变化才重写 JSON，避免每 3 秒序列化上千首曲目。 */
+    private var savedQueueSignature: Int? = null
+
+    private fun queueSignature(): Int =
+        queue.size * 31 + (albumId?.hashCode() ?: 0) + index
+
     fun saveState() {
-        runCatching { PlaybackStateStore.save(ctx, queue, index, albumId, positionMs) }
+        val sig = queueSignature()
+        if (sig == savedQueueSignature) return
+        savedQueueSignature = sig
+        runCatching { PlaybackStateStore.saveQueue(ctx, queue, index, albumId) }
+        runCatching { PlaybackStateStore.savePosition(ctx, positionMs) }
+    }
+
+    /** 只写进度（播放中每 3 秒一次）。 */
+    private fun savePositionOnly() {
+        runCatching { PlaybackStateStore.savePosition(ctx, positionMs) }
     }
 
     fun enforcePaused() {
@@ -405,7 +426,8 @@ class Playback(private val ctx: Context) {
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastSaveAt > 3000L) {
             lastSaveAt = now
-            saveState()
+            // 队列变了就写队列，否则只写一个小 Long
+            if (queueSignature() != savedQueueSignature) saveState() else savePositionOnly()
         }
         logd(
             "tick state=${player.playbackState} playing=${player.isPlaying} pos=$positionMs dur=$durationMs " +

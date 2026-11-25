@@ -34,6 +34,8 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun ChangelogScreen(onBack: () -> Unit) {
+    // 页面内返回按钮 / 系统返回统一走同一入口
+    androidx.activity.compose.BackHandler { onBack() }
     val ctx = LocalContext.current
     val text by produceState("", Unit) {
         value = withContext(Dispatchers.IO) {

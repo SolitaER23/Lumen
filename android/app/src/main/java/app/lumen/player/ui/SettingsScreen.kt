@@ -70,6 +70,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.graphics.graphicsLayer
 
 /** 设置页：账号、外观、心情分析、存储、语言与关于。 */
 @Composable
@@ -250,109 +252,59 @@ fun SettingsScreen(
             // 02 外观
             item {
                 ExpressiveSection("02", L10n.t("外观")) {
-                    SettingLabel(L10n.t("深浅模式"), L10n.t("跟随系统 / 强制深色 / 强制浅色"))
-                    SegmentedControl(
-                        labels = listOf(L10n.t("跟随系统"), L10n.t("深色"), L10n.t("浅色")),
-                        selected = listOf("system", "dark", "light").indexOf(themeMode).coerceAtLeast(0),
-                        onSelect = { i -> onThemeMode(listOf("system", "dark", "light")[i]) },
-                    )
-
-                    SettingLabel(
-                        L10n.t("配色风格"),
-                        L10n.t("从封面取色后按此风格展开"),
-                        Modifier.padding(top = 18.dp),
-                    )
-                    SegmentedControl(
-                        labels = listOf(L10n.t("色相"), L10n.t("活力"), L10n.t("表现"), L10n.t("中性")),
-                        selected = listOf("tonal", "vibrant", "expressive", "neutral").indexOf(paletteStyle).coerceAtLeast(0),
-                        onSelect = { i -> onPaletteStyle(listOf("tonal", "vibrant", "expressive", "neutral")[i]) },
-                    )
-
-                    SettingLabel(L10n.t("对比度"), L10n.t("文字与背景的分离程度"), Modifier.padding(top = 18.dp))
-                    SegmentedControl(
-                        labels = listOf(L10n.t("标准"), L10n.t("增强"), L10n.t("最高")),
-                        selected = when {
-                            contrast >= 0.6f -> 2
-                            contrast >= 0.2f -> 1
-                            else -> 0
-                        },
-                        onSelect = { index -> onContrast(listOf(0f, 0.45f, 0.7f)[index]) },
-                    )
-
-                    // 冲突规则：Material You 接管后，封面系开关与锁色全部失效；锁色开启时其余封面开关也失效
-                    val youTakeover = materialYou
-                    val colorLocked = pinned
-                    val coverSwitchEnabled = !youTakeover && !colorLocked
-
-                    SettingLabel(L10n.t("颜色开关"), L10n.t("Lumoo 取色 · 按需启用"), Modifier.padding(top = 18.dp))
-                    ToggleRow(
-                        L10n.t("情绪配色"),
-                        L10n.t("配色随心情分析结果轻微偏移"),
-                        moodTint,
-                        coverSwitchEnabled,
-                        onMoodTint,
-                    )
-                    ToggleRow(
-                        L10n.t("封面渐变配色"),
-                        L10n.t("用封面前三主色分给主/副/第三色"),
-                        gradientTheme,
-                        coverSwitchEnabled,
-                        onGradientTheme,
-                    )
-                    ToggleRow(
-                        L10n.t("每页独立取色"),
-                        L10n.t("进入专辑等页面时改用该页封面配色"),
-                        perPageColor,
-                        coverSwitchEnabled,
-                        onPerPageColor,
-                    )
-                    ToggleRow(
-                        L10n.t("Material You"),
-                        if (colorLocked) L10n.t("已锁定专辑配色，先解锁才能启用")
-                        else L10n.t("Android 12+ 用系统壁纸配色（接管封面取色）"),
-                        materialYou,
-                        !colorLocked,
-                        onMaterialYou,
-                    )
-                    ToggleRow(
-                        L10n.t("AMOLED 纯黑"),
-                        if (themeMode == "light") L10n.t("仅深色模式可用，当前是浅色")
-                        else L10n.t("深色模式下背景压到纯黑，更省电"),
-                        amoled,
-                        themeMode != "light",
-                        onAmoled,
-                    )
-
-                    SettingLabel(L10n.t("专辑锁色"), L10n.t("固定当前配色，不随切歌变化"), Modifier.padding(top = 18.dp))
-                    Box(Modifier.alpha(if (youTakeover) 0.38f else 1f)) {
-                        SegmentedControl(
-                            labels = listOf(L10n.t("跟随封面"), L10n.t("锁定当前")),
-                            selected = if (pinned) 1 else 0,
-                            onSelect = { i ->
-                                if (youTakeover) return@SegmentedControl
-                                if (i == 1) onPinColor() else onUnpinColor()
-                            },
+            var showAppearance by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            Surface(
+                onClick = { showAppearance = true },
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+            ) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(L10n.t("打开外观设置"), color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text(L10n.t("主题、配色风格、对比度与封面取色"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
+                    }
+                    Text("\u203A", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 18.sp)
+                }
+            }
+            if (showAppearance) {
+                androidx.compose.ui.window.Dialog(
+                    onDismissRequest = { showAppearance = false },
+                    properties = androidx.compose.ui.window.DialogProperties(
+                        usePlatformDefaultWidth = false,
+                        decorFitsSystemWindows = false,
+                    ),
+                ) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        AppearanceScreen(
+                            state = AppearanceUiState(
+                                themeMode = themeMode,
+                                paletteStyle = paletteStyle,
+                                contrast = contrast,
+                                moodTint = moodTint,
+                                gradientTheme = gradientTheme,
+                                perPageColor = perPageColor,
+                                materialYou = materialYou,
+                                amoled = amoled,
+                                pinned = pinned,
+                                youTakeover = materialYou,
+                                colorLocked = pinned,
+                            ),
+                            onBack = { showAppearance = false },
+                            onThemeMode = onThemeMode,
+                            onPaletteStyle = onPaletteStyle,
+                            onContrast = onContrast,
+                            onMoodTint = onMoodTint,
+                            onGradientTheme = onGradientTheme,
+                            onPerPageColor = onPerPageColor,
+                            onMaterialYou = onMaterialYou,
+                            onAmoled = onAmoled,
+                            onPinColor = onPinColor,
+                            onUnpinColor = onUnpinColor,
                         )
                     }
-                    Text(
-                        when {
-                            youTakeover -> L10n.t("Material You 生效中：封面相关开关与专辑锁色已禁用。")
-                            colorLocked -> L10n.t("已锁定专辑配色：情绪/渐变/每页取色暂不可用，解锁后恢复。")
-                            else -> L10n.t("以上开关按需组合；互相冲突时会自动禁用。")
-                        },
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                        fontSize = 10.sp,
-                        lineHeight = 14.sp,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-
-                    Text(
-                        "Lumoo · " + if (paletteStatus.isBlank()) L10n.t("封面取色") else paletteStatus,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
+                }
+            }
                 }
             }
 
@@ -557,8 +509,23 @@ fun SettingsScreen(
 
 @Composable
 private fun ExpressiveSection(index: String, title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(top = 26.dp)) {
-        Row(Modifier.padding(start = 4.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    var expanded by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(true) }
+    val arrow by androidx.compose.animation.core.animateFloatAsState(
+        if (expanded) 0f else -90f,
+        androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 500f),
+        label = "sec-arrow",
+    )
+    Column(
+        Modifier.fillMaxWidth().padding(top = 26.dp)
+            .animateContentSize(androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 380f)),
+    ) {
+        Row(
+            Modifier.padding(start = 4.dp, bottom = 10.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Box(
                 Modifier
                     .size(26.dp)
@@ -575,13 +542,26 @@ private fun ExpressiveSection(index: String, title: String, content: @Composable
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(start = 8.dp),
             )
+            Spacer(Modifier.weight(1f))
+            Text(
+                "\u25BE",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                modifier = Modifier.graphicsLayer { rotationZ = arrow },
+            )
         }
-        Surface(
-            shape = RoundedCornerShape(30.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            modifier = Modifier.fillMaxWidth(),
+        androidx.compose.animation.AnimatedVisibility(
+            visible = expanded,
+            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
         ) {
-            Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp), content = content)
+            Surface(
+                shape = RoundedCornerShape(30.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp), content = content)
+            }
         }
     }
 }
@@ -603,6 +583,7 @@ private fun ToggleRow(
     checked: Boolean,
     enabled: Boolean = true,
     onChange: (Boolean) -> Unit,
+    disabledReason: String? = null,
 ) {
     Row(
         Modifier
@@ -613,7 +594,12 @@ private fun ToggleRow(
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Text(hint, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, lineHeight = 14.sp)
+            Text(
+                if (!enabled && disabledReason != null) disabledReason else hint,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp,
+                lineHeight = 14.sp,
+            )
         }
         androidx.compose.material3.Switch(
             checked = checked,
