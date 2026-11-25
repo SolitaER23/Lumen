@@ -13,3 +13,19 @@
 约定：这些文件**不再更新**；若其中的结论仍有效，应把结论提炼到 `docs/` 或根目录文档，而不是继续在这里追加。
 
 > 历史备注：归档前它们位于仓库根目录（`OPTIMIZATION_PLAN.md`、`UI_UX_PLAN.md`）和 `docs/` 下，代码注释里的引用已同步指向本目录。
+
+## 历史清理（2026-11-25）
+
+仓库在 2026-11-25 做过两次历史改写，**v0.76.0 及之前的全部 commit hash 已作废**：
+
+| 次序 | 剔除内容 | 体积变化 |
+| --- | --- | --- |
+| 第一次 | 构建产物（`android/**/build`、`intermediates`、`.kotlin` 日志）、构建期生成的 `assets/CHANGELOG.md` | 180.19 MiB → 76.49 MiB |
+| 第二次 | 已被取代的二进制资产：`cnn14_int8.onnx`（78 MB）、`yamnet.tflite`、MiSans 字体（23 MB） | 76.49 MiB → 3.05 MiB |
+
+影响：
+
+- 旧 commit 链接、`?at=<sha>` 形式的文件链接、指向旧 sha 的 PR / issue 引用一律 404；
+- 改写前的老 clone **不要再 push**，否则会把旧历史整包带回来，需重新 `git clone`；
+- `v0.76.0` tag 已重建到新历史（提交内容未变，仅 hash 变化），Release 资产未受影响；
+- 两次清理只删「已不在 HEAD」的文件，清理后提交的 tree 完全一致。
