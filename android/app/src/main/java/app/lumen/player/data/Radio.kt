@@ -169,10 +169,18 @@ object Radio {
         val std = runCatching { MoodStore.featureStd(ctx, seedMood.feature.size) }.getOrNull()
 
         val scored = pool.map { (track, mood) ->
-            val seedSim = similarity(seedMood, mood, mean, std)
+            val seedSim = windowsScore(seedMood, mood, mean, std) ?: similarity(seedMood, mood, mean, std)
+            val cons = consistency(mood)
             val vibeSim = 1f - moodDistance(mood, effectiveVibe)
             // 节奏连续性：与种子的 BPM 差越大扣分越多（±60 BPM 内线性衰减）
-            val bpmGap = abs(mood.tempo - seedMood.tempo).coerceAtMost(60f)
+            // 变速曲：窗级 BPM 两两取最小差；无窗数据时退回全曲 BPM
+            val winTempoGap = run {
+                val a = seedMood.windowsTempo.filter { it > 0f }
+                val b = mood.windowsTempo.filter { it > 0f }
+                if (a.isEmpty() || b.isEmpty()) null
+                else a.minOf { x -> b.minOf { y -> abs(x - y) } }
+            }
+            val bpmGap = (winTempoGap ?: abs(mood.tempo - seedMood.tempo)).coerceAtMost(60f)
             val tempoSim = 1f - bpmGap / 60f
             // 标签重合（Jaccard）：piano/electronic 这类音色层面的相似
             val tagSim = tagOverlap(seedMood.tags, mood.tags)
@@ -183,9 +191,25 @@ object Radio {
             val s = strength.coerceIn(0f, 1f)
             // 贴近度混音：s 越大越贴近氛围，越小越贴近种子本身的风格
             val mix = (1f - s) * seedSim + s * vibeSim
-            val score = (0.70f * mix + 0.16f * tempoSim + 0.14f * tagSim) * fresh
+            // 一致性高的曲目略加分（风格统一，适合当背景）
+            val consBonus = if (cons == null) 0f else (cons - 0.5f) * 0.10f
+            val score = (0.70f * mix + 0.16f * tempoSim + 0.14f * tagSim + consBonus) * fresh
             Triple(track, mood, score)
         }.sortedByDescending { it.third }
+
+        // 两段式精排：粗排前 120 名按需加载窗向量，用多向量 max 池化重新打分；
+        // 其余候选保持粗排顺序，避免把 1567 首的 30 KB 窗向量全部读进内存。
+        val refinedTop = scored.take(120).map { item ->
+            val (t, coarseMood, coarseScore) = item
+            val full = runCatching { MoodStore.get(ctx, t.id) }.getOrNull() ?: coarseMood
+            val wSim = windowsScore(seedMood, full, mean, std)
+            val base = similarity(seedMood, full, mean, std)
+            val cons = consistency(full)
+            val bonus = if (cons == null) 0f else (cons - 0.5f) * 0.10f
+            val delta = if (wSim != null) (wSim - base) * 0.45f else 0f
+            Triple(t, full, coarseScore + delta + bonus)
+        }.sortedByDescending { it.third }
+        val scoredResolved = refinedTop + scored.drop(120)
 
         // MMR 多样性：候选分 = score − λ·max(与已选曲目的嵌入相似度)
         val mmrLambda = 0.30f
@@ -194,7 +218,7 @@ object Radio {
         val artistCount = HashMap<String, Int>()
         val albumCount = HashMap<String, Int>()
 
-        val remaining = scored.toMutableList()
+        val remaining = scoredResolved.toMutableList()
         while (picked.size < limit && remaining.isNotEmpty()) {
             var bestIdx = -1
             var bestVal = -1e9f
@@ -232,6 +256,36 @@ object Radio {
         val inter = sa.intersect(sb).size
         val union = sa.union(sb).size
         return if (union == 0) 0f else inter.toFloat() / union
+    }
+
+    /** 多向量 max 池化：任一窗相似即得分（长尾召回更好）。 */
+    private fun windowsScore(a: MoodResult, b: MoodResult, mean: FloatArray?, std: FloatArray?): Float? {
+        if (a.windowsVec.isEmpty() || b.windowsVec.isEmpty()) return null
+        var best = -1f
+        for (wa in a.windowsVec) {
+            for (wb in b.windowsVec) {
+                val fa = MoodResult(a.trackId, 0f, 0f, "", feature = wa)
+                val fb = MoodResult(b.trackId, 0f, 0f, "", feature = wb)
+                val s = similarity(fa, fb, mean, std)
+                if (s > best) best = s
+            }
+        }
+        return if (best < -0.5f) null else best
+    }
+
+    /** 一致性：同曲 5 个窗两两余弦均值；越低说明风格越不统一。 */
+    private fun consistency(m: MoodResult): Float? {
+        val ws = m.windowsVec
+        if (ws.size < 2) return null
+        var sum = 0f
+        var n = 0
+        for (i in ws.indices) for (j in i + 1 until ws.size) {
+            val fa = MoodResult(m.trackId, 0f, 0f, "", feature = ws[i])
+            val fb = MoodResult(m.trackId, 0f, 0f, "", feature = ws[j])
+            sum += similarity(fa, fb)
+            n++
+        }
+        return if (n == 0) null else sum / n
     }
 
     private fun similarity(a: MoodResult, b: MoodResult, mean: FloatArray? = null, std: FloatArray? = null): Float {

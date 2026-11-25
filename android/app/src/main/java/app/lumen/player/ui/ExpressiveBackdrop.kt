@@ -47,6 +47,22 @@ class BackdropMotion(
 
 @Composable
 fun rememberBackdropMotion(): BackdropMotion {
+    // 呼吸周期跟随当前窗 BPM：每两拍一次；置信度低或未知时退回固定 11 s
+    val bpm = app.lumen.player.playback.SegmentMood.tempoBpm
+    val conf = app.lumen.player.playback.SegmentMood.tempoConfidence
+    val periodMs = if (bpm > 0f && conf > 0.5f) ((60_000f / bpm) * 2f).toInt().coerceIn(900, 4_000) else 11_000
+    return rememberBackdropMotionFor(periodMs)
+}
+
+@Composable
+private fun rememberBackdropMotionFor(periodMs: Int): BackdropMotion {
+    androidx.compose.runtime.key(periodMs) {
+        return rememberBackdropMotionInner(periodMs)
+    }
+}
+
+@Composable
+private fun rememberBackdropMotionInner(periodMs: Int): BackdropMotion {
     if (!AmbientFx.enabled) {
         // 关闭动效：返回恒定相位，Canvas 仍然只绘制一帧静态背景
         return BackdropMotion(
@@ -66,7 +82,7 @@ fun rememberBackdropMotion(): BackdropMotion {
     val breathe by transition.animateFloat(
         initialValue = 0.82f,
         targetValue = 1.20f,
-        animationSpec = infiniteRepeatable(tween(11_000, easing = LinearEasing), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(periodMs, easing = LinearEasing), RepeatMode.Reverse),
         label = "breathe",
     )
     val sheen by transition.animateFloat(
@@ -104,6 +120,15 @@ fun ExpressiveBackdrop(
             }
         }
     }
+    // 段落级情绪：高唤醒段落呼吸更明显，安静段落更收敛
+    val segArousal = app.lumen.player.playback.SegmentMood.arousal
+    val segGain = if (segArousal >= 0f) 0.80f + 0.45f * segArousal else 1f
+    // 段落配色：按当前窗的 valence 做色相偏移，长曲副歌会「变色」
+    val segHue by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = app.lumen.player.playback.SegmentMood.hueShift,
+        animationSpec = androidx.compose.animation.core.tween(2600),
+        label = "seg-hue",
+    )
     val scheme = MaterialTheme.colorScheme
     val roleA = event?.role ?: EventRole.PRIMARY
     val roleB = when (roleA) {
@@ -168,9 +193,18 @@ fun ExpressiveBackdrop(
         ensureLuminous(Color(Blend.hctHue(scheme.secondary.toArgb(), scheme.primary.toArgb(), 0.50)), base)
     }
 
+    // 段落地色：以主色为基准旋转色相（HCT），权重 0.55 保证仍与主题协调
+    val segTint = remember(segHue, scheme) {
+        runCatching {
+            val base = app.lumen.player.util.HctTint.rotate(scheme.primary, segHue, 0.55f)
+            base
+        }.getOrDefault(scheme.primary)
+    }
     Canvas(modifier.fillMaxSize()) {
         val drift = anims?.drift?.value ?: 0.6f
-        val breathe = anims?.breathe?.value ?: 1f
+        // 段落调制：高唤醒段落呼吸更明显，安静段落更收敛（segGain 由 SegmentMood 计算）
+        val breatheRaw = anims?.breathe?.value ?: 1f
+        val breathe = (1f + (breatheRaw - 1f) * app.lumen.player.playback.SegmentMood.gain()).coerceIn(0.70f, 1.32f)
         val sheen = anims?.sheen?.value ?: 0.8f
         val w = size.width
         val h = size.height
@@ -192,7 +226,8 @@ fun ExpressiveBackdrop(
         blob(
             cx = w * (0.26f + 0.22f * cos(drift).toFloat()),
             cy = h * (0.28f + 0.16f * sin(drift * 0.8f).toFloat()),
-            radius = r1, color = c1, alpha = 0.26f + 0.045f * energy,
+            // 段落地色：副歌等段落的色相偏移在这里体现
+            radius = r1, color = segTint, alpha = 0.26f + 0.045f * energy,
         )
         val r2 = w * 1.00f * (1.6f - breathe * 0.6f) * (1f + 0.028f * energy)
         blob(

@@ -224,7 +224,23 @@ class MainActivity : ComponentActivity() {
         // Pixel 10a 是 120Hz 面板：明确请求固定源 120Hz，动画期间才不会被降到 60
         window.attributes = window.attributes.apply { preferredRefreshRate = 120f }
 
-        app.lumen.player.ui.AmbientFx.init(this)
+        app.lumen.player.data.MoodStore.ensureColumns(this)
+    // 一次性清理：删除所有非 5 窗的历史结果，让分析统一按 5 窗重算
+    runCatching {
+        val prefs = getSharedPreferences("lumen_mood", MODE_PRIVATE)
+        if (!prefs.getBoolean("mood_purge_v5", false)) {
+            val n = app.lumen.player.data.MoodStore.clearNonFiveWindow(this)
+            prefs.edit().putBoolean("mood_purge_v5", true).apply()
+            android.util.Log.i("LumenMood", "purged non-5-window rows: " + n)
+        }
+    }
+    app.lumen.player.ui.AmbientFx.init(this)
+    app.lumen.player.data.MoodStore.currentModelId =
+        if (app.lumen.player.playback.MoodAnalysisRunner.isFineMode(this)) {
+            "clap-music-v2-fine"
+        } else {
+            "clap-music-v1"
+        }
 
     setContent {
             App()
@@ -476,10 +492,7 @@ private fun App() {
                     error = null
                     offline = false
                     loggedIn = true
-                    // 曲库拉取完成即开始后台分析（每次启动续跑未完成的曲目）
-                    runCatching {
-                        app.lumen.player.playback.MoodAnalysisRunner.start(ctx, SubsonicClient(cfg), list)
-                    }
+                    // 不再自动开始分析：由首页弹窗提示用户手动触发
                 }
             } catch (e: Exception) {
                 val cached = withContext(Dispatchers.IO) { AlbumCache.load(ctx) }
@@ -525,10 +538,84 @@ private fun App() {
                 libraryVersion += 1
                 offline = false
                 withContext(Dispatchers.IO) { AlbumCache.save(ctx, ok) }
-                runCatching {
-                    app.lumen.player.playback.MoodAnalysisRunner.start(ctx, SubsonicClient(cfg), ok)
-                }
+                // 不自动开始分析：恢复联网只刷新曲库，分析仍由用户手动触发
                 break
+            }
+        }
+    }
+
+    // ── 手动开始分析：不再自动跑，首次进入首页时弹窗询问 ──
+    var showStartPrompt by remember { mutableStateOf(false) }
+    var showSelfCheck by remember { mutableStateOf(false) }
+    var showAnalyzed by remember { mutableStateOf(false) }
+    LaunchedEffect(loggedIn) {
+        if (loggedIn && !app.lumen.player.playback.MoodAnalysisRunner.isActive()) {
+            showStartPrompt = true
+        }
+    }
+    if (showSelfCheck) {
+        app.lumen.player.ui.AnalysisSelfCheck(onDismiss = { showSelfCheck = false })
+    }
+    if (showStartPrompt) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showStartPrompt = false }) {
+            val scale = remember { androidx.compose.animation.core.Animatable(0.88f) }
+            LaunchedEffect(Unit) {
+                scale.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 420f))
+            }
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.graphicsLayer { scaleX = scale.value; scaleY = scale.value },
+            ) {
+                Column(Modifier.padding(22.dp)) {
+                    Text(
+                        L10n.t("开始分析曲库？"),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        L10n.t("分析会在本机读取每首约 5 段音频，生成封面配色、氛围电台与节拍动效所需的数据。不保存整首歌，也不上传音频。"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 18.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Surface(
+                            onClick = { showStartPrompt = false },
+                            shape = RoundedCornerShape(percent = 50),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Box(Modifier.padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                                Text(L10n.t("稍后"), color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                            }
+                        }
+                        Surface(
+                            onClick = {
+                                showStartPrompt = false
+                                runCatching {
+                                    app.lumen.player.playback.MoodAnalysisRunner.start(
+                                        ctx,
+                                        app.lumen.player.data.SubsonicClient(cfg),
+                                        albums,
+                                    )
+                                }
+                            },
+                            shape = RoundedCornerShape(percent = 50),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Box(Modifier.padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                                Text(L10n.t("开始分析"), color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -784,6 +871,12 @@ private fun App() {
         openAlbum = target.album
     }
 
+    if (showAnalyzed) {
+        androidx.activity.compose.BackHandler { showAnalyzed = false }
+        app.lumen.player.ui.AnalyzedTracksScreen(onBack = { showAnalyzed = false })
+        return
+    }
+
     /**
      * 返回：不再跟手拖动，直接改变导航状态。
      * 让 AnimatedContent + SharedTransitionLayout 播放与进入完全对称的反向转场
@@ -1017,7 +1110,22 @@ private fun App() {
     }
 
     // 换歌自动加载歌词（播放页下方常驻显示）
+    // 分析写入后立即刷新当前曲目的分析数据（无需切换曲目）
+    LaunchedEffect(playback.current?.id, app.lumen.player.data.MoodStore.revision) {
+        val tr = playback.current ?: return@LaunchedEffect
+        val fresh = withContext(Dispatchers.IO) { app.lumen.player.data.MoodStore.get(ctx, tr.id) }
+        app.lumen.player.util.Logx.i(
+            "LumenMood",
+            "live mood id=" + tr.id + " found=" + (fresh != null) +
+                " env=" + (fresh?.env?.size ?: -1) +
+                " beats=" + (fresh?.beatsMs?.size ?: -1) +
+                " starts=" + (fresh?.windowsStartMs?.size ?: -1),
+        )
+        if (fresh != null) mood = fresh
+    }
+
     LaunchedEffect(playback.current?.id) {
+        app.lumen.player.playback.MoodAnalysisRunner.notePlaying(playback.current?.id)
         val tr = playback.current
         if (tr != null) app.lumen.player.data.PlayHistory.record(ctx, tr)
         libraryVersion += 1
@@ -1368,6 +1476,7 @@ private fun App() {
                         onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
                     )
                     key.screen == 3 -> SettingsScreen(
+                        onOpenAnalyzed = { showAnalyzed = true },
                         cfg = cfg,
                         downloadCount = downloads.sumOf { it.total },
                         downloadBytes = downloads.sumOf { it.bytes },
@@ -1500,6 +1609,22 @@ private fun App() {
                         },
                     )
                     key.screen == 2 -> PlayingScreen(
+                        onReanalyze = {
+                            val tr = playback.current
+                            if (tr != null) {
+                                app.lumen.player.data.MoodStore.deleteResult(ctx, tr.id)
+                                android.widget.Toast.makeText(
+                                    ctx,
+                                    L10n.tf("已清除该曲结果，将重新分析", "Cleared; will re-analyse"),
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
+                                scope.launch {
+                                    runCatching {
+                                        app.lumen.player.playback.MoodAnalysisRunner.start(ctx, client, albums)
+                                    }
+                                }
+                            }
+                        },
                         coverModifier = Modifier,
                         albumName = current?.album?.takeIf { it.isNotBlank() } ?: (key.album?.name ?: ""),
                         starred = current?.let { starredIds.contains(it.id) } ?: false,
@@ -1563,6 +1688,7 @@ private fun App() {
                             coverUrl = coverOf,
                             onOpen = onOpenAlbum,
                             onSettings = onOpenSettings,
+                            onOpenSelfCheck = { showSelfCheck = true },
                             onRetry = { scope.launch { loadAlbums(cfg) } },
                             onSearch = onOpenSearch,
                             onOpenArtist = onOpenArtist,

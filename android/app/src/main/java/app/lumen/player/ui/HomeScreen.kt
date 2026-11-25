@@ -156,6 +156,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.combinedClickable
 
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -178,6 +179,7 @@ fun HomeScreen(
     onOpenArtist: (Artist) -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
+    onOpenSelfCheck: () -> Unit = {},
     onRetry: () -> Unit,
     starred: List<Track> = emptyList(),
     onPlayStarred: (Int) -> Unit = {},
@@ -307,6 +309,7 @@ fun HomeScreen(
             analysisModeDetail = analysisModeDetail,
             onTab = onTabChange,
             onSettings = onSettings,
+            onOpenSelfCheck = onOpenSelfCheck,
             onSort = { showSort = true },
             onSearch = onSearch,
             onStats = onOpenStats,
@@ -565,6 +568,7 @@ private fun HomeHeader(
     analysisModeDetail: String = "",
     onTab: (Int) -> Unit,
     onSettings: () -> Unit,
+    onOpenSelfCheck: () -> Unit = {},
     onSort: () -> Unit,
     onSearch: () -> Unit,
     onStats: () -> Unit = {},
@@ -632,7 +636,7 @@ private fun HomeHeader(
                 }
             }
             Spacer(Modifier.width(10.dp))
-            HomeCircleButton(originKey = "settings", onClick = onSettings) {
+            HomeCircleButton(originKey = "settings", onClick = onSettings, onLongClick = onOpenSelfCheck) {
                 Icon(YoinSymbols.Settings, contentDescription = L10n.t("设置"), tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(21.dp))
             }
         }
@@ -674,6 +678,7 @@ private fun HomeHeader(
 @Composable
 private fun HomeCircleButton(
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     originKey: String? = null,
     /** TalkBack 名称：纯 Canvas 图标没有语义，必须显式给出 */
     label: String? = null,
@@ -711,11 +716,23 @@ private fun HomeCircleButton(
             }
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(
-                interactionSource = interaction,
-                indication = androidx.compose.foundation.LocalIndication.current,
-                onClickLabel = label,
-                onClick = onClick,
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(
+                        interactionSource = interaction,
+                        indication = androidx.compose.foundation.LocalIndication.current,
+                        onClickLabel = label,
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                    )
+                } else {
+                    Modifier.clickable(
+                        interactionSource = interaction,
+                        indication = androidx.compose.foundation.LocalIndication.current,
+                        onClickLabel = label,
+                        onClick = onClick,
+                    )
+                },
             )
             .then(
                 if (label != null) {
@@ -1528,7 +1545,7 @@ private fun AnalysisChip(
                     Spacer(Modifier.height(10.dp))
                     Text(
                         L10n.t(
-                            "每首只读取开头、中间、结尾各 30 秒音频（约 1~2 秒/首），用于封面配色、氛围电台与节拍动效；" +
+                            "每首读取 5 段 30 秒音频（约 5~7 秒/首），覆盖开头到结尾，用于封面配色、氛围电台与节拍动效；" +
                                 "不会保存整首歌，也不占用离线下载空间。全部在本机完成，不上传音频。" +
                                 "分析期间可能有短暂卡顿或发热，结束后自动恢复。",
                         ),

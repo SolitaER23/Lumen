@@ -51,7 +51,16 @@ object MoodAnalysisRunner {
         private set
     /** 当前曲目名，用于气泡里的「正在处理」 */
     var currentTitle by mutableStateOf("")
+
+    /** 正在播放的曲目 id（播放器上报），分析队列会把该曲排到最前。 */
+    @Volatile
+    var currentTrackId: String? = null
         private set
+
+    fun notePlaying(trackId: String?) {
+        currentTrackId = trackId
+    }
+
     /** 当前服务器的取流方式（分段 / 整段），用于气泡状态条 */
     var modeLabel by mutableStateOf("")
         private set
@@ -59,6 +68,17 @@ object MoodAnalysisRunner {
         private set
 
     fun isActive(): Boolean = job?.isActive == true
+
+    private const val PREF_FINE = "mood_fine_mode"
+
+    /** 精细分析（5 窗）开关；切换后 model_id 变化会触发全库重算。 */
+    fun isFineMode(ctx: Context): Boolean =
+        ctx.getSharedPreferences("lumen_mood", Context.MODE_PRIVATE).getBoolean(PREF_FINE, false)
+
+    fun setFineMode(ctx: Context, fine: Boolean) {
+        ctx.getSharedPreferences("lumen_mood", Context.MODE_PRIVATE)
+            .edit().putBoolean(PREF_FINE, fine).apply()
+    }
 
     @Volatile
     private var paused = false
@@ -124,7 +144,12 @@ object MoodAnalysisRunner {
                 var clapSmokeDone = false
                 // 乱序分析：避免整张专辑先跑完、样本集中在某一风格；
                 // 用固定种子打散，保证同一设备多次运行顺序一致（便于对比）
-                val shuffledTracks = tracks.shuffled(kotlin.random.Random(tracks.size * 31 + 7))
+                val shuffledTracks = run {
+            val base = tracks.shuffled(kotlin.random.Random(tracks.size * 31 + 7))
+            // 正在播放的曲目优先分析（用户最可能马上想看到它的波形）
+            val pid = currentTrackId
+            if (pid != null) base.sortedBy { if (it.id == pid) 0 else 1 } else base
+        }
                 MoodAnalyzer(appCtx).use { analyzer ->
                     for (t in shuffledTracks) {
                         if (!isActive) return@launch
@@ -143,8 +168,9 @@ object MoodAnalysisRunner {
                             if (!isActive) return@launch
                             modeDetail = capability.label
                         }
-                        // 只跳过「当前模型」已有结果；旧 YAMNet 结果会被重算覆盖
-                        if (MoodStore.isCurrentModel(appCtx, t.id)) { done++; continue }
+                        // 精细档只跳过已精细分析的曲目；标准档只要分析过就跳过
+                        val requireFine = true
+                        if (MoodStore.isAnalyzed(appCtx, t.id, requireFine)) { done++; continue }
                         if (!MoodStore.shouldAttempt(appCtx, t.id)) {
                             done++
                             continue
@@ -158,6 +184,7 @@ object MoodAnalysisRunner {
                             durationSec = t.seconds,
                             rawUrl = rawUrl,
                             // 只有帧式容器适合按字节切段；flac/wav 切在帧中间会解出损坏数据
+                            windows = 5,
                             rawRangeSafe = t.suffix.lowercase() in setOf("mp3", "aac", "ogg", "opus"),
                         )
                         currentTitle = t.title

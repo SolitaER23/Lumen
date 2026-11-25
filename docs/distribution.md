@@ -4,10 +4,10 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 版本 | `0.76.0` / `versionCode 206` |
-| APK | `Lumen-0.76.0.apk` |
-| 文件大小 | `158,112,683` 字节（约 150.8 MiB） |
-| SHA-256 | `B34A21F5746E64CE60E063FEBB73D9E9B8733208735089F9DD85535B1800ECEA` |
+| 版本 | `0.89.0` / `versionCode 223` |
+| APK | `Lumen-0.89.0.apk` |
+| 文件大小 | `158,132,807` 字节（约 150.8 MiB） |
+| SHA-256 | `2501D451484B63C93AC454E2B9ED1354088BE8DD69DA85F62DD0F54140584962` |
 | 签名证书 DN | `CN=Lumen, OU=Release, O=Lumen, L=Shanghai, ST=Shanghai, C=CN` |
 | 证书 SHA-256 | `c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37` |
 | 最低系统 | Android 8.0（API 26） |
@@ -47,12 +47,12 @@
 校验示例：
 
 ```bash
-sha256sum Lumen-0.76.0.apk
-# 应输出 B34A21F5746E64CE60E063FEBB73D9E9B8733208735089F9DD85535B1800ECEA
+sha256sum Lumen-0.89.0.apk
+# 应输出 2501D451484B63C93AC454E2B9ED1354088BE8DD69DA85F62DD0F54140584962
 ```
 
 ```bash
-apksigner verify --print-certs Lumen-0.76.0.apk
+apksigner verify --print-certs Lumen-0.89.0.apk
 # 证书 SHA-256 应为 c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37
 ```
 

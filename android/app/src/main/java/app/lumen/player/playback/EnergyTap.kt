@@ -23,6 +23,12 @@ object MusicPulse {
     private var envStep = 100
     private var posMs = 0.0
     private var beatIdx = 0
+    private var winBeats = ArrayList<IntArray>()
+    private var winStarts = IntArray(0)
+    private var winIdx = -1
+    private var winArousal = FloatArray(0)
+    private var winValence = FloatArray(0)
+    private var winTempo = FloatArray(0)
     private var trackId: String? = null
     private var beatLogs = 0
     private var lastPos = 0.0
@@ -39,6 +45,12 @@ object MusicPulse {
         val t = mood?.tempo ?: 0f
         tempoBpm = t.coerceIn(0f, 200f)
         beats = mood?.beatsMs ?: IntArray(0)
+        winBeats = ArrayList(mood?.windowsBeats ?: emptyList())
+        winStarts = mood?.windowsStartMs ?: IntArray(0)
+        winArousal = mood?.windowsArousal ?: FloatArray(0)
+        winValence = mood?.windowsValence ?: FloatArray(0)
+        winTempo = mood?.windowsTempo ?: FloatArray(0)
+        winIdx = -1
         env = mood?.env ?: FloatArray(0)
         envStep = mood?.envStepMs ?: 100
         if (beats.isNotEmpty()) {
@@ -52,6 +64,25 @@ object MusicPulse {
     /** 播放器上报的绝对位置（毫秒）；跳变视为 seek。 */
     fun setPosition(ms: Long) {
         val p = ms.toDouble()
+        // 按窗节拍：播放位置落在某窗内时，改用该窗的拍点（解决长曲节拍漂移）
+        if (winStarts.isNotEmpty()) {
+            val idx = winStarts.indexOfLast { p >= it }.coerceIn(0, winStarts.size - 1)
+            if (idx != winIdx) {
+                winIdx = idx
+                val wb = winBeats.getOrNull(idx) ?: IntArray(0)
+                val base = winStarts[idx]
+                if (wb.isNotEmpty()) {
+                    beats = IntArray(wb.size) { wb[it] + base }
+                    beatIdx = 0
+                }
+                // 段落级情绪：驱动配色与动效强度
+                SegmentMood.update(
+                    winValence.getOrElse(idx) { -1f },
+                    winArousal.getOrElse(idx) { -1f },
+                )
+                SegmentMood.updateTempo(winTempo, idx)
+            }
+        }
         if (beats.isEmpty()) {
             posMs = p
             return

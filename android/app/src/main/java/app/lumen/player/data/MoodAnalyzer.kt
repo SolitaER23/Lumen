@@ -29,6 +29,8 @@ data class AudioSource(
     val rawUrl: String? = null,
     /** 原始流是否可按字节 Range 切段（帧式容器才安全；flac 等会切坏帧头） */
     val rawRangeSafe: Boolean = false,
+    /** 采样窗数：3=标准，5=精细（覆盖更多段落） */
+    val windows: Int = 5,
 )
 
 class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
@@ -75,7 +77,7 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
                 runCatching {
                     val len = if (source.rawRangeSafe) headContentLength(rawUrl) else -1L
                     if (len > 0 && source.durationSec > 0) {
-                        rawSegmentSampled(trackId, rawUrl, len, source.durationSec, temps, onPhase)
+                        rawSegmentSampled(trackId, rawUrl, len, source.durationSec, temps, source.windows, onPhase)
                     } else {
                         fullSampled(trackId, rawUrl, temps, onPhase)
                     }
@@ -105,28 +107,41 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
             }
             onPhase(L10n.t("分析节奏"), 0.58f)
             val tDspStart = System.currentTimeMillis()
-            val dsp = dspFeatures(sampled.pcm)
+            // S2：解码输出为 48 kHz；DSP 沿用 16 kHz（3:1 抽取），CLAP 直接用 48 kHz
+        val pcm16 = sampled.pcm.map { decimate3(it) }
+        val dsp = dspFeatures(pcm16)
             tDspMs = System.currentTimeMillis() - tDspStart
             onPhase(L10n.t("识别音色"), 0.62f)
             val tYamStart = System.currentTimeMillis()
             // 用 CLAP 音乐模型替代 YAMNet：embedding(1024) 做相似度，clipwise(527) 做标签与情绪
             val embedder = clapEmbedder()
+            // S3：三窗并行推理（ONNX Runtime 的 Session.run 线程安全）
             val embs = ArrayList<FloatArray>()
             val clips = ArrayList<FloatArray>()
             val segs = ArrayList<AudioSegment>()
-            sampled.pcm.forEachIndexed { i, p16 ->
-                val p48 = embedder.resample48k(p16, SR)
-                val off = ((p48.size - ClapEmbedder.WINDOW) / 2).coerceAtLeast(0)
-                val (e, c) = embedder.embedWindowPair(p48, off)
-                embs.add(e)
-                clips.add(c)
-                segs.add(
-                    AudioSegment(
-                        startMs = sampled.startsMs.getOrElse(i) { 0 },
-                        endMs = sampled.startsMs.getOrElse(i) { 0 } + (p16.size * 1000L / SR).toInt(),
-                        tags = MoodMath.topTags(c, limit = 4).map { it.name },
-                    ),
-                )
+            val winPool = java.util.concurrent.Executors.newFixedThreadPool(sampled.pcm.size.coerceIn(1, 3))
+            try {
+                val perWindow = sampled.pcm.mapIndexed { i, p48 ->
+                    winPool.submit<Pair<FloatArray, FloatArray>>(java.util.concurrent.Callable {
+                        val off = ((p48.size - ClapEmbedder.WINDOW) / 2).coerceAtLeast(0)
+                        embedder.embedWindowPair(p48, off)
+                    })
+                }
+                perWindow.forEachIndexed { i, f ->
+                    val (e, c) = f.get()
+                    embs.add(e)
+                    clips.add(c)
+                    val p48 = sampled.pcm[i]
+                    segs.add(
+                        AudioSegment(
+                            startMs = sampled.startsMs.getOrElse(i) { 0 },
+                            endMs = sampled.startsMs.getOrElse(i) { 0 } + (p48.size * 1000L / 48000).toInt(),
+                            tags = MoodMath.topTags(c, limit = 4).map { it.name },
+                        ),
+                    )
+                }
+            } finally {
+                winPool.shutdown()
             }
             tYamnetMs = System.currentTimeMillis() - tYamStart
             val feature = FloatArray(ClapEmbedder.DIM)
@@ -149,12 +164,37 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
             }
             onPhase(L10n.t("生成结果"), 0.99f)
             val clipOrNull: FloatArray? = if (clipAvg.isEmpty()) null else clipAvg
+            // 逐窗情绪：对每个窗的 embedding 单独跑锚点投影（成本极小）
+            val perWinV = embs.map { e ->
+                val p = runCatching { embedder.anchorProbs(e) }.getOrNull()
+                if (p == null) 0.5f to 0.5f
+                else {
+                    val r = MoodMath.fuseAnchors(p, dsp, trackId)
+                    r.valence to r.arousal
+                }
+            }
             val anchorResult = anchorProbs?.let { MoodMath.fuseAnchors(it, dsp, trackId) }
             val result = MoodMath.fuse(clipOrNull, dsp, trackId).copy(
                 tags = MoodMath.topTags(clipOrNull),
                 feature = feature,
                 segments = segs,
-            ).let { base -> anchorResult?.copy(tags = base.tags, feature = base.feature, segments = base.segments) ?: base }
+                windowsVec = embs,
+                windowsBeats = splitBeatsByWindow(dsp.beatsMs, pcm16.map { it.size }),
+                windowsTempo = if (dsp.windowTempos.isNotEmpty()) dsp.windowTempos else FloatArray(pcm16.size) { dsp.tempoBpm },
+                windowsStartMs = sampled.startsMs.toIntArray(),
+                windowsValence = perWinV.map { it.first }.toFloatArray(),
+                windowsArousal = perWinV.map { it.second }.toFloatArray(),
+            ).let { base -> anchorResult?.copy(
+                    tags = base.tags,
+                    feature = base.feature,
+                    segments = base.segments,
+                    windowsVec = base.windowsVec,
+                    windowsBeats = base.windowsBeats,
+                    windowsTempo = base.windowsTempo,
+                    windowsStartMs = base.windowsStartMs,
+                    windowsValence = base.windowsValence,
+                    windowsArousal = base.windowsArousal,
+                ) ?: base }
             app.lumen.player.util.Logx.i(
                 "LumenMood",
                 "timing fetch=" + tFetchMs + " decode=" + tDecodeMs + " dsp=" + tDspMs +
@@ -196,17 +236,19 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
         totalBytes: Long,
         durationSec: Int,
         temps: MutableList<File>,
+        windowCount: Int,
         onPhase: (String, Float) -> Unit,
     ): SampledAudio {
         val durationMs = durationSec.coerceAtLeast(1) * 1000
+        val want = windowCount.coerceIn(1, 5)
         val windows: List<IntRange> = if (durationMs <= 90_000) {
             listOf(0 until durationMs)
         } else {
-            listOf(
-                0 until 30_000,
-                (durationMs / 2 - 15_000) until (durationMs / 2 + 15_000),
-                (durationMs - 30_000) until durationMs,
-            )
+            (0 until want).map { i ->
+                val center = if (want == 1) durationMs / 2 else (durationMs * i) / (want - 1)
+                val start = (center - 15_000).coerceIn(0, (durationMs - 30_000).coerceAtLeast(0))
+                start until (start + 30_000).coerceAtMost(durationMs)
+            }.distinct()
         }
         app.lumen.player.util.Logx.i(
             "LumenMood",
@@ -301,14 +343,16 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
         onProgress: (Float) -> Unit,
     ): List<Part> {
         val durationMs = source.durationSec.coerceAtLeast(1) * 1000
+        // 统一 5 窗：按 0 / 25% / 50% / 75% / 100% 均匀取 30 秒片段
+        val want = source.windows.coerceIn(1, 5)
         val windows: List<IntRange> = if (durationMs <= 90_000) {
             listOf(0 until durationMs)
         } else {
-            listOf(
-                0 until 30_000,
-                (durationMs / 2 - 15_000) until (durationMs / 2 + 15_000),
-                (durationMs - 30_000) until durationMs,
-            )
+            (0 until want).map { i ->
+                val center = if (want == 1) durationMs / 2 else (durationMs * i) / (want - 1)
+                val start = (center - 15_000).coerceIn(0, (durationMs - 30_000).coerceAtLeast(0))
+                start until (start + 30_000).coerceAtMost(durationMs)
+            }.distinct()
         }
         val parts = arrayOfNulls<Part>(windows.size)
         val done = java.util.concurrent.atomic.AtomicInteger(0)
@@ -374,15 +418,24 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
     }
 
     private fun decodeParts(parts: List<Part>): SampledAudio? {
-        val pcm = ArrayList<FloatArray>(parts.size)
-        val starts = ArrayList<Int>(parts.size)
-        parts.forEach { p ->
-            val data = decodeWhole(p.file) ?: return null
-            if (data.isEmpty()) return null
-            pcm.add(data)
-            starts.add(p.startMs)
+        // S1：三段并行解码（MediaCodec 实例互相独立，可并发）
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(parts.size.coerceIn(1, 3))
+        try {
+            val futures = parts.map { p ->
+                pool.submit<FloatArray?>(java.util.concurrent.Callable { decodeWhole(p.file) })
+            }
+            val pcm = ArrayList<FloatArray>(parts.size)
+            val starts = ArrayList<Int>(parts.size)
+            futures.forEachIndexed { i, f ->
+                val data = runCatching { f.get() }.getOrNull() ?: return null
+                if (data.isEmpty()) return null
+                pcm.add(data)
+                starts.add(parts[i].startMs)
+            }
+            return SampledAudio(pcm, starts)
+        } finally {
+            pool.shutdown()
         }
-        return SampledAudio(pcm, starts)
     }
 
     /** 解出整段 PCM（用于已切好的 30 秒小片段）。 */
@@ -478,9 +531,10 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
         return out
     }
 
-    private fun resample(src: FloatArray, n: Int, srcRate: Int): FloatArray {
+    private fun resample(src: FloatArray, n: Int, srcRate: Int, dstRate: Int = SR): FloatArray {
         if (n == 0) return FloatArray(0)
-        val ratio = SR.toDouble() / srcRate.toDouble()
+        if (srcRate == dstRate) return src.copyOf(n)
+        val ratio = dstRate.toDouble() / srcRate.toDouble()
         val dstLen = (n * ratio).toInt().coerceAtLeast(1)
         val dst = FloatArray(dstLen)
         for (i in 0 until dstLen) {
@@ -601,7 +655,8 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
                 }
             }
             if (out.n == 0) return null
-            return resample(out.array(), out.n, srcRate)
+            // S2：直接解码到 48 kHz，供 CLAP 使用；DSP 需要 16 kHz 时由调用方抽取
+            return resample(out.array(), out.n, srcRate, 48000)
         } catch (_: Exception) {
             return null
         } finally {
@@ -612,17 +667,16 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
     }
 
     /** 三段窗口解码：只解目标区间，短曲退化为整首。 */
-    private fun decodeSegments(file: File): SampledAudio? {
+    private fun decodeSegments(file: File, want: Int = 5): SampledAudio? {
         val durationMs = probeDurationMs(file)
         val windows: List<IntRange> = when {
             durationMs <= 0 -> listOf(0..Int.MAX_VALUE)
             durationMs <= 60_000 -> listOf(0 until durationMs)
-            else -> listOf(
-                0 until 30_000,
-                (durationMs / 2 - 15_000).coerceAtLeast(0) until
-                    (durationMs / 2 + 15_000).coerceAtMost(durationMs),
-                (durationMs - 30_000).coerceAtLeast(0) until durationMs,
-            )
+            else -> (0 until want.coerceIn(1, 5)).map { i ->
+                val center = if (want == 1) durationMs / 2 else (durationMs * i) / (want - 1)
+                val start = (center - 15_000).coerceIn(0, (durationMs - 30_000).coerceAtLeast(0))
+                start until (start + 30_000).coerceAtMost(durationMs)
+            }.distinct()
         }
         val parts = ArrayList<FloatArray>(windows.size)
         val starts = ArrayList<Int>(windows.size)
@@ -643,6 +697,34 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
      * tempo 改为「逐窗估计 + 中位数 + 倍频校正」，拍点按 tempo 生成网格后吸附，
      * 避免拼接窗口边界造成的假 onset 与倍频跳动。
      */
+    /** 48 kHz → 16 kHz 抽取（3:1）。先做 3 点平均抑制混叠，再降采样。 */
+    private fun decimate3(src: FloatArray): FloatArray {
+        val outLen = src.size / 3
+        if (outLen <= 0) return src
+        val out = FloatArray(outLen)
+        for (i in 0 until outLen) {
+            val b = i * 3
+            out[i] = (src[b] + src[b + 1] + src[b + 2]) / 3f
+        }
+        return out
+    }
+
+    /** 把全曲拍点（毫秒）按窗边界切分，输出相对各窗起点的拍点。 */
+    private fun splitBeatsByWindow(beatsMs: IntArray, sizes16k: List<Int>): List<IntArray> {
+        if (beatsMs.isEmpty() || sizes16k.isEmpty()) return emptyList()
+        val boundsMs = ArrayList<Int>(sizes16k.size + 1)
+        var cum = 0L
+        boundsMs.add(0)
+        sizes16k.forEach { cum += it; boundsMs.add((cum * 1000L / 16000L).toInt()) }
+        val out = ArrayList<IntArray>(sizes16k.size)
+        for (i in 0 until sizes16k.size) {
+            val lo = boundsMs[i]
+            val hi = boundsMs[i + 1]
+            out.add(beatsMs.filter { it in lo until hi }.map { it - lo }.toIntArray())
+        }
+        return out
+    }
+
     private fun dspFeatures(parts: List<FloatArray>): MoodMath.Dsp {
         val pcm = concat(parts)
         if (pcm.isEmpty()) return MoodMath.Dsp(0f, 0f, 0f, 0f)
@@ -852,6 +934,8 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
         val minLag = (fps * 60f / 200f).toInt().coerceAtLeast(1)
         val maxLag = (fps * 60f / 50f).toInt().coerceAtLeast(minLag + 1)
         val score = FloatArray(maxLag + 2)
+        val sliceBpm = FloatArray(slices.size)
+        var sliceIdx = 0
         for (w in slices) {
             val ac = FloatArray(maxLag + 2)
             var mx = 0f
@@ -861,7 +945,17 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
                 for (i in 0 until w.size - lag) { sum += w[i] * w[i + lag]; n++ }
                 if (n > 0) { ac[lag] = sum / n; if (ac[lag] > mx) mx = ac[lag] }
             }
-            if (mx > 1e-9f) for (lag in minLag..maxLag) score[lag] += ac[lag] / mx
+            if (mx > 1e-9f) {
+                for (lag in minLag..maxLag) score[lag] += ac[lag] / mx
+                // 逐窗 BPM：取该片自相关的峰值 lag（未做跨窗合并）
+                var best = -1f
+                var bestL = 0
+                for (lag in minLag..maxLag) {
+                    if (ac[lag] > best) { best = ac[lag]; bestL = lag }
+                }
+                if (bestL > 0) sliceBpm[sliceIdx] = (60f * fps / bestL).coerceIn(40f, 200f)
+            }
+            sliceIdx++
         }
         // BPM 先验：70–150 满权，其余衰减，避免倍频与次谐波胜出
         for (lag in minLag..maxLag) {
@@ -955,6 +1049,7 @@ class MoodAnalyzer(private val ctx: Context) : java.io.Closeable {
             keyIndex = keyIdx,
             keyMinor = keyMinor,
             keyConfidence = keyConf,
+            windowTempos = sliceBpm,
         )
     }
 

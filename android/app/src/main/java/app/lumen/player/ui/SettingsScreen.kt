@@ -87,6 +87,7 @@ fun SettingsScreen(
     onClearLyricsCache: suspend () -> Unit = {},
     onClearMoodAbnormal: suspend () -> Unit = {},
     onIgnoreFailedTracks: suspend () -> Int = { 0 },
+    onOpenAnalyzed: () -> Unit = {},
     onRestoreIgnoredTracks: suspend () -> Int = { 0 },
     contrast: Float = 0.45f,
     onContrast: (Float) -> Unit = {},
@@ -389,6 +390,21 @@ fun SettingsScreen(
                         size = cacheLyrics,
                         hint = L10n.t("已保存的歌词文本，清理后需重新获取"),
                         onClear = { scope.launch { onClearLyricsCache(); freed = !freed } },
+                    )
+                    StorageRow(
+                        title = L10n.t("已分析曲目"),
+                        value = L10n.t("查看"),
+                        hint = L10n.t("列出已分析的曲目及其分析项（窗数、能量、向量、拍点、BPM、情绪）"),
+                        action = {
+                            Text(
+                                L10n.t("打开"),
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .padding(horizontal = 6.dp)
+                                    .clickable { onOpenAnalyzed() },
+                            )
+                        },
                     )
                     StorageRow(
                         title = L10n.t("分析异常数据"),

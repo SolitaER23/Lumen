@@ -11,6 +11,8 @@ import org.json.JSONObject
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 /** 内部音频标签，不面向用户展示。 */
 data class AudioTag(val name: String, val score: Float)
@@ -34,6 +36,17 @@ data class MoodResult(
     val tags: List<AudioTag> = emptyList(),
     /** YAMNet 521 维平均分，用于本地氛围电台相似度；旧数据为空。 */
     val feature: FloatArray = FloatArray(0),
+    /** 5 个窗各自的 embedding（精细分析），用于段落级检索 */
+    val windowsVec: List<FloatArray> = emptyList(),
+    /** 每个采样窗的拍点（毫秒，相对该窗起点），用于按窗节拍动效 */
+    val windowsBeats: List<IntArray> = emptyList(),
+    /** 每个采样窗的 BPM（当前以全曲 tempo 近似填充） */
+    val windowsTempo: FloatArray = FloatArray(0),
+    /** 各采样窗在曲目中的起始毫秒（用于按播放位置选窗） */
+    val windowsStartMs: IntArray = IntArray(0),
+    /** 各窗的 valence / arousal（段落级配色用） */
+    val windowsValence: FloatArray = FloatArray(0),
+    val windowsArousal: FloatArray = FloatArray(0),
     /** 段落级标签，用于全局背景与迷你播放条的当前声音类型。 */
     val segments: List<AudioSegment> = emptyList(),
     val updatedAt: Long = System.currentTimeMillis(),
@@ -110,10 +123,145 @@ object MoodStore {
         return acc
     }
 
+    /** 当前生效的模型标识（随窗数档位变化）。 */
+    var currentModelId: String = "clap-music-v2-fine"
+
+    /**
+     * 该曲是否已按目标档位分析过。
+     * requireFine = true 时只认精细档（v2-fine）；false 时任意已分析结果都算完成，
+     * 避免切换档位把整库判为过期。
+     */
+    fun isAnalyzed(ctx: Context, trackId: String, requireFine: Boolean): Boolean = runCatching {
+        db(ctx).rawQuery("SELECT model_id FROM $TABLE WHERE track_id=?", arrayOf(trackId)).use { c ->
+            if (!c.moveToFirst()) return@use false
+            val id = c.getString(0) ?: ""
+            if (requireFine) id == "clap-music-v2-fine" else id.isNotEmpty()
+        }
+    }.getOrDefault(false)
+
+    /** 指定档位已覆盖的曲目数。 */
+    fun countByModel(ctx: Context, modelId: String): Int = runCatching {
+        db(ctx).rawQuery("SELECT COUNT(*) FROM $TABLE WHERE model_id=?", arrayOf(modelId)).use { c ->
+            if (c.moveToFirst()) c.getInt(0) else 0
+        }
+    }.getOrDefault(0)
+
+    /** 为已存在的库补齐缺失列（onCreate 遗漏时插入会失败）。 */
+    fun ensureColumns(ctx: Context) {
+        val cols = listOf("windows_vec", "windows_beats", "windows_tempo", "windows_start", "windows_va")
+        runCatching {
+            db(ctx).rawQuery("PRAGMA table_info($TABLE)", null).use { c ->
+                val have = HashSet<String>()
+                while (c.moveToNext()) have.add(c.getString(1))
+                cols.filter { it !in have }.forEach { name ->
+                    runCatching { db(ctx).execSQL("ALTER TABLE $TABLE ADD COLUMN $name TEXT") }
+                }
+            }
+        }
+    }
+
+    /** 分析数据自检统计。 */
+    data class MoodStats(
+        val rows: Int,
+        val withEnv: Int,
+        val withStarts: Int,
+        val startsDistribution: Map<Int, Int>,
+        val models: List<Pair<String, Int>>,
+    )
+
+    fun stats(ctx: Context): MoodStats = runCatching {
+        var rows = 0
+        var env = 0
+        val starts = HashMap<Int, Int>()
+        val models = HashMap<String, Int>()
+        db(ctx).rawQuery(
+            "SELECT env, windows_start, model_id FROM $TABLE",
+            null,
+        ).use { c ->
+            while (c.moveToNext()) {
+                rows++
+                val e = c.getString(0)
+                if (!e.isNullOrBlank() && e.length > 2) env++
+                val s = c.getString(1)
+                val n = if (s.isNullOrBlank()) 0 else s.split(",").size
+                if (n > 0) starts[n] = (starts[n] ?: 0) + 1
+                val model = c.getString(2) ?: "(null)"
+                models[model] = (models[model] ?: 0) + 1
+            }
+        }
+        MoodStats(
+            rows = rows,
+            withEnv = env,
+            withStarts = starts.values.sum(),
+            startsDistribution = starts,
+            models = models.entries.sortedByDescending { it.value }.map { it.key to it.value },
+        )
+    }.getOrDefault(MoodStats(0, 0, 0, emptyMap(), emptyList()))
+
+    /** 已分析曲目清单（按更新时间倒序），用于设置页展示。 */
+    data class AnalyzedRow(
+        val trackId: String,
+        val label: String,
+        val windows: Int,
+        val hasEnv: Boolean,
+        val hasVec: Boolean,
+        val hasBeats: Boolean,
+        val hasTempo: Boolean,
+        val hasVa: Boolean,
+    )
+
+    fun analyzedRows(ctx: Context, limit: Int = 300): List<AnalyzedRow> = runCatching {
+        val out = ArrayList<AnalyzedRow>()
+        db(ctx).rawQuery(
+            "SELECT track_id, label, windows_start, env, windows_vec, windows_beats, windows_tempo, windows_va FROM $TABLE ORDER BY updated DESC LIMIT ?",
+            arrayOf(limit.toString()),
+        ).use { c ->
+            while (c.moveToNext()) {
+                val starts = c.getString(2)
+                out.add(
+                    AnalyzedRow(
+                        trackId = c.getString(0) ?: "",
+                        label = c.getString(1) ?: "",
+                        windows = if (starts.isNullOrBlank()) 0 else starts.split(",").size,
+                        hasEnv = !c.getString(3).isNullOrBlank(),
+                        hasVec = !c.getString(4).isNullOrBlank(),
+                        hasBeats = !c.getString(5).isNullOrBlank(),
+                        hasTempo = !c.getString(6).isNullOrBlank(),
+                        hasVa = !c.getString(7).isNullOrBlank(),
+                    ),
+                )
+            }
+        }
+        out
+    }.getOrDefault(emptyList())
+
+    /** 清除所有非 5 窗的旧记录（窗边界数量 != 5），返回删除条数。 */
+    fun clearNonFiveWindow(ctx: Context): Int = runCatching {
+        val ids = ArrayList<String>()
+        db(ctx).rawQuery("SELECT track_id, windows_start FROM $TABLE", null).use { c ->
+            while (c.moveToNext()) {
+                val s = c.getString(1)
+                val n = if (s.isNullOrBlank()) 0 else s.split(",").size
+                if (n != 5) ids.add(c.getString(0))
+            }
+        }
+        ids.forEach { db(ctx).delete(TABLE, "track_id=?", arrayOf(it)) }
+        synchronized(this) { meanCache.clear(); stdCache.clear() }
+        revision += 1
+        ids.size
+    }.getOrDefault(0)
+
+    /** 删除单曲分析结果，使其在下次分析时被重新处理。 */
+    fun deleteResult(ctx: Context, trackId: String) {
+        runCatching { db(ctx).delete(TABLE, "track_id=?", arrayOf(trackId)) }
+        synchronized(this) { meanCache.clear(); stdCache.clear() }
+        revision += 1
+    }
+
     /** 该曲是否已是当前模型的结果。 */
     fun isCurrentModel(ctx: Context, trackId: String): Boolean = runCatching {
         db(ctx).rawQuery("SELECT model_id FROM $TABLE WHERE track_id=?", arrayOf(trackId)).use { c ->
-            if (c.moveToFirst()) (c.getString(0) ?: "") == CURRENT_MODEL_ID else false
+            if (c.moveToFirst()) (c.getString(0) ?: "") == currentModelId else false
         }
     }.getOrDefault(false)
 
@@ -124,12 +272,13 @@ object MoodStore {
 
     private const val IGNORE_TABLE = "mood_ignored"
 
-    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 14) {
+    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, DB, null, 18) {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS $TABLE (" +
                     "track_id TEXT PRIMARY KEY, valence REAL, arousal REAL, label TEXT, tempo REAL, " +
-                    "beats TEXT, env TEXT, env_step INTEGER, updated INTEGER, tags TEXT, feature TEXT, segments TEXT, model_id TEXT)",
+                    "beats TEXT, env TEXT, env_step INTEGER, updated INTEGER, tags TEXT, feature TEXT, segments TEXT, model_id TEXT, " +
+                    "windows_vec TEXT, windows_beats TEXT, windows_tempo TEXT, windows_start TEXT, windows_va TEXT)",
             )
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS $FAIL_TABLE (track_id TEXT PRIMARY KEY, attempts INTEGER, last INTEGER)",
@@ -192,6 +341,19 @@ object MoodStore {
                 )
             }
             // v14：fp32 权重换成 fp16，旧特征与新特征不可混用（见 CURRENT_MODEL_ID 注释）
+            if (oldVersion < 18) {
+                runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN windows_va TEXT") }
+            }
+            if (oldVersion < 17) {
+                runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN windows_start TEXT") }
+            }
+            if (oldVersion < 16) {
+                runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN windows_beats TEXT") }
+                runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN windows_tempo TEXT") }
+            }
+            if (oldVersion < 15) {
+                runCatching { db.execSQL("ALTER TABLE $TABLE ADD COLUMN windows_vec TEXT") }
+            }
             if (oldVersion < 14) {
                 step(
                     "v14.purge_fp32",
@@ -261,6 +423,18 @@ object MoodStore {
     internal fun encodeFeature(feature: FloatArray): String =
         if (feature.isEmpty()) "" else feature.joinToString(",") { String.format(java.util.Locale.ROOT, "%.3f", it) }
 
+    private fun decodeWindowsBeats(raw: String?): List<IntArray> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return raw.split("|").map { decodeInts(it) }
+    }
+
+    private fun decodeWindows(raw: String?): List<FloatArray> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return raw.split("|").mapNotNull { seg ->
+            decodeFeature(seg).takeIf { it.isNotEmpty() }
+        }
+    }
+
     private fun decodeFeature(raw: String?): FloatArray =
         if (raw.isNullOrBlank()) FloatArray(0)
         else raw.split(',').mapNotNull { it.toFloatOrNull() }.toFloatArray()
@@ -306,6 +480,10 @@ object MoodStore {
         }.getOrDefault(emptyList())
     }
 
+    /** 每次写入自增；Compose 观察它以在分析完成后立即刷新播放页数据。 */
+    var revision by androidx.compose.runtime.mutableIntStateOf(0)
+        private set
+
     fun put(ctx: Context, r: MoodResult) {
         // 新增/覆盖一条结果后，全库均值与标准差不再准确 —— 不失效会让「氛围电台」
         // 一直用旧的中心点去偏，越听越偏。
@@ -326,10 +504,32 @@ object MoodStore {
             put("tags", encodeTags(r.tags))
             put("feature", encodeFeature(r.feature))
             put("segments", encodeSegments(r.segments))
+            if (r.windowsVec.isNotEmpty()) {
+                put("windows_vec", r.windowsVec.joinToString("|") { arr -> encodeFeature(arr) })
+            }
+            if (r.windowsBeats.isNotEmpty()) {
+                put("windows_beats", r.windowsBeats.joinToString("|") { encodeInts(it) })
+            }
+            if (r.windowsTempo.isNotEmpty()) {
+                put("windows_tempo", r.windowsTempo.joinToString(","))
+            }
+            if (r.windowsStartMs.isNotEmpty()) {
+                put("windows_start", encodeInts(r.windowsStartMs))
+            }
+            if (r.windowsValence.isNotEmpty() && r.windowsValence.size == r.windowsArousal.size) {
+                put(
+                    "windows_va",
+                    r.windowsValence.indices.joinToString("|") { i ->
+                        r.windowsValence[i].toString() + "," + r.windowsArousal[i].toString()
+                    },
+                )
+            }
             put("model_id", if (r.feature.size >= 1024) CURRENT_MODEL_ID else "yamnet-v1")
         }
-        runCatching { db(ctx).insertWithOnConflict(TABLE, null, v, SQLiteDatabase.CONFLICT_REPLACE) }
-            .onFailure { android.util.Log.e("LumenMood", "mood put failed", it) }
+        val ok = runCatching {
+            db(ctx).insertWithOnConflict(TABLE, null, v, SQLiteDatabase.CONFLICT_REPLACE)
+        }.onFailure { android.util.Log.e("LumenMood", "mood put failed", it) }.isSuccess
+        if (ok) revision += 1
     }
 
     fun get(ctx: Context, trackId: String): MoodResult? = runCatching {
@@ -347,6 +547,18 @@ object MoodStore {
                     tags = decodeTags(if (c.isNull(9)) null else c.getString(9)),
                     feature = decodeFeature(if (c.isNull(10)) null else c.getString(10)),
                     segments = decodeSegments(if (c.isNull(11)) null else c.getString(11)),
+                    windowsVec = decodeWindows(if (c.getColumnIndex("windows_vec") >= 0 && !c.isNull(c.getColumnIndex("windows_vec"))) c.getString(c.getColumnIndex("windows_vec")) else null),
+                    windowsBeats = decodeWindowsBeats(if (c.getColumnIndex("windows_beats") >= 0 && !c.isNull(c.getColumnIndex("windows_beats"))) c.getString(c.getColumnIndex("windows_beats")) else null),
+                    windowsTempo = decodeFloats(if (c.getColumnIndex("windows_tempo") >= 0 && !c.isNull(c.getColumnIndex("windows_tempo"))) c.getString(c.getColumnIndex("windows_tempo")) else null),
+                    windowsStartMs = decodeInts(if (c.getColumnIndex("windows_start") >= 0 && !c.isNull(c.getColumnIndex("windows_start"))) c.getString(c.getColumnIndex("windows_start")) else null),
+                    windowsValence = run {
+                        val raw = if (c.getColumnIndex("windows_va") >= 0 && !c.isNull(c.getColumnIndex("windows_va"))) c.getString(c.getColumnIndex("windows_va")) else null
+                        if (raw.isNullOrBlank()) FloatArray(0) else raw.split("|").mapNotNull { it.split(",").firstOrNull()?.toFloatOrNull() }.toFloatArray()
+                    },
+                    windowsArousal = run {
+                        val raw = if (c.getColumnIndex("windows_va") >= 0 && !c.isNull(c.getColumnIndex("windows_va"))) c.getString(c.getColumnIndex("windows_va")) else null
+                        if (raw.isNullOrBlank()) FloatArray(0) else raw.split("|").mapNotNull { it.split(",").getOrNull(1)?.toFloatOrNull() }.toFloatArray()
+                    },
                     updatedAt = c.getLong(8),
                 )
             } else null
@@ -607,6 +819,8 @@ object MoodMath {
         val keyMinor: Boolean = false,
         /** 调性置信度 0–1 */
         val keyConfidence: Float = 0f,
+        /** 每个采样窗各自的 BPM（按窗自相关峰值） */
+        val windowTempos: FloatArray = FloatArray(0),
         val beatsMs: IntArray = IntArray(0),
         val env: FloatArray = FloatArray(0),
         val envStepMs: Int = 100,
