@@ -78,6 +78,14 @@ class Playback(private val ctx: Context) {
         private set
     var albumId: String? = null
         private set
+    /**
+     * 当前队列是否由氛围电台生成。
+     *
+     * 为什么不用 albumId 判断：电台队列的 albumId 是本地化文案（"氛围电台"/"Ambient Radio"），
+     * 切语言后字符串会对不上；用独立布尔位才稳定。
+     */
+    var radioMode by mutableStateOf(false)
+        private set
     var index by mutableIntStateOf(-1)
         private set
     var playing by mutableStateOf(false)
@@ -93,7 +101,13 @@ class Playback(private val ctx: Context) {
     var coverDirection by mutableIntStateOf(1)
         private set
     /** 已经为哪一首做过转码兜底（按曲目 id 记，换曲才重置，避免 setMediaItem 触发 transition 后无限重试） */
-    private var fallbackTrackId: String? = null
+    /**
+     * 已知需要走"转码兜底"的曲目 id 集合。
+     *
+     * 一条直接流解码失败后就记住它：下次装载同样走转码地址，
+     * 避免每次播放都先失败一次（旧实现只记一首，换到同专辑另一首坏文件时会重复抖一下）。
+     */
+    private val transcodeNeeded = HashSet<String>()
 
     val current: Track? get() = queue.getOrNull(index)
 
@@ -114,29 +128,45 @@ class Playback(private val ctx: Context) {
 
             override fun onPlayerError(error: PlaybackException) {
                 val t = current ?: return
-                if (fallbackTrackId == t.id) {
-                    logw("playback error again for ${t.id}: ${error.errorCodeName}")
+                if (t.id in transcodeNeeded) {
+                    logw("playback error again for ${t.id} after transcode: ${error.errorCodeName}")
                     return
                 }
-                fallbackTrackId = t.id
+                transcodeNeeded += t.id
                 logw("decode failed (${error.errorCodeName}) for ${t.title} [${t.suffix}] -> transcode fallback")
                 val pos = player.currentPosition.coerceAtLeast(0L)
-                player.setMediaItem(
-                    MediaItem.Builder()
-                        .setUri(transcodeUrl(t))
-                        .setMediaMetadata(
-                            androidx.media3.common.MediaMetadata.Builder()
-                                .setTitle(t.title)
-                                .setArtist(t.artist)
-                                .build(),
-                        )
-                        .build(),
-                    pos,
-                )
-                player.prepare()
-                player.play()
+                val itemIndex = player.currentMediaItemIndex
+                val transcodeItem = mediaItemOf(t)
+                // 必须"原地替换当前条目"而不是 setMediaItem：
+                // 后者会把整条队列换成单曲，currentMediaItemIndex 归 0，
+                // 于是标题/迷你条跳回第一首（音频其实还是当前这首）。
+                if (itemIndex in 0 until player.mediaItemCount) {
+                    player.replaceMediaItem(itemIndex, transcodeItem)
+                    player.seekTo(itemIndex, pos)
+                    player.prepare()
+                    player.play()
+                } else {
+                    // 队列尚未装载（极端情况）才退回单曲播放
+                    player.setMediaItem(transcodeItem, pos)
+                    player.prepare()
+                    player.play()
+                }
             }
         })
+    }
+
+    /** 统一的 MediaItem 构造：需要转码的曲目直接用转码地址。 */
+    private fun mediaItemOf(track: Track): MediaItem {
+        val uri = if (track.id in transcodeNeeded) transcodeUrl(track) else urlFor(track)
+        return MediaItem.Builder()
+            .setUri(uri)
+            .setMediaMetadata(
+                androidx.media3.common.MediaMetadata.Builder()
+                    .setTitle(track.title)
+                    .setArtist(track.artist)
+                    .build(),
+            )
+            .build()
     }
 
     private fun cancelFade(restore: Boolean = true) {
@@ -169,6 +199,13 @@ class Playback(private val ctx: Context) {
 
     private fun startFadeIn(duration: Long = fadeMs) {
         fadeJob?.cancel()
+        // 关闭淡入淡出（0ms）时不要先把音量压到 0：
+        // 否则 awaitPlaying 期间（最长 400ms）首帧是静音的，用户会觉得"开头被吃掉"
+        if (duration <= 0L) {
+            fadeJob = null
+            player.volume = 1f
+            return
+        }
         player.volume = 0f
         fadeJob = fadeScope.launch {
             awaitPlaying()
@@ -225,22 +262,13 @@ class Playback(private val ctx: Context) {
         }
     }
 
-    fun play(tracks: List<Track>, startIndex: Int, album: String) {
+    fun play(tracks: List<Track>, startIndex: Int, album: String, radio: Boolean = false) {
         if (tracks.isEmpty()) return
         queue = tracks
         albumId = album
-        val items = tracks.map { tr ->
-            MediaItem.Builder()
-                .setUri(urlFor(tr))
-                .setMediaMetadata(
-                    androidx.media3.common.MediaMetadata.Builder()
-                        .setTitle(tr.title)
-                        .setArtist(tr.artist)
-                        .build(),
-                )
-                .build()
-        }
-        fallbackTrackId = null
+        radioMode = radio
+        // 已知需要转码的曲目直接给转码地址，避免"先失败再兜底"的那一下
+        val items = tracks.map(::mediaItemOf)
         // 注意：流 URL 带 Subsonic 的 u/t/s（可重放凭据），日志必须脱敏
         logi(
             "play album=$album start=$startIndex track=${tracks[startIndex].title} " +
@@ -320,6 +348,9 @@ class Playback(private val ctx: Context) {
         queue = emptyList()
         index = -1
         albumId = null
+        radioMode = false
+        // 曲目 id 属于某个服务器账号：换账号/清数据后旧的"需转码"结论不再可信
+        transcodeNeeded.clear()
         positionMs = 0L
         durationMs = 0L
         playing = false
@@ -358,17 +389,9 @@ class Playback(private val ctx: Context) {
         if (tracks.isEmpty()) return
         queue = tracks
         albumId = album
-        val items = tracks.map { tr ->
-            MediaItem.Builder()
-                .setUri(urlFor(tr))
-                .setMediaMetadata(
-                    androidx.media3.common.MediaMetadata.Builder()
-                        .setTitle(tr.title)
-                        .setArtist(tr.artist)
-                        .build(),
-                )
-                .build()
-        }
+        // 冷启动不假定是电台：恢复后按普通队列处理，用户重新进电台再判定
+        radioMode = false
+        val items = tracks.map(::mediaItemOf)
         val idx = startIndex.coerceIn(0, items.lastIndex)
         // 不往播放器装载：保持完全静默，UI 用 queue/index/position 显示“上次播放”，点播放时才真正装载
         index = idx

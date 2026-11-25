@@ -10,7 +10,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - **首页**：专辑 / 艺人 / 最近 / 收藏四个分区；专辑多碟分页
 - **播放页**：歌词（逐行滚动、可点按跳转）、0–10 评分、心情分析、下载、收藏、播放模式（列表 / 单曲 / 随机）
 - **最近**：最近播放按单曲展示（本地历史），最近添加按专辑，已下载单独一栏
-- **氛围电台**：长按首页「专辑」标签进入，基于 CLAP 1024 维音乐特征 + 情绪坐标的本地电台
+- **氛围电台**：首页「专辑」页常驻电台行（点场景即以当前曲目为种子起播）；电台里点正在播放栏进播放页、返回回到电台；基于 CLAP 1024 维音乐特征 + 情绪坐标的本地电台，先进预览再开始，不打断当前播放
 - **多账号**：设置里保存多个 Navidrome 账号并切换，密码与令牌使用 Android Keystore 加密
 - **Navidrome Stat**：可选接入，展示播放统计
 - **心情分析**：端侧 CLAP + DSP（ONNX Runtime），结果只保存在本机，用于动态背景与配色
@@ -57,7 +57,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 ## 关键附件
 
-当前正式直发版本：**0.74.0 / versionCode 203**
+当前正式直发版本：**0.76.0 / versionCode 206**
 
 - [分发包与校验说明](docs/distribution.md)
 - [用户指南](docs/user-guide.md)
@@ -68,7 +68,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - [功能路线图](docs/feature-plan.md)
 - [Release CI](.github/workflows/release.yml)
 - 官方更新渠道：[夸克网盘](https://pan.quark.cn/s/f35d0450e4b1?pwd=3GF3)，提取码 `3GF3`
-- 分发包：`dist/Lumen-0.74.0.apk`、`dist/SHA256SUMS.txt`
+- 分发包：`dist/Lumen-0.76.0.apk`、`dist/SHA256SUMS.txt`
 - 发布后同步元数据：`python scripts/update-release-metadata.py`
 
 ## 构建

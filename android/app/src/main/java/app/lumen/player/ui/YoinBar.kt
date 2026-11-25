@@ -7,11 +7,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.Animatable
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,15 +22,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,7 +36,12 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.gpo.yoin.symbols.YoinSymbols
 
-/** 底部迷你播放条：封面 + 曲名 / 艺人 + 播放键。 */
+/**
+ * 底部迷你播放条：封面 + 曲名 / 艺人 + 播放键。
+ *
+ * 空态不再放"看起来很能点"的主色播放钮：它会打开第一张专辑，既不是播放也不像导航，
+ * 是最容易被误触的死路（见 UI_UX_PLAN.md P6-4）。空态只保留一句可读的引导。
+ */
 @Composable
 fun YoinBar(
     modifier: Modifier = Modifier,
@@ -53,7 +50,8 @@ fun YoinBar(
     coverUrl: String,
     playing: Boolean,
     enabled: Boolean,
-    onHome: () -> Unit,
+    /** 封面修饰：由调用方注入共享元素 key（迷你条不在页面作用域内） */
+    coverModifier: Modifier = Modifier,
     onOpenPlayer: () -> Unit,
     onToggle: () -> Unit,
 ) {
@@ -77,7 +75,7 @@ fun YoinBar(
                     model = coverUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)),
+                    modifier = coverModifier.size(46.dp).clip(RoundedCornerShape(10.dp)),
                 )
                 Spacer(Modifier.width(10.dp))
                 AnimatedContent(
@@ -104,28 +102,37 @@ fun YoinBar(
                         }
                     }
                 }
+                Box(
+                    Modifier
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable(onClick = onToggle),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
+                        contentDescription = if (playing) L10n.t("暂停") else L10n.t("播放"),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
             } else {
-                Text(
-                    L10n.t("还没有播放"),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp,
-                    modifier = Modifier.weight(1f).padding(start = 12.dp),
-                )
-            }
-            Box(
-                Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .clickable(enabled = enabled, onClick = onToggle),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
-                    contentDescription = if (playing) L10n.t("暂停") else L10n.t("播放"),
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(22.dp),
-                )
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text(
+                        L10n.tf("还没有播放", "Nothing playing"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        L10n.tf("从专辑里挑一张开始", "Pick an album to start"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }

@@ -4,10 +4,10 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 版本 | `0.74.0` / `versionCode 203` |
-| APK | `Lumen-0.74.0.apk` |
-| 文件大小 | `158,105,992` 字节（约 150.8 MiB） |
-| SHA-256 | `677B748F710EAB9AC87F7D58D3E343958B656B59F459EEF553BE05BC578C0609` |
+| 版本 | `0.76.0` / `versionCode 206` |
+| APK | `Lumen-0.76.0.apk` |
+| 文件大小 | `158,112,683` 字节（约 150.8 MiB） |
+| SHA-256 | `B34A21F5746E64CE60E063FEBB73D9E9B8733208735089F9DD85535B1800ECEA` |
 | 签名证书 DN | `CN=Lumen, OU=Release, O=Lumen, L=Shanghai, ST=Shanghai, C=CN` |
 | 证书 SHA-256 | `c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37` |
 | 最低系统 | Android 8.0（API 26） |
@@ -20,6 +20,23 @@
 > 0.51.0 将编译 / 目标 SDK 升到 Android 17（API 37），并全量升级依赖；相比 0.50.5（11.7 MB），
 > 包体增大到约 13.1 MiB。签名证书未变，可从 0.50.x 直接覆盖安装并保留本机数据。
 
+### 0.76.0 验证（2026-11-25）
+
+本版只动图标资源，验证重点是「包能装、图能显示、数据不丢」：
+
+| 项 | 结果 | 关键记录 |
+| --- | --- | --- |
+| `assembleRelease`（正式 keystore + R8 + lint vital） | ✅ 通过 | 41 s，产物 158,112,683 字节 |
+| `apksigner verify` | ✅ 证书与上表一致 | DN 与 SHA-256 均未变 |
+| `aapt2 dump badging` | ✅ | `versionName 0.76.0` / `versionCode 206` / `targetSdk 37` / `arm64-v8a`，label `Lumen` |
+| 覆盖安装 0.75.1(205) → 0.76.0(206) | ✅ 同签名升级 | `firstInstallTime` 保留（2026-11-23 19:28），账号/曲库/历史未丢 |
+| 新图标（桌面与应用抽屉） | ✅ | 深紫渐变 + 暖光 + 光芒正常铺满遮罩，无白底、无裁切；背景层随视差移动 |
+| 冷启动 | ✅ | `am start -W` COLD 138 ms，`logcat -b crash` 无记录 |
+| 应用内「更新日志」 | ✅ | APK 内 `assets/CHANGELOG.md` 顶部已是 `[0.76.0]` |
+
+> 主题图标（Android 13+ 单色层）已打进 `<monochrome>` 并被系统识别，但本机未开启「主题图标」开关，
+> 尚未做单色形态的目视确认；开关打开后系统会自动取单色层着色。
+
 ## 安装
 
 1. 下载 APK；
@@ -30,12 +47,12 @@
 校验示例：
 
 ```bash
-sha256sum Lumen-0.74.0.apk
-# 应输出 677B748F710EAB9AC87F7D58D3E343958B656B59F459EEF553BE05BC578C0609
+sha256sum Lumen-0.76.0.apk
+# 应输出 B34A21F5746E64CE60E063FEBB73D9E9B8733208735089F9DD85535B1800ECEA
 ```
 
 ```bash
-apksigner verify --print-certs Lumen-0.74.0.apk
+apksigner verify --print-certs Lumen-0.76.0.apk
 # 证书 SHA-256 应为 c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37
 ```
 

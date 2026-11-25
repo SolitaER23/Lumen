@@ -54,6 +54,20 @@ val legalVersion: String = runCatching {
     Regex("\"version\"\\s*:\\s*\"([^\"]+)\"").find(json)?.groupValues?.get(1)
 }.getOrNull()?.takeIf { it.isNotBlank() } ?: "0"
 
+// 更新日志单一来源：仓库根 CHANGELOG.md。
+// 应用内「更新日志」读的是 assets/CHANGELOG.md；0.75.0 之前这里一直是一份从未同步的副本，
+// 导致正式版里仍显示 0.74.0。现在每次构建配置阶段就把它对齐（只差 150 KB，开销可忽略），
+// 副本仍留在仓库里，diff 里能直接看到这一版带了哪些日志。
+run {
+    val rootChangelog = rootProject.projectDir.parentFile.resolve("CHANGELOG.md")
+    val assetChangelog = layout.projectDirectory.file("src/main/assets/CHANGELOG.md").asFile
+    val rootText = rootChangelog.takeIf { it.isFile }?.readText()
+    if (rootText != null && (!assetChangelog.isFile || assetChangelog.readText() != rootText)) {
+        assetChangelog.parentFile.mkdirs()
+        assetChangelog.writeText(rootText)
+    }
+}
+
 android {
     namespace = "app.lumen.player"
     compileSdk = 37
@@ -63,8 +77,8 @@ android {
         applicationId = "app.lumen.player"
         minSdk = 26
         targetSdk = 37
-        versionCode = 203
-        versionName = "0.74.0"
+        versionCode = 206
+        versionName = "0.76.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }
         buildConfigField("String", "LEGAL_VERSION", "\"" + legalVersion + "\"")
@@ -146,10 +160,8 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.material3:material3:1.5.0")
-    // 官方自适应规范：WindowSizeClass + WindowManager（折叠屏姿态）
-    implementation("androidx.compose.material3:material3-window-size-class")
-    // 折叠屏姿态：FoldingFeature（书本/桌面模式）
-    implementation("androidx.window:window:1.3.0")
+    // 只维护 Pixel 10a 单栏布局：曾用的 material3-window-size-class 与 androidx.window
+    // （双栏 + 折叠屏姿态）已随双栏布局一并移除，见 UI_UX_PLAN.md §8
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.media3:media3-exoplayer:1.11.1")

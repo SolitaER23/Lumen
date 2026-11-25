@@ -148,7 +148,8 @@ import app.lumen.player.ui.HomeSub
 import app.lumen.player.ui.HomeAccent
 import app.lumen.player.ui.YoinBar
 import app.lumen.player.ui.HomeScreen
-import app.lumen.player.ui.HomeScheme
+import app.lumen.player.ui.albumSharedElement
+import app.lumen.player.ui.coverSharedElement
 import app.lumen.player.ui.HomeCache
 import app.lumen.player.ui.LoginScreen
 import app.lumen.player.ui.lumenTypography
@@ -266,7 +267,6 @@ private fun App() {
     var screen by remember { mutableStateOf(0) }
     var scheme by remember { mutableStateOf(FallbackScheme) }
     val animatedScheme = app.lumen.player.ui.rememberAnimatedColorScheme(scheme)
-    val adaptive = app.lumen.player.ui.rememberAdaptiveLayout()
     var contrast by remember { mutableFloatStateOf(app.lumen.player.data.Appearance.contrast(ctx)) }
     var themeMode by remember { mutableStateOf(app.lumen.player.data.Appearance.themeMode(ctx)) }
     var paletteStyle by remember { mutableStateOf(app.lumen.player.data.Appearance.paletteStyle(ctx)) }
@@ -312,13 +312,21 @@ private fun App() {
     )
     var fadeMs by remember { mutableLongStateOf(app.lumen.player.data.Appearance.fadeMs(ctx)) }
     var smartFade by remember { mutableStateOf(app.lumen.player.data.Appearance.smartFade(ctx)) }
-    var radioVibe by remember { mutableStateOf(app.lumen.player.data.RadioVibe.NIGHT) }
-    var radioStrength by remember { mutableStateOf(0.4f) }
-    var radioAuto by remember { mutableStateOf(true) }
+    // 电台偏好对齐上次的选择（与外观偏好同类，清本机数据时保留）
+    var radioVibe by remember { mutableStateOf(app.lumen.player.data.RadioPrefs.vibe(ctx)) }
+    var radioStrength by remember { mutableFloatStateOf(app.lumen.player.data.RadioPrefs.strength(ctx)) }
+    var radioAuto by remember { mutableStateOf(app.lumen.player.data.RadioPrefs.autoPick(ctx)) }
     var radioTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var radioLoading by remember { mutableStateOf(false) }
     var radioProgress by remember { mutableFloatStateOf(0f) }
     var radioError by remember { mutableStateOf<String?>(null) }
+    // 预览队列：构建好但还没有交给播放器（进电台页默认不打断当前播放）
+    var radioQueue by remember { mutableStateOf<List<Track>>(emptyList()) }
+    var radioSeedTitle by remember { mutableStateOf<String?>(null) }
+    var radioSeedId by remember { mutableStateOf<String?>(null) }
+    var radioJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // 本机已分析曲目数：首页电台行与电台页空态都要用
+    var analyzedCount by remember { mutableIntStateOf(0) }
     var langMode by remember { mutableStateOf(app.lumen.player.util.L10n.mode(ctx)) }
     var showOnboarding by remember { mutableStateOf(!app.lumen.player.data.Onboarding.completed(ctx)) }
     var legalAccepted by remember { mutableStateOf(app.lumen.player.data.Legal.accepted(ctx)) }
@@ -362,6 +370,8 @@ private fun App() {
     var nowPlayingId by remember { mutableStateOf<String?>(null) }
     var mood by remember { mutableStateOf<app.lumen.player.data.MoodResult?>(null) }
     val navStack = remember { androidx.compose.runtime.mutableStateListOf<NavKey>() }
+    // 转场方向：true = 返回（performBack）。页面转场用它区分"从入口展开"与"收缩回入口"
+    var navBack by remember { mutableStateOf(false) }
 
     // 返回首页后让入口按钮回弹一下（仅视觉，不影响导航）
     var lastScreenForBounce by remember { androidx.compose.runtime.mutableIntStateOf(0) }
@@ -379,9 +389,10 @@ private fun App() {
         lastScreenForBounce = screen
     }
 
-    /** 原路返回（立即执行，手势/动画在外部包一层） */
+    /** 原路返回：回到压栈时的位置（页面 + 专辑上下文），转场按"返回"方向播放 */
     fun performBack() {
         val prev = navStack.removeLastOrNull() ?: return
+        navBack = true
         screen = prev.screen
         openAlbum = prev.album
         prev.artistId?.let { id -> selectedArtist = selectedArtist?.takeIf { it.id == id } }
@@ -765,29 +776,13 @@ private fun App() {
     }
 
     // 进入动画：以最后一次按下位置为原点展开
-    val enterAnim = remember { Animatable(1f) }
-    var enterOriginX by remember { mutableFloatStateOf(0.5f) }
-    var enterOriginY by remember { mutableFloatStateOf(0.5f) }
-    // 容器变换：进入时从该矩形长出，返回时收缩回去
-    var enterRect by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
-    var exitRect by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
-    var enterJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-
-    /** 去下一页，并把L10n.t("来处")压栈；从点击位置展开新页面 */
+    /** 去下一页，并把「来处」压栈，这样返回时必然回到点击的位置。 */
     fun navigate(target: NavKey) {
         if (target.screen == screen && target.album?.id == openAlbum?.id) return
-        enterRect = app.lumen.player.ui.NavOriginStore.get(target.album?.id)
-        enterJob?.cancel()
-        enterJob = scope.launch {
-            enterAnim.snapTo(0f)
-            navStack.add(NavKey(screen, openAlbum))
-            screen = target.screen
-            openAlbum = target.album
-            enterAnim.animateTo(
-                1f,
-                spring(dampingRatio = 0.84f, stiffness = 340f),
-            )
-        }
+        navBack = false
+        navStack.add(NavKey(screen, openAlbum))
+        screen = target.screen
+        openAlbum = target.album
     }
 
     /**
@@ -847,20 +842,68 @@ private fun App() {
         )
     }
 
-    fun startRadio(vibe: app.lumen.player.data.RadioVibe, reseed: Boolean = false) {
-        if (radioTracks.isEmpty()) return
-        val seedId = if (reseed) null else playback.current?.id
-        // 选曲是全表特征点积（1024 维 × 候选数），必须放到 Default 线程，否则大库必卡
-        scope.launch {
-            radioLoading = true
-            val queue = runCatching {
+    fun playRadio(queue: List<Track>) {
+        if (queue.isEmpty()) return
+        playback.play(queue, 0, L10n.tf("氛围电台", "Ambient Radio"), radio = true)
+        playback.tick()
+    }
+
+    /**
+     * 生成电台候选队列，**不碰播放器**。
+     *
+     * 种子用 id + 标题显式传入，而不是每次现取 `playback.current`：
+     * 播放电台后 current 已经是电台里的曲目，"换一批"若重新取种子就会悄悄换掉整台电台
+     * （0.75 开发期实测：种子《The Grants》→ 换一批 → 种子《Dance Till We Die》）。
+     *
+     * @param startWhenReady true 时才在构建完成后接着起播（首页胶囊 / 显式选场景）；
+     *                       电台页的泛入口永远只预览。
+     */
+    fun buildRadio(
+        vibe: app.lumen.player.data.RadioVibe,
+        seedId: String?,
+        seedTitle: String?,
+        startWhenReady: Boolean = false,
+        exclude: Set<String> = emptySet(),
+    ) {
+        radioJob?.cancel()
+        radioError = null
+        radioLoading = true
+        radioProgress = 0f
+        radioSeedTitle = seedTitle
+        radioSeedId = seedId
+        // 捕获到局部：协程里读可变状态会被后续一次构建覆盖
+        val seedForBuild = seedId
+        radioJob = scope.launch {
+            val library = radioTracks.ifEmpty {
+                val loaded = runCatching {
+                    withContext(Dispatchers.IO) {
+                        app.lumen.player.data.Radio.loadLibrary(ctx, client) { p ->
+                            scope.launch { radioProgress = p }
+                        }
+                    }
+                }.getOrElse { e ->
+                    radioLoading = false
+                    radioError = e.message ?: L10n.tf("生成电台失败", "Failed to build station")
+                    return@launch
+                }
+                radioTracks = loaded
+                loaded
+            }
+            if (library.isEmpty()) {
+                radioLoading = false
+                radioError = L10n.tf("曲库为空，无法生成电台。", "The library is empty; cannot build a station.")
+                return@launch
+            }
+            // 选曲是全表特征点积（1024 维 × 候选数），build 内部已切到 Default 线程
+            val built = runCatching {
                 app.lumen.player.data.Radio.build(
                     ctx,
-                    radioTracks,
-                    seedId,
+                    library,
+                    seedForBuild,
                     vibe,
                     strength = radioStrength,
                     autoPick = radioAuto,
+                    exclude = exclude,
                 )
             }.getOrElse { e ->
                 radioLoading = false
@@ -868,48 +911,80 @@ private fun App() {
                 return@launch
             }
             radioLoading = false
-            if (queue.isEmpty()) {
+            if (built.isEmpty()) {
+                radioQueue = emptyList()
                 radioError = L10n.tf(
-                    "还没有足够的分析数据。先运行心情分析，再回来生成电台。",
-                    "Not enough analyzed tracks yet. Run mood analysis, then come back.",
+                    "还没有足够的分析数据（本机已分析 ${analyzedCount} 首）。可以继续分析，完成后再回来。",
+                    "Not enough analyzed tracks yet (${analyzedCount} analyzed). Continue the analysis and come back.",
                 )
                 return@launch
             }
             radioError = null
-            playback.play(queue, 0, L10n.tf("氛围电台", "Ambient Radio"))
+            radioQueue = built
+            if (startWhenReady) playRadio(built)
         }
     }
 
-    fun loadRadio(vibe: app.lumen.player.data.RadioVibe) {
-        if (radioLoading) return
-        radioLoading = true
-        radioError = null
-        radioProgress = 0f
-        scope.launch {
-            try {
-                val list = withContext(Dispatchers.IO) {
-                    app.lumen.player.data.Radio.loadLibrary(ctx, client) { p ->
-                        scope.launch { radioProgress = p }
-                    }
-                }
-                radioTracks = list
-                if (list.isEmpty()) {
-                    radioError = L10n.tf("曲库为空，无法生成电台。", "The library is empty; cannot build a station.")
-                } else {
-                    startRadio(vibe)
-                }
-            } catch (e: Exception) {
-                radioError = e.message ?: L10n.tf("生成电台失败", "Failed to build station")
-            } finally {
-                radioLoading = false
+    /** 「换一批」：同场景、**同种子**，只排除刚听过的这一批。 */
+    fun regenerateRadio() {
+        val head = radioQueue.take(6).map { it.id }.toSet()
+        buildRadio(
+            vibe = radioVibe,
+            seedId = radioSeedId,
+            seedTitle = radioSeedTitle,
+            startWhenReady = playback.radioMode,
+            exclude = head,
+        )
+    }
+
+    /**
+     * 打开电台页。
+     *
+     * @param vibe 非空 = 用户明确点了某个场景（手选即代表"不要自动匹配"）
+     * @param autoStart 是否构建完就起播（显式选场景 = true；泛入口 = false，只预览）
+     */
+    fun openRadio(
+        vibe: app.lumen.player.data.RadioVibe? = null,
+        autoStart: Boolean = false,
+    ) {
+        navigate(NavKey(10, null))
+        val target = vibe ?: radioVibe
+        if (vibe != null) {
+            radioVibe = vibe
+            app.lumen.player.data.RadioPrefs.setVibe(ctx, vibe)
+            // 手选场景后不再"跟随当前歌曲"，否则下一次构建会把用户的场景覆盖掉
+            if (radioAuto) {
+                radioAuto = false
+                app.lumen.player.data.RadioPrefs.setAutoPick(ctx, false)
             }
         }
+        val seed = playback.current
+        // 已经在听这台电台时直接复用，不要再用"当前曲目"重新算一遍
+        val reusable = vibe == null &&
+            radioQueue.isNotEmpty() &&
+            target == radioVibe &&
+            (playback.radioMode || radioSeedId == seed?.id)
+        when {
+            reusable && autoStart -> playRadio(radioQueue)
+            reusable -> Unit
+            else -> buildRadio(
+                vibe = target,
+                seedId = seed?.id,
+                seedTitle = seed?.title,
+                startWhenReady = autoStart,
+            )
+        }
     }
 
-    fun openRadio() {
-        navigate(NavKey(10, null))
-        radioAuto = true
-        if (radioTracks.isNotEmpty()) startRadio(radioVibe) else loadRadio(radioVibe)
+    // 已分析曲目数：首页电台行与电台页空态共用（分析进行时刷得快一点）
+    LaunchedEffect(loggedIn, screen) {
+        if (!loggedIn) return@LaunchedEffect
+        while (true) {
+            analyzedCount = withContext(Dispatchers.IO) {
+                app.lumen.player.data.MoodStore.count(ctx)
+            }
+            delay(if (app.lumen.player.playback.MoodAnalysisRunner.running) 15_000L else 60_000L)
+        }
     }
 
     LaunchedEffect(fadeMs) {
@@ -1138,9 +1213,13 @@ private fun App() {
     androidx.activity.compose.BackHandler(enabled = screen > 0) {
         when {
             navStack.isNotEmpty() -> goBack()
-            // 从底栏直接进播放页时没有专辑上下文，返回应回首页
-            screen == 2 && openAlbum != null -> screen = 1
+            // 兜底（正常导航不会走到这里）：回到专辑上下文 / 首页，同样按"返回"方向播放
+            screen == 2 && openAlbum != null -> {
+                navBack = true
+                screen = 1
+            }
             else -> {
+                navBack = true
                 screen = 0
                 openAlbum = null
             }
@@ -1150,15 +1229,13 @@ private fun App() {
     val onOpenAlbum: (Album) -> Unit = remember {
         { al -> navigate(NavKey(1, al)) }
     }
-    val onGoHome: () -> Unit = remember { { navStack.clear(); screen = 0; openAlbum = null } }
     val onOpenSettings: () -> Unit = remember { { navigate(NavKey(3, null)) } }
     val onOpenSearch: () -> Unit = remember { { navigate(NavKey(6, null)) } }
     val onOpenArtist: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null, a.id)) } }
     val onOpenArtistFromSearch: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
 
-    // suffix：宽屏双栏里同一个页面会与单栏版本共存，用后缀避免 SaveableStateProvider 重复注册
-    val screenContent: @Composable (NavKey, String) -> Unit = { key, suffix ->
-                saveableStates.SaveableStateProvider(stateKeyOf(key) + suffix) {
+    val screenContent: @Composable (NavKey) -> Unit = { key ->
+                saveableStates.SaveableStateProvider(stateKeyOf(key)) {
                 when {
                     key.screen == 9 -> LicensesScreen(onBack = { goBack() })
                     key.screen == 7 -> app.lumen.player.ui.StatsScreen(
@@ -1217,27 +1294,79 @@ private fun App() {
                         loading = radioLoading,
                         progress = radioProgress,
                         error = radioError,
+                        analyzedCount = analyzedCount,
+                        seedTitle = radioSeedTitle,
+                        preview = radioQueue,
                         current = playback.current,
+                        coverUrl = playback.current?.let { client.coverUrl(it.albumId, 300) },
+                        coverModifier = playback.current?.let { track ->
+                            Modifier.albumSharedElement("np-" + track.albumId)
+                        } ?: Modifier,
                         playing = playback.playing,
-                        onBack = { goBack() },
+                        radioLive = playback.radioMode,
                         strength = radioStrength,
-            onStrength = { radioStrength = it },
-            autoPick = radioAuto,
-            onVibe = { vibe ->
-                            radioAuto = false
-                            radioVibe = vibe
-                            if (radioTracks.isEmpty()) loadRadio(vibe) else startRadio(vibe)
+                        onStrength = { value ->
+                            radioStrength = value
+                            app.lumen.player.data.RadioPrefs.setStrength(ctx, value)
                         },
-                        onRegenerate = {
-                            if (radioTracks.isEmpty()) loadRadio(radioVibe) else startRadio(radioVibe, reseed = true)
+                        autoPick = radioAuto,
+                        onAutoPick = { value ->
+                            radioAuto = value
+                            app.lumen.player.data.RadioPrefs.setAutoPick(ctx, value)
+                            buildRadio(
+                                vibe = radioVibe,
+                                seedId = radioSeedId,
+                                seedTitle = radioSeedTitle,
+                                startWhenReady = playback.radioMode,
+                            )
+                        },
+                        onBack = { goBack() },
+                        onStart = { playRadio(radioQueue) },
+                        onVibe = { vibe ->
+                            radioVibe = vibe
+                            app.lumen.player.data.RadioPrefs.setVibe(ctx, vibe)
+                            if (radioAuto) {
+                                radioAuto = false
+                                app.lumen.player.data.RadioPrefs.setAutoPick(ctx, false)
+                            }
+                            // 已经在听电台时换场景 = 换队列并继续播；预览态只重建预览。
+                            // 种子保持不变：换的是场景，不是"从哪首歌出发"。
+                            buildRadio(
+                                vibe = vibe,
+                                seedId = radioSeedId ?: playback.current?.id,
+                                seedTitle = radioSeedTitle ?: playback.current?.title,
+                                startWhenReady = playback.radioMode,
+                            )
+                        },
+                        onRegenerate = { regenerateRadio() },
+                        onReseed = {
+                            buildRadio(
+                                vibe = radioVibe,
+                                seedId = null,
+                                seedTitle = null,
+                                startWhenReady = playback.radioMode,
+                            )
                         },
                         onToggle = { playback.toggle() },
                         onNext = { playback.next() },
                         onRetry = {
+                            radioQueue = emptyList()
                             radioTracks = emptyList()
                             app.lumen.player.data.Radio.clearCache(ctx)
-                            loadRadio(radioVibe)
+                            buildRadio(radioVibe, playback.current?.id, playback.current?.title)
                         },
+                        onContinueAnalysis = {
+                            val runner = app.lumen.player.playback.MoodAnalysisRunner
+                            when {
+                                runner.isPaused() -> runner.resume()
+                                !runner.running -> scope.launch {
+                                    runCatching {
+                                        app.lumen.player.playback.MoodAnalysisRunner.start(ctx, client, albums)
+                                    }
+                                }
+                            }
+                        },
+                        onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
                     )
                     key.screen == 3 -> SettingsScreen(
                         cfg = cfg,
@@ -1313,6 +1442,7 @@ private fun App() {
                             pinnedAlbumId = null
                         },
                         fadeMs = fadeMs,
+                        smartFade = smartFade,
                         langMode = langMode,
                         onLangMode = { mode ->
                             app.lumen.player.util.L10n.setMode(ctx, mode)
@@ -1321,6 +1451,12 @@ private fun App() {
                         onFadeMs = { v ->
                             fadeMs = v
                             app.lumen.player.data.Appearance.setFadeMs(ctx, v)
+                        },
+                        // 之前只渲染了这个开关，却没有把 smartFade / onSmartFade 传进设置页：
+                        // UI 永远显示默认的"开启"，点它也不会写回，属于"看着能点、其实没接上"。
+                        onSmartFade = { v ->
+                            smartFade = v
+                            app.lumen.player.data.Appearance.setSmartFade(ctx, v)
                         },
                         onClearLocalData = { clearLocalData() },
                         onOpenGuide = { showOnboarding = true },
@@ -1437,8 +1573,14 @@ private fun App() {
                             positionMs = playback.positionMs,
                             durationMs = playback.durationMs.takeIf { it > 0 } ?: ((current?.seconds ?: 0) * 1000L),
                             onToggle = { if (current != null) playback.toggle() },
-                            onOpenPlayer = { navigate(NavKey(2, null)) },
                             onOpenRadio = { openRadio() },
+                            onPickVibe = { vibe -> openRadio(vibe, autoStart = true) },
+                            radioState = app.lumen.player.ui.RadioRailState(
+                                ready = analyzedCount > 0,
+                                analyzing = app.lumen.player.playback.MoodAnalysisRunner.running,
+                                done = app.lumen.player.playback.MoodAnalysisRunner.done,
+                                total = app.lumen.player.playback.MoodAnalysisRunner.total,
+                            ),
                             onOpenStats = { navigate(NavKey(7, null)) },
                             tab = homeTab,
                             onTabChange = { homeTab = it },
@@ -1455,7 +1597,6 @@ private fun App() {
                                     playback.play(starred, index, "starred")
                                     playback.tick()
                                     homeTab = 3
-                                    navigate(NavKey(2, null))
                                 }
                             },
 
@@ -1536,25 +1677,8 @@ private fun App() {
 
     MaterialTheme(colorScheme = animatedScheme, typography = lumenTypography()) {
         Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                if (event.type == PointerEventType.Press) {
-                                    event.changes.firstOrNull()?.position?.let { pos ->
-                                        if (size.width > 0 && size.height > 0) {
-                                            enterOriginX = (pos.x / size.width).coerceIn(0f, 1f)
-                                            enterOriginY = (pos.y / size.height).coerceIn(0f, 1f)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-            ) {
+            // 只在需要时读一次按压位置的老实现已删除：入场方向现在由 NavOriginStore + 共享元素决定
+            Box(Modifier.fillMaxSize()) {
                 val sharedMotion = app.lumen.player.ui.rememberBackdropMotion()
                 app.lumen.player.ui.ExpressiveBackdrop(
                     Modifier.matchParentSize(),
@@ -1567,64 +1691,11 @@ private fun App() {
                         .fillMaxSize()
                         .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.06f)),
                 )
-                // 宽度 ≥ 600dp（平板 / 分屏 / 折叠展开）走双栏：左侧列表常驻，右侧详情
-                androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
-                    val wide = adaptive.twoPane
-                    if (wide && screen != 0) {
-                        androidx.compose.foundation.layout.Row(Modifier.fillMaxSize()) {
-                            androidx.compose.foundation.layout.Box(
-                                Modifier.weight(adaptive.leftWeight).fillMaxHeight(),
-                            ) {
-                                app.lumen.player.ui.ExpressiveBackdrop(
-                                    Modifier.matchParentSize(),
-                                    drivePulse = false,
-                                    event = currentMoment.event,
-                                    animate = false,
-                                    sharedMotion = sharedMotion,
-                                )
-                                screenContent(NavKey(0, null), "-wide")
-                            }
-                            androidx.compose.foundation.layout.Box(
-                                Modifier.weight(if (adaptive.twoPane) 1f - adaptive.leftWeight else 0.58f).fillMaxHeight(),
-                            ) {
-                                androidx.compose.material3.Surface(
-                                    color = MaterialTheme.colorScheme.surface,
-                                    modifier = Modifier.fillMaxSize(),
-                                ) {
-                                    androidx.compose.runtime.key(NavKey(screen, openAlbum)) {
-                                        app.lumen.player.ui.ExpressiveBackdrop(
-                                            Modifier.matchParentSize(),
-                                            drivePulse = true,
-                                            event = currentMoment.event,
-                                            animate = playback.playing && !powerSave.value,
-                                            sharedMotion = sharedMotion,
-                                        )
-                                        screenContent(NavKey(screen, openAlbum), "")
-                                    }
-                                }
-                                if (screen != 2) {
-                                    YoinBar(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomCenter)
-                                            .navigationBarsPadding()
-                                            .padding(bottom = 6.dp),
-                                        title = current?.title ?: "",
-                                        artist = current?.artist ?: "",
-                                        coverUrl = current?.let { client.coverUrl(it.albumId, 200) } ?: "",
-                                        playing = playback.playing,
-                                        enabled = current != null,
-                                        onHome = { navStack.clear(); screen = 0; openAlbum = null },
-                                        onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
-                                        onToggle = {
-                                            if (current != null) playback.toggle()
-                                            else if (albums.isNotEmpty()) openAlbum = albums.first()
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        // 页面宿主：SharedTransitionLayout + AnimatedContent —— 真共享元素，不再用矩形模拟
+                // 共享元素宿主：页面切换与常驻迷你条必须在同一个 SharedTransitionLayout 里，
+                // 否则迷你条封面无法与播放页封面互相 morph（浮层不在页面作用域内）。
+                app.lumen.player.ui.SharedElementHost(Modifier.fillMaxSize()) {
+                    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                        // 页面切换：AnimatedContent 只负责页面，共享作用域由外层 SharedElementHost 提供
                         val fadeSpecForPage =
                             androidx.compose.material3.MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
                         val spatialSpecForPage =
@@ -1633,9 +1704,8 @@ private fun App() {
                         val navConfig = androidx.compose.ui.platform.LocalConfiguration.current
                         val screenWidthPx = with(navDensity) { navConfig.screenWidthDp.dp.toPx() }
                         val screenHeightPx = with(navDensity) { navConfig.screenHeightDp.dp.toPx() }
-                        app.lumen.player.ui.SharedPageHost(
+                        app.lumen.player.ui.SharedPageSwitcher(
                             target = NavKey(screen, openAlbum),
-                            modifier = Modifier.fillMaxSize(),
                             transitionSpec = {
                                 // 容器变换：从被点击的入口展开 / 收回，其余情况用标准淡入淡出
                                 val from = initialState as NavKey
@@ -1647,9 +1717,13 @@ private fun App() {
                                     4 -> "downloads"
                                     6 -> "search"
                                     7 -> "stats"
+                                    10 -> "radio"
                                     else -> null
                                 }
-                                val returning = to.screen == 0 && from.screen != 0
+                                // 方向由导航动作决定：navigate() 是进入，performBack() 是返回。
+                                // 不能用"目标是不是首页"判断——从播放页返回电台页同样是返回，
+                                // 否则电台页会错误地从首页入口的位置再"长"出来一次。
+                                val returning = navBack
                                 val key = if (returning) originKeyOf(from) else originKeyOf(to)
                                 val origin = app.lumen.player.ui.NavOriginStore
                                     .transformOrigin(key, screenWidthPx, screenHeightPx)
@@ -1692,43 +1766,44 @@ private fun App() {
                                     animate = playback.playing && !powerSave.value,
                                     sharedMotion = sharedMotion,
                                 )
-                                screenContent(pageKey as NavKey, "")
+                                screenContent(pageKey as NavKey)
                             }
                         }
+
+                        // 播放页有自己的控制区，不再显示底栏（用动画隐显，避免"啪"地出现）
+                        androidx.compose.animation.AnimatedVisibility(
+                            // 电台页自带播放控制，与播放页同规则不再叠加迷你条（避免两个播放键）
+                            visible = screen != 2 && screen != 10,
+                            enter = androidx.compose.animation.fadeIn(
+                                androidx.compose.animation.core.tween(180),
+                            ) + androidx.compose.animation.slideInVertically(
+                                androidx.compose.animation.core.tween(220),
+                            ) { it / 2 },
+                            exit = androidx.compose.animation.fadeOut(
+                                androidx.compose.animation.core.tween(140),
+                            ) + androidx.compose.animation.slideOutVertically(
+                                androidx.compose.animation.core.tween(180),
+                            ) { it / 2 },
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                        ) {
+                            // 迷你条不属于任何页面：显式传它自己的 AnimatedVisibilityScope，
+                            // 封面才能与播放页封面成为同一个共享元素
+                            val barScope: androidx.compose.animation.AnimatedVisibilityScope = this
+                            YoinBar(
+                                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 6.dp),
+                                title = current?.title ?: "",
+                                artist = current?.artist ?: "",
+                                coverUrl = current?.let { client.coverUrl(it.albumId, 200) } ?: "",
+                                coverModifier = current?.let { track ->
+                                    Modifier.coverSharedElement("np-" + track.albumId, barScope)
+                                } ?: Modifier,
+                                playing = playback.playing,
+                                enabled = current != null,
+                                onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
+                                onToggle = { current?.let { playback.toggle() } },
+                            )
+                        }
                     }
-                }
-
-
-                // 播放页有自己的控制区，不再显示底栏（用动画隐显，避免"啪"地出现）
-                // 双栏时底栏属于「详情栏」，不再通栏压住左侧列表
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = screen != 2 && !adaptive.twoPane,
-                    enter = androidx.compose.animation.fadeIn(
-                        androidx.compose.animation.core.tween(180),
-                    ) + androidx.compose.animation.slideInVertically(
-                        androidx.compose.animation.core.tween(220),
-                    ) { it / 2 },
-                    exit = androidx.compose.animation.fadeOut(
-                        androidx.compose.animation.core.tween(140),
-                    ) + androidx.compose.animation.slideOutVertically(
-                        androidx.compose.animation.core.tween(180),
-                    ) { it / 2 },
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                ) {
-                    YoinBar(
-                        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 6.dp),
-                        title = current?.title ?: "",
-                        artist = current?.artist ?: "",
-                        coverUrl = current?.let { client.coverUrl(it.albumId, 200) } ?: "",
-                        playing = playback.playing,
-                        enabled = current != null,
-                        onHome = { navStack.clear(); screen = 0; openAlbum = null },
-                        onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
-                        onToggle = {
-                            if (current != null) playback.toggle()
-                            else if (albums.isNotEmpty()) openAlbum = albums.first()
-                        },
-                    )
                 }
 
                 if (showMoodHint) {

@@ -31,6 +31,8 @@ internal fun AnimatedCover(
     cornerRadius: Dp = 24.dp,
     /** 用于查四边采样色；为空时回退到主题主色 */
     albumId: String? = null,
+    /** 共享元素 key：播放页传 `np-<albumId>`，与迷你条 / 电台正在播放栏的封面配对 */
+    sharedKey: String? = null,
     /** 弱网降级：先展示这张低清图，高清到达后自动覆盖 */
     lowResUrl: String? = null,
 ) {
@@ -54,11 +56,7 @@ internal fun AnimatedCover(
     }
 
     LumooCover(
-        modifier = if (albumId != null) {
-            modifier.albumSharedElement("cover-$albumId")
-        } else {
-            modifier
-        },
+        modifier = if (sharedKey != null) modifier.albumSharedElement(sharedKey) else modifier,
         albumId = albumId,
         cornerRadius = cornerRadius,
         elevation = 20.dp,

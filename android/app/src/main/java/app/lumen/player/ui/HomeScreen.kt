@@ -32,7 +32,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
@@ -111,6 +110,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -139,12 +140,8 @@ import app.lumen.player.ui.ArtistScreen
 import app.lumen.player.ui.SearchScreen
 import app.lumen.player.ui.FallbackScheme
 import app.lumen.player.ui.LicensesScreen
-import app.lumen.player.ui.HomeCard
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import app.lumen.player.ui.HomeText
-import app.lumen.player.ui.HomeSub
-import app.lumen.player.ui.HomeAccent
 import app.lumen.player.ui.YoinBar
 import app.lumen.player.ui.HomeCache
 import app.lumen.player.ui.LoginScreen
@@ -195,8 +192,9 @@ fun HomeScreen(
     positionMs: Long = 0,
     durationMs: Long = 0,
     onToggle: () -> Unit = {},
-    onOpenPlayer: () -> Unit = {},
     onOpenRadio: () -> Unit = {},
+    onPickVibe: (app.lumen.player.data.RadioVibe) -> Unit = {},
+    radioState: RadioRailState = RadioRailState(),
     onOpenStats: () -> Unit = {},
     cache: HomeCache = remember { HomeCache() },
     libraryVersion: Int = 0,
@@ -309,7 +307,6 @@ fun HomeScreen(
             analysisMode = analysisMode,
             analysisModeDetail = analysisModeDetail,
             onTab = onTabChange,
-            onOpenRadio = onOpenRadio,
             onSettings = onSettings,
             onSort = { showSort = true },
             onSearch = onSearch,
@@ -336,24 +333,37 @@ fun HomeScreen(
             }
             else -> {
                 val pagerState = rememberPagerState(pageCount = { 4 })
-                // 点击标签：走 pager 的横向滑动（shared axis X），连点会被新动画接管
+                // 点击标签：走 pager 的横向滑动（shared axis X），连点会被新动画接管。
+                // 程序化滚动期间必须屏蔽标签回写：从第 0 页跳到第 3 页会依次经过 1、2 页，
+                // 若把这些中间页写回 tab，LaunchedEffect(tab) 会被重启，pager 又被拽回中间页
+                // （表现为"点收藏落到最近"、"点专辑落到艺人"）。
+                val programmaticScroll = remember { androidx.compose.runtime.mutableStateOf(false) }
                 LaunchedEffect(tab) {
                     if (pagerState.currentPage != tab) {
-                        pagerState.animateScrollToPage(
-                            tab,
-                            animationSpec = androidx.compose.animation.core.tween(
-                                260,
-                                easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f),
-                            ),
-                        )
+                        programmaticScroll.value = true
+                        try {
+                            pagerState.animateScrollToPage(
+                                tab,
+                                animationSpec = androidx.compose.animation.core.tween(
+                                    260,
+                                    easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f),
+                                ),
+                            )
+                        } finally {
+                            // 动画完成或被新点击取消都要复位，否则之后的手势回写会失效
+                            programmaticScroll.value = false
+                        }
                     }
                 }
-                // 滑动过程中就跟随 currentPage 回写标签；用 rememberUpdatedState 读最新 tab，避免闭包捕获旧值
+                // 手势滑动时跟随 currentPage 回写标签；程序化滚动不参与，
+                // 这样"点哪个就落到哪个"，而不是按经过顺序逐个落位。
                 val latestTab = rememberUpdatedState(tab)
                 LaunchedEffect(pagerState) {
                     snapshotFlow { pagerState.currentPage }
                         .drop(1)
-                        .collect { page -> if (page != latestTab.value) onTabChange(page) }
+                        .collect { page ->
+                            if (!programmaticScroll.value && page != latestTab.value) onTabChange(page)
+                        }
                 }
                 HorizontalPager(
                     state = pagerState,
@@ -377,6 +387,11 @@ fun HomeScreen(
                             loading = tabLoading && newest.isEmpty(),
                         )
                         else -> Column(Modifier.fillMaxSize()) {
+                            RadioRow(
+                                state = radioState,
+                                onOpenAll = onOpenRadio,
+                                onPick = onPickVibe,
+                            )
                             SectionRow(L10n.t("全部专辑"), L10n.tf("共 ${albums.size} 张", "${albums.size} total"))
                             Box(Modifier.weight(1f)) {
                                 AlbumGrid(
@@ -550,13 +565,11 @@ private fun HomeHeader(
     analysisMode: String = "",
     analysisModeDetail: String = "",
     onTab: (Int) -> Unit,
-    onOpenRadio: () -> Unit = {},
     onSettings: () -> Unit,
     onSort: () -> Unit,
     onSearch: () -> Unit,
     onStats: () -> Unit = {},
 ) {
-    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -585,7 +598,7 @@ private fun HomeHeader(
                 Spacer(Modifier.height(4.dp))
                 Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
-            HomeCircleButton(originKey = "stats", onClick = onStats) {
+            HomeCircleButton(originKey = "stats", label = L10n.t("聆听统计"), onClick = onStats) {
                 val c = MaterialTheme.colorScheme.onBackground
                 Canvas(Modifier.size(20.dp)) {
                     val barW = size.width / 5f
@@ -607,7 +620,7 @@ private fun HomeHeader(
                 Icon(YoinSymbols.Search, contentDescription = L10n.t("搜索"), tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(10.dp))
-            HomeCircleButton(onClick = onSort) {
+            HomeCircleButton(label = L10n.t("排序"), onClick = onSort) {
                 val sortColor = MaterialTheme.colorScheme.onBackground
                 Canvas(Modifier.size(20.dp)) {
                     val stroke = 2.dp.toPx()
@@ -644,15 +657,7 @@ private fun HomeHeader(
                             if (i == selected) MaterialTheme.colorScheme.primaryContainer
                             else androidx.compose.ui.graphics.Color.Transparent,
                         )
-                        .combinedClickable(
-                            onClick = { onTab(i) },
-                            onLongClick = {
-                                if (i == 0) {
-                                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                    onOpenRadio()
-                                }
-                            },
-                        ),
+                        .clickable { onTab(i) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -671,6 +676,8 @@ private fun HomeHeader(
 private fun HomeCircleButton(
     onClick: () -> Unit,
     originKey: String? = null,
+    /** TalkBack 名称：纯 Canvas 图标没有语义，必须显式给出 */
+    label: String? = null,
     content: @Composable () -> Unit,
 ) {
     // P2：按下时轻微缩放，反馈更"实"，不再只有 ripple
@@ -708,7 +715,15 @@ private fun HomeCircleButton(
             .clickable(
                 interactionSource = interaction,
                 indication = androidx.compose.foundation.LocalIndication.current,
+                onClickLabel = label,
                 onClick = onClick,
+            )
+            .then(
+                if (label != null) {
+                    Modifier.semantics { contentDescription = label }
+                } else {
+                    Modifier
+                },
             ),
         contentAlignment = Alignment.Center,
     ) { content() }
@@ -732,28 +747,8 @@ private fun SectionRow(title: String, trailing: String) {
 // 首页中性色板（设计稿）：颜色交给封面，界面只用灰阶 + 一种强调色
 internal val HomeBg = androidx.compose.ui.graphics.Color(0xFF202126)
 
-/** 首页专用的中性灰阶配色：颜色交给封面，界面只用灰阶 + 一种强调色。 */
-internal val HomeScheme = androidx.compose.material3.darkColorScheme(
-    primary = HomeAccent,
-    onPrimary = androidx.compose.ui.graphics.Color.White,
-    primaryContainer = HomeCard,
-    onPrimaryContainer = HomeText,
-    secondary = HomeSub,
-    onSecondary = HomeBg,
-    tertiary = HomeSub,
-    background = HomeBg,
-    onBackground = HomeText,
-    surface = HomeBg,
-    onSurface = HomeText,
-    surfaceVariant = HomeCard,
-    onSurfaceVariant = HomeSub,
-    surfaceContainer = HomeCard,
-    surfaceContainerHigh = HomeCard,
-    surfaceContainerHighest = HomeCard,
-    surfaceContainerLow = HomeCard,
-    outline = HomeSub,
-    outlineVariant = androidx.compose.ui.graphics.Color(0xFF2A2A30),
-)
+// 注：首页实际使用的是 ThemeEngine.mutedForHome（在 MainActivity 套 MaterialTheme），
+// 这里曾有一份未接线的 HomeScheme 副本，已删除，避免两套色板漂移。
 
 @Composable
 private fun AlbumGrid(
@@ -763,7 +758,7 @@ private fun AlbumGrid(
     coverShared: @Composable (String) -> Modifier,
     progressOf: (Album) -> Float? = { null },
 ) {
-    // 跨「单栏 / 双栏」续接滚动位置
+    // 返回首页 / 冷启动时续接滚动位置
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(
         initialFirstVisibleItemIndex = HomeScrollStore.albumIndex,

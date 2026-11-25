@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 主题图标（Android 13+）单色层：只剩光芒形状，由系统统一着色。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:pathData="M51.75,32.62 Q61.06,53.26 75.38,51.75 Q54.74,61.06 56.25,75.38 Q46.94,54.74 32.62,56.25 Q53.26,46.94 51.75,32.62 Z"
+        android:fillColor="#FFFFFFFF" />
+</vector>

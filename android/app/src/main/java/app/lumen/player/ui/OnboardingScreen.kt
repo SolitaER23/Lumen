@@ -168,15 +168,15 @@ fun OnboardingScreen(onDone: () -> Unit) {
         ),
         GuidePage(
             tag = L10n.tf("电台", "RADIO"),
-            title = L10n.tf("长按，\n进入氛围", "Press and hold\nfor a station"),
+            title = L10n.tf("首页一行，\n随手开台", "One row away\nfrom a station"),
             body = L10n.tf(
-                "长按首页左上角「专辑」标签，按当前声音特征生成一段连续电台；也可以直接选择专注、夜晚、通勤等场景。",
-                "Press and hold the Albums tab on Home to build a continuous station from your library, or pick focus, night, commute and more.",
+                "首页「专辑」页顶部有一行电台：点一个场景，就以正在播放的歌为种子开始连续播放；电台里点正在播放的那首歌会进入播放页，返回就回到电台原来的位置。",
+                "A station row sits on top of the Albums page: tap a scene and a continuous station starts from the track you're playing. Inside a station, tap the now-playing row to open the player — going back returns you to the station.",
             ),
             bullets = listOf(
-                L10n.tf("长按「专辑」标签进入", "Long-press the Albums tab"),
-                L10n.tf("选择场景，立即切换", "Pick a scene and switch instantly"),
-                L10n.tf("没有列表，只有连续播放", "No queue list, just continuous play"),
+                L10n.tf("首页电台行一键起播", "One tap from the home station row"),
+                L10n.tf("点正在播放栏进播放页", "Tap the now-playing row for the player"),
+                L10n.tf("封面带着飞，返回回原地", "The cover flies along, back returns you"),
             ),
         ),
         GuidePage(

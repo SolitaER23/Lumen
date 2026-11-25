@@ -166,6 +166,8 @@ fun PlayingScreen(
                     contentDescription = track?.title,
                     modifier = coverModifier.size(232.dp),
                     albumId = track?.albumId,
+                    // 与迷你条 / 电台正在播放栏共用同一个 key：从哪个封面点进来，就从那个封面长出来
+                    sharedKey = track?.albumId?.let { "np-$it" },
                     lowResUrl = coverUrl.replace("size=600", "size=200").takeIf { it != coverUrl },
                 )
                 Box(
@@ -178,6 +180,7 @@ fun PlayingScreen(
                     ) {
                         PlayerAction(
                             icon = if (trackDownloaded) YoinSymbols.DownloadDone else YoinSymbols.Download,
+                            label = if (trackDownloaded) L10n.t("已下载") else L10n.t("下载"),
                             shape = RoundedCornerShape(22.dp),
                             container = if (trackDownloaded) MaterialTheme.colorScheme.surfaceContainerHighest
                             else MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -187,6 +190,7 @@ fun PlayingScreen(
                         )
                         PlayerAction(
                             icon = if (starred) YoinSymbols.StarFilled else YoinSymbols.Star,
+                            label = if (starred) L10n.t("取消收藏") else L10n.t("收藏"),
                             shape = CircleShape,
                             container = if (starred) MaterialTheme.colorScheme.surfaceContainerHighest
                             else MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -200,6 +204,7 @@ fun PlayingScreen(
                                 app.lumen.player.playback.PlayMode.SHUFFLE -> YoinSymbols.Shuffle
                                 else -> YoinSymbols.Repeat
                             },
+                            label = L10n.t("播放模式"),
                             shape = RoundedCornerShape(22.dp),
                             container = if (playMode == app.lumen.player.playback.PlayMode.LIST)
                                 MaterialTheme.colorScheme.surfaceContainerHigh
@@ -678,6 +683,8 @@ private fun CircleAction(
 private fun PlayerAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     text: String? = null,
+    /** TalkBack 名称：这些按钮图标本身没有语义，必须显式给出 */
+    label: String? = null,
     shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(20.dp),
     container: Color,
     content: Color,
@@ -688,11 +695,14 @@ private fun PlayerAction(
             .size(56.dp)
             .clip(shape)
             .background(container)
-            .clickable(onClick = onClick),
+            .clickable(
+                onClickLabel = label,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(24.dp))
         } else if (text != null) {
             Text(text, color = content, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         }

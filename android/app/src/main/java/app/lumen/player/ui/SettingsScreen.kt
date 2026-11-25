@@ -253,17 +253,48 @@ fun SettingsScreen(
             item {
                 ExpressiveSection("02", L10n.t("外观")) {
             var showAppearance by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            // 单入口也要有"外观"的样子：左侧一块由当前配色生成的预览块，
+            // 右侧标题 + 当前主题摘要，整行占满卡片宽度（旧版是"窄条浮在大卡片里"，上下留白失衡）。
+            val appearanceScheme = MaterialTheme.colorScheme
             Surface(
                 onClick = { showAppearance = true },
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(22.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // 配色预览：直接取当前主题的 primary → tertiary，与"封面取色"的调性一致
+                    Box(
+                        Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(appearanceScheme.primary, appearanceScheme.tertiary),
+                                ),
+                            ),
+                    )
+                    Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(L10n.t("打开外观设置"), color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text(L10n.t("主题、配色风格、对比度与封面取色"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
+                        Text(
+                            L10n.t("外观与主题"),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            appearanceSummary(themeMode, paletteStyle, contrast),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
                     }
+                    Spacer(Modifier.width(10.dp))
                     Text("\u203A", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 18.sp)
                 }
             }
@@ -564,6 +595,27 @@ private fun ExpressiveSection(index: String, title: String, content: @Composable
             }
         }
     }
+}
+
+/** 「外观」模块的状态摘要：深浅 · 配色风格 · 对比度（全部取自已有设置状态，不新增交互）。 */
+private fun appearanceSummary(themeMode: String, paletteStyle: String, contrast: Float): String {
+    val mode = when (themeMode) {
+        "dark" -> L10n.tf("深色", "Dark")
+        "light" -> L10n.tf("浅色", "Light")
+        else -> L10n.tf("跟随系统", "System")
+    }
+    val style = when (PaletteStyle.of(paletteStyle)) {
+        PaletteStyle.TONAL -> L10n.tf("色相", "Tonal")
+        PaletteStyle.VIBRANT -> L10n.tf("活力", "Vibrant")
+        PaletteStyle.EXPRESSIVE -> L10n.tf("表现", "Expressive")
+        PaletteStyle.NEUTRAL -> L10n.tf("中性", "Neutral")
+    }
+    val tone = when {
+        contrast >= 0.7f -> L10n.tf("最高对比", "Max contrast")
+        contrast >= 0.3f -> L10n.tf("增强对比", "High contrast")
+        else -> L10n.tf("标准对比", "Standard contrast")
+    }
+    return "$mode · $style · $tone"
 }
 
 @Composable

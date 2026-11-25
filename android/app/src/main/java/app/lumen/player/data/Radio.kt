@@ -39,7 +39,32 @@ enum class RadioVibe(
     NOSTALGIA("怀旧", "Nostalgia", "旧时光的质感", "A texture from another time", 0.46f, 0.34f, 86f);
 
     fun label(): String = L10n.tf(zh, en)
+
     fun description(): String = L10n.tf(descZh, descEn)
+
+    /**
+     * 展示分组：只影响电台页的排版，不参与选曲。
+     * 18 个预设平铺是 9 行双列卡片（约 1.5 屏），分组后一屏内可看全。
+     */
+    val group: RadioGroup
+        get() = when (this) {
+            FOCUS, STUDY, WORK, READING, NIGHT, SLEEP, MORNING, DUSK, CAFE -> RadioGroup.SCENE
+            COMMUTE, ROAD, RUNNING, WORKOUT, ENERGY, PARTY -> RadioGroup.ACTIVITY
+            RAINY, RELAX, NOSTALGIA -> RadioGroup.MOOD
+        }
+}
+
+/** 电台预设的三类语境。 */
+enum class RadioGroup(private val zh: String, private val en: String) {
+    SCENE("场景", "Scene"),
+    ACTIVITY("活动", "Activity"),
+    MOOD("情绪", "Mood"),
+    ;
+
+    fun label(): String = L10n.tf(zh, en)
+
+    /** 分组内的预设，保持枚举声明顺序（人工排过的高频优先）。 */
+    fun vibes(): List<RadioVibe> = RadioVibe.entries.filter { it.group == this }
 }
 
 /**
@@ -106,8 +131,10 @@ object Radio {
         strength: Float = 0.4f,
         /** true 时忽略传入的 vibe，按种子自动选择。 */
         autoPick: Boolean = false,
+        /** 「换一批」时排除上一批已经出现过的曲目，保证换出来的真的是另一批。 */
+        exclude: Set<String> = emptySet(),
     ): List<Track> = withContext(Dispatchers.Default) {
-        buildOnCurrentThread(ctx, tracks, seedId, vibe, limit, strength, autoPick)
+        buildOnCurrentThread(ctx, tracks, seedId, vibe, limit, strength, autoPick, exclude)
     }
 
     internal fun buildOnCurrentThread(
@@ -118,6 +145,7 @@ object Radio {
         limit: Int = LIMIT,
         strength: Float = 0.4f,
         autoPick: Boolean = false,
+        exclude: Set<String> = emptySet(),
     ): List<Track> {
         if (tracks.isEmpty()) return emptyList()
         val moods = MoodStore.radio(ctx)
@@ -128,13 +156,19 @@ object Radio {
 
         val seed = candidates.firstOrNull { it.first.id == seedId }
             ?: candidates[Random.nextInt(candidates.size)]
+        // 排除后剩下的候选太少时忽略排除（宁可与上一批有重复，也不要生成空电台）
+        val pool = if (exclude.isEmpty()) {
+            candidates
+        } else {
+            candidates.filterNot { it.first.id in exclude }.takeIf { it.size >= 5 } ?: candidates
+        }
         val seedMood = seed.second
         val effectiveVibe = if (autoPick) autoVibe(seedMood.valence, seedMood.arousal, seedMood.tempo) else vibe
         // 该维度的全库均值（去偏用）；解析失败时为 null，退回原始余弦
         val mean = runCatching { MoodStore.meanFeature(ctx, seedMood.feature.size) }.getOrNull()
         val std = runCatching { MoodStore.featureStd(ctx, seedMood.feature.size) }.getOrNull()
 
-        val scored = candidates.map { (track, mood) ->
+        val scored = pool.map { (track, mood) ->
             val seedSim = similarity(seedMood, mood, mean, std)
             val vibeSim = 1f - moodDistance(mood, effectiveVibe)
             // 节奏连续性：与种子的 BPM 差越大扣分越多（±60 BPM 内线性衰减）
