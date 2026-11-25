@@ -72,8 +72,6 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - [隐私条款](docs/privacy-policy.md)
 - [用户协议](docs/terms-of-service.md)
 - [兼容性说明](docs/compatibility.md)
-- [测试设备档案](docs/device.md)
-- [功能路线图](docs/feature-plan.md)
 - [Release CI](.github/workflows/release.yml)
 - 官方更新渠道：[夸克网盘](https://pan.quark.cn/s/f35d0450e4b1?pwd=3GF3)，提取码 `3GF3`
 - 分发包：`dist/Lumen-0.89.0.apk`、`dist/SHA256SUMS.txt`
