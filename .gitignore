@@ -28,3 +28,10 @@ keystore.properties
 # 调试期的分析基线（DB/截图/临时导出）与临时抓取文件
 /baseline/
 /.tmp-*
+
+# 构建期由根 CHANGELOG.md 自动生成（见 android/app/build.gradle.kts 的配置阶段任务）
+/android/app/src/main/assets/CHANGELOG.md
+
+# 本机临时产物（历史改写备份、一次性工具）
+/.backup-pre-rewrite.bundle
+/.tools/

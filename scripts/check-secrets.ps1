@@ -49,7 +49,7 @@ try {
 if ($problems.Count -gt 0) {
     Write-Host "check-secrets: 发现 $($problems.Count) 个问题" -ForegroundColor Red
     $problems | ForEach-Object { Write-Host ("  - " + $_) -ForegroundColor Red }
-    Write-Host "签名材料请放在仓库外（~/.lumen/），见 OPTIMIZATION_PLAN.md A2。"
+    Write-Host "签名材料请放在仓库外（~/.lumen/），见 docs/plans/optimization-plan.md A2。"
     exit 1
 }
 

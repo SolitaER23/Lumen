@@ -20,7 +20,7 @@ val legacyKeystoreProps = rootProject.file("keystore.properties")
 val keystorePropsFile: File? = when {
     privateKeystoreProps.exists() -> privateKeystoreProps
     legacyKeystoreProps.exists() -> legacyKeystoreProps.also {
-        logger.warn("签名材料仍在仓库内(" + it + ")，请迁移到 " + privateKeystoreDir + "，见 OPTIMIZATION_PLAN.md A2")
+        logger.warn("签名材料仍在仓库内(" + it + ")，请迁移到 " + privateKeystoreDir + "，见 docs/plans/optimization-plan.md A2")
     }
     else -> null
 }
@@ -161,7 +161,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.material3:material3:1.5.0")
     // 只维护 Pixel 10a 单栏布局：曾用的 material3-window-size-class 与 androidx.window
-    // （双栏 + 折叠屏姿态）已随双栏布局一并移除，见 UI_UX_PLAN.md §8
+    // （双栏 + 折叠屏姿态）已随双栏布局一并移除，见 docs/plans/ui-ux-plan.md §8
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.media3:media3-exoplayer:1.11.1")

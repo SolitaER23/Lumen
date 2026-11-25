@@ -40,7 +40,7 @@ import com.gpo.yoin.symbols.YoinSymbols
  * 底部迷你播放条：封面 + 曲名 / 艺人 + 播放键。
  *
  * 空态不再放"看起来很能点"的主色播放钮：它会打开第一张专辑，既不是播放也不像导航，
- * 是最容易被误触的死路（见 UI_UX_PLAN.md P6-4）。空态只保留一句可读的引导。
+ * 是最容易被误触的死路（见 docs/plans/ui-ux-plan.md P6-4）。空态只保留一句可读的引导。
  */
 @Composable
 fun YoinBar(

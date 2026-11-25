@@ -85,7 +85,7 @@ def main() -> int:
         print(f"check-legal: 发现 {len(problems)} 个问题")
         for item in problems:
             print("  - " + item)
-        print("\n请先补齐占位符（见 OPTIMIZATION_PLAN.md A6 / §4），再打包发布。")
+        print("\n请先补齐占位符（见 docs/plans/optimization-plan.md A6 / §4），再打包发布。")
         return 1
 
     print("check-legal: OK")

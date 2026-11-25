@@ -88,7 +88,7 @@ Lumen 的离线分析依赖一个音乐专用音频模型。本文件记录版�
 
 - fp32 权重使安装包从 13 MB（YAMNet 时代）涨到约 278 MB，已超过 Google Play 单 APK 200 MB 上限；
   若上架商店需改用 Play Asset Delivery（install-time 分包）或首次启动下载。
-- 当前通过网盘直发，**每次更新都要重下整包**；这是已知取舍，见 OPTIMIZATION_PLAN.md §4.2。
+- 当前通过网盘直发，**每次更新都要重下整包**；这是已知取舍，见 [docs/plans/optimization-plan.md](docs/plans/optimization-plan.md) §4.2。
 
 ## 情绪类索引
 

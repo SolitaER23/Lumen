@@ -10,13 +10,13 @@
 | ABI | `arm64-v8a`（当前 APK 不含 32 位 / x86） |
 | 屏幕 | 竖屏；手机优先 |
 | 网络 | 可访问 Navidrome / OpenSubsonic；HTTP / HTTPS |
-| 存储 | 约 13 MB 安装包，分析 / 下载另计 |
+| 存储 | 约 151 MB 安装包（含约 144 MB 随包模型），分析 / 下载另计 |
 
 ## 已验证
 
 | 设备 / 系统 | 结果 | 说明 |
 | --- | --- | --- |
-| Pixel 10a / Android 17（SDK 37） | 通过 | 0.73.0：覆盖安装、冷启动、登录与曲库同步、播放、后台通知、条款门禁、ONNX Runtime（CLAP）推理 |
+| Pixel 10a / Android 17（SDK 37） | 通过 | 0.76.0：覆盖安装、冷启动、登录与曲库同步、播放、后台通知、条款门禁、电台、ONNX Runtime（CLAP）推理 |
 | Pixel 10a / Android 16（SDK 36） | 通过 | 0.50.5（SDK 36 构建）的安装、同意流程、通知权限、首页、播放页、电台、端侧推理冒烟 |
 | Android 16 KB page size | 通过 | ONNX Runtime 的 `.so` `LOAD` 对齐为 `0x4000`，Android 16 起不再提示 16 KB 不兼容 |
 
@@ -26,7 +26,7 @@
 
 - API 26 / 28 / 31 / 33 / 34 / 35 真机；
 - Samsung / Xiaomi / OPPO / vivo 等 OEM 的后台限制、通知与下载；
-- 低端 arm64 设备上的 CLAP 推理内存（fp32 权重约 295 MB）；
+- 低端 arm64 设备上的 CLAP 推理内存（fp16 权重约 141 MB，加载后按 fp32 计算）；
 - 多窗口 / 分屏、字体缩放、TalkBack；
 - 服务器端 Navidrome 不同版本、反向代理与 302 转码。
 

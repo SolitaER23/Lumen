@@ -88,7 +88,7 @@ private val OSS_GROUPS = listOf(
     OssGroup(
         L10n.t("端侧音乐理解"),
         listOf(
-            OssItem("ONNX Runtime", "1.22.0", L10n.t("音频模型推理运行时（XNNPACK 后端）"), "MIT", "© Microsoft Corporation"),
+            OssItem("ONNX Runtime", "1.22.0", L10n.t("音频模型推理运行时（CPU EP 优先，XNNPACK 回退）"), "MIT", "© Microsoft Corporation"),
             OssItem("LAION-CLAP", L10n.t("HTSAT-base（音乐版）"), L10n.t("音乐情绪与风格嵌入模型"), "MIT", "© LAION e.V."),
             OssItem("AudioSet Ontology", L10n.t("527 类标签"), L10n.t("音频事件标签定义（仅标签名）"), "CC BY 4.0", "© Google Research"),
         ),
@@ -217,8 +217,8 @@ fun LicensesScreen(onBack: () -> Unit) {
                     LicenseNote(
                         L10n.tf("端侧音频理解", "On-device audio understanding"),
                         L10n.tf(
-                            "心情分析由 LAION-CLAP（音乐版）与本地 DSP 完成，推理通过 ONNX Runtime 1.22.0（XNNPACK 后端）在设备端执行；模型权重未修改，音频不会上传。分析结果仅用于动态背景、配色、节拍与氛围电台排序，不改变音频文件。",
-                            "Mood analysis runs LAION-CLAP (music) with local DSP, executed on device by ONNX Runtime 1.22.0 (XNNPACK backend). Model weights are unmodified and audio is never uploaded. Results only drive the animated backdrop, palette, beat response and radio ranking; audio files are never modified.",
+                            "心情分析由 LAION-CLAP（音乐版）与本地 DSP 完成，推理通过 ONNX Runtime 1.22.0（CPU EP 优先，XNNPACK 回退）在设备端执行；模型权重未修改，音频不会上传。分析结果仅用于动态背景、配色、节拍与氛围电台排序，不改变音频文件。",
+                            "Mood analysis runs LAION-CLAP (music) with local DSP, executed on device by ONNX Runtime 1.22.0 (CPU EP preferred, XNNPACK fallback). Model weights are unmodified and audio is never uploaded. Results only drive the animated backdrop, palette, beat response and radio ranking; audio files are never modified.",
                         ),
                     )
                     LicenseNote(

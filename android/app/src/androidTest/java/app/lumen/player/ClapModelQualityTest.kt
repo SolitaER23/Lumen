@@ -12,7 +12,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * fp16 模型的真机质量回归（对应 OPTIMIZATION_PLAN 阶段 G）。
+ * fp16 模型的真机质量回归（对应 docs/plans/optimization-plan.md 阶段 G）。
  *
  * 背景：fp32 → fp16 让随包权重从 294 MB 降到 147.9 MB（APK 278 MB → 约 160 MB）。
  * 桌面端已验证 embedding 余弦 0.999997，但 Android 的 ONNX Runtime 1.22 用

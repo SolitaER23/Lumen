@@ -14,7 +14,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - **多账号**：设置里保存多个 Navidrome 账号并切换，密码与令牌使用 Android Keystore 加密
 - **Navidrome Stat**：可选接入，展示播放统计
 - **心情分析**：端侧 CLAP + DSP（ONNX Runtime），结果只保存在本机，用于动态背景与配色
-- **交互**：预测性返回（跟手、上一页实时露出、无闪跳）、从点击位置展开的进入动画、封面交叉溶解、切歌音量淡入淡出
+- **交互**：返回与进入走同一条共享元素转场（对称、无闪跳）、首页二次返回确认、从点击位置展开的进入动画、封面交叉溶解、切歌音量淡入淡出
 - **离线**：边下边播缓存、整张专辑/单曲下载、独立的缓存清理
 
 ## 技术栈
@@ -26,7 +26,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 | 音频 | Media3 ExoPlayer 1.11.1（磁盘缓存 + 解码失败自动转码兜底） |
 | 网络 | OkHttp 5.5.1 + Retrofit 3.0.0 + Gson 2.15.0（Subsonic token + salt 认证） |
 | 图片 | Coil 3.6.3（coil-compose + coil-network-okhttp）+ Material Color Utilities 封面取色 |
-| 端侧模型 | ONNX Runtime 1.22.0（XNNPACK）+ LAION-CLAP HTSAT-base 音乐版（约 295 MB，见 [MODELS.md](MODELS.md)） |
+| 端侧模型 | ONNX Runtime 1.22.0（CPU EP 优先，XNNPACK 为回退）+ LAION-CLAP HTSAT-base 音乐版 fp16（随包约 144 MB，见 [MODELS.md](MODELS.md)） |
 | 构建 | Gradle 9.9.2（Wrapper）+ AGP 9.5.2 + Kotlin 2.4.21 |
 
 ## 首次启动
@@ -88,8 +88,9 @@ Windows 下把 `./gradlew` 换成 `gradlew.bat`。
 > `LUMEN_KEYSTORE_FILE`、`LUMEN_KEYSTORE_PASSWORD`、`LUMEN_KEY_ALIAS`、`LUMEN_KEY_PASSWORD`。
 > 仓库内残留的 `keystore.properties` 仅作兼容回退并会打印告警；`scripts/check-secrets.ps1` 可校验。
 
-> 情绪分析所需的 ONNX 模型（`assets/mood/*.onnx`，约 298 MB）**不在仓库内**，来源、许可与校验值见
-> [MODELS.md](MODELS.md)。缺少模型时构建仍可通过，但「心情分析」会报「模型落盘失败」，播放与其它功能不受影响。
+> 情绪分析所需的 ONNX 模型（`assets/mood/*.onnx`，fp16 共约 144 MB）**以 Git LFS 随仓库分发**，来源、许可与校验值见
+> [MODELS.md](MODELS.md)。克隆后未拉取 LFS 对象时，模型只是指针文件：构建仍可通过，但「心情分析」会报「模型落盘失败」，
+> 播放与其它功能不受影响；补拉用 `git lfs pull`。
 
 ## 测试
 
@@ -109,7 +110,7 @@ android/app/src/main/java/app/lumen/player/
   playback/              ExoPlayer、下载服务、后台分析执行器
   ui/                    各页面与主题/背景组件
 android/app/src/main/assets/
-  mood/                  CLAP 音频塔 + 情绪投影层（约 298 MB，不进 git）
+  mood/                  CLAP 音频塔 + 情绪投影层（fp16 共约 144 MB，Git LFS 托管）
   licenses/              第三方许可全文
 ```
 

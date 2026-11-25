@@ -11,7 +11,7 @@
   - 将来若接入固定域名（如官方统计服务），可在下面继续收窄。
 
   Subsonic 的 u/t/s 是可重放凭据，明文链路上等同于账号访问权，改动此文件前请先读
-  OPTIMIZATION_PLAN.md 的 B3 与审查报告 P0-3。
+  docs/plans/optimization-plan.md 的 B3 与审查报告 P0-3。
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">
