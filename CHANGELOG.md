@@ -19,6 +19,80 @@
 
 ---
 
+## [0.74.0] - 2026-11-25
+
+> 本版是「安全 / 隐私 / 性能」的集中收敛版，同时把随包模型减半：**APK 278.1 MB → 150.8 MB**。
+> 升级后首次启动会**重新分析曲库**（原因见下），旧的分析结果按设计作废。
+
+### 端侧模型瘦身（APK 150.8 MB）
+
+- CLAP 权重由 fp32 改为 **fp16 存储 + fp32 计算**：每个权重以 fp16 落盘、图首插入 `Cast(fp16 → fp32)`，
+  ONNX Runtime 在会话初始化时常量折叠回 fp32，文件从 294,812,140 字节降到 147,876,819 字节（-49.9%），
+  而**计算精度不变**（真机 embedding 余弦 0.99998、情绪类判定 10/10 一致）；
+- 推理后端改为 **CPU EP 优先**、XNNPACK 仅兜底：XNNPACK 的 fp16 累加会让 embedding 余弦掉到 0.380，
+  而 CPU EP 只慢约 8%（10 秒窗 1688 ms vs 1558 ms）；
+- 特征模型标识升级为 `clap-fp16-v1`，`moods.db` 升至 **v14**：旧 fp32 结果全部作废重算，
+  避免同一曲库里两代特征混用导致相似度与电台排序自相矛盾；
+- 老用户 `filesDir` 里 294 MB 的旧权重副本会在首次分析时自动删除；
+- 转换脚本 `scripts/convert-model-fp16.py` 入库，MODELS.md 记录原理、校验值与精度对照。
+
+### 安全加固
+
+- 正式签名材料（`lumen-release.jks` + `keystore.properties`）移出仓库到 `~/.lumen/`，构建按
+  「环境变量 → 用户目录 → 旧位置(告警)」查找；新增 `scripts/check-secrets.ps1` 守卫；
+- 凭据加密失败语义修正：加密失败**不再把密码键写成 null（等于删除）**，`save()` 返回布尔并由界面提示；
+  解密失败**保留密文**并标记 `passwordUnreadable`，登录页提示重新输入；密文加 `v1:` 前缀；
+- 认证 salt 改用 `SecureRandom`（原为 `Random(nanoTime)`），避免 token 被离线枚举；
+- 登录流程启用 `FLAG_SECURE`（禁止截屏与最近任务缩略图）；
+- 媒体会话 `onConnect` 只接受同包/同 UID/系统可信控制器，任意第三方应用不再能读取元数据或远程切歌；
+- 通知栏 action 增加进程内随机 token，外部 `startService` 无法伪造 ACTION_TOGGLE/PREV/NEXT；
+- 明文 HTTP 策略落地：私网/回环/链路本地/`*.local`/单标签主机名放行，**公网地址默认阻断**并需显式勾选风险开关；
+  清单改用 `networkSecurityConfig`（附注释说明 Android 不支持 CIDR 网段）。
+
+### 隐私与数据清账
+
+- 新增 `local/LocalData.kt` 作为「清除本机数据」的唯一入口，补齐原先漏清的 12 个落点：
+  专辑列表、专辑曲目、电台曲库、曲目清单缓存、失败/忽略表、下载元数据、主题种子、
+  取流能力缓存、被中断留下的临时音频等；
+- 曲目/封面的缓存键不再包含 Subsonic 的 `u/t/s`（改为 `track:<id>#<format>` 或 URI 的 SHA-256 摘要），
+  播放日志统一经 `Redact` 脱敏；
+- 统计 Token 取消明文回退：Keystore 不可用时保存失败并提示，不再写明文；
+- 条款文本改为**通用版**（不再依赖具体主体/邮箱/法域），版本号由 `privacy.json` 在构建期注入，
+  改条款即自动要求重新同意；条款资源缺失时两页显示明确错误态，而不是卡在「读到底部才能同意」的死角。
+
+### 性能
+
+- 氛围电台选曲（全表 1024 维特征点积）从主线程下沉到 `Dispatchers.Default`，大曲库不再卡顿/ANR；
+- 下载状态由「每 1~2 秒轮询全部下载」改为 `DownloadManager.Listener` 事件驱动（500 ms 节流），
+  每首的缓存 span 查询从 2 次降为 1 次；
+- 播放状态拆成「队列变化时写」+「进度小键 3 秒一次」，不再每 3 秒序列化上千首曲目；
+- `MoodStore` 改用单例 `SQLiteOpenHelper` + WAL，修掉「每次查询新建 helper、从不 close」的句柄泄漏；
+- 数据库迁移改为**按版本升序**执行（原 v13 排在 v11/v12 之前，导致旧 YAMNet 数据永远删不掉）。
+
+### 修复
+
+- 浮点特征编码改用 `Locale.ROOT`：德语等区域会把 `0.5` 写成 `0,5`，整行特征被静默丢弃；
+- 下载 MIME 按实际格式推断（转码流优先看 `format` 参数），flac/opus 离线播放不再被当 mp3；
+- 后台分析遇到低电量/息屏/过热时改为**等待条件恢复**，不再永久结束整轮；
+- 曲目清单缓存改用「专辑集合签名」校验，增删各一张专辑时不再永不刷新；
+- 登出改为「停播 + 只清凭据」，不再把主题/外观偏好一起清空；
+- 修复首页入口动画的 `Animatable` 未 `remember`（每次重组都会重置回弹）。
+
+### 工程与测试
+
+- lint：**89 warning → 12 warning / 0 error**；新增 `app/lint.xml`，把「刻意为之」逐条带理由关闭；
+- CI 增加密钥守卫、法务占位符守卫、`lintDebug`、`assembleDebugAndroidTest`、`assembleRelease`（R8 校验）；
+- 新增 `tools/mock-subsonic`（含媒体生成脚本）与 `ServerE2ETest`：真实 HTTP + token 认证 → 曲库 → 取流 →
+  ExoPlayer 就绪 → FLAC 解码 → fp16 推理，可在 mock 或真实 Navidrome 上运行，凭据只走 instrumentation 参数；
+- 新增 `ClapModelQualityTest`（真机 fp16 精度回归）、`LocalDataWipeTest`（清账完整性）、`CredentialStoreTest`（凭据语义）；
+- 单元测试 33 个、仪器测试 11 个；`UiFlowTest`（完整点击流）已写好但因常驻动画阻塞 Compose idling 暂时 `@Ignore`。
+
+### 已知问题 / 取舍
+
+- 本版强制重算情绪分析：分析 1567 首约需数十分钟（服务端不支持 Range 时每首整段下载）；可在弹窗里暂停；
+- `UiFlowTest` 需要先加 test-only 的「关闭环境动画」开关才能启用；
+- ChromeOS / 32 位设备仍不支持（只构建 arm64-v8a）。
+
 ## [0.73.0] - 2026-11-25
 
 ### 心情搜索
