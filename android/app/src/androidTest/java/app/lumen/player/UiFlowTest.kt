@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -36,11 +37,11 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 @org.junit.Ignore(
-    "已知阻塞：环境动画开关（AmbientFx.setForTest）与返回键退出抑制（suppressExitOnBackForTest）" +
-        "都已生效，规则能找到 compose hierarchy；但用例执行到第 4 秒左右 Activity 会被系统主动销毁" +
-        "（logcat: PAUSED→STOPPED→DESTROYED，进程仍存活），随后任何 onNode 都报 " +
-        "\"No compose hierarchies found\"。已排除 singleTask、权限授予、双击退出三个原因，" +
-        "下一步应查 ActivityScenario 与 FLAG_SECURE/窗口重建（setShowWhenLocked）的交互。" +
+    "阻塞在「设置 → 清除本机数据 → 确认」之后：点下确认约 4 秒内 Activity 被销毁，测试结束时应用停在桌面" +
+        "（logcat 无异常、无 ActivityTaskManager 事件、进程存活）。已排除：环境动画（开关已生效）、" +
+        "系统返回键 finish、singleTask、运行时权限授予、缺少 compose hierarchy（能拿到）。" +
+        "下一步：对比「UI 点清除」与「直接调用 LocalData.wipe」的差异，" +
+        "怀疑 PlaybackService/DownloadService 在两个进程组件被同时清理时把任务清掉。" +
         "数据层与播放层覆盖由 ServerE2ETest 提供。",
 )
 class UiFlowTest {
@@ -99,13 +100,32 @@ class UiFlowTest {
         throw AssertionError("等待超时: " + text)
     }
 
+    /**
+     * 优先点应用内的「返回」按钮。
+     *
+     * 不能直接用系统返回：在「同意/登录」这类没有注册 BackHandler 的页面上，
+     * onBackPressedDispatcher 会走默认行为 = **直接 finish 掉 Activity**，
+     * 测试随后就报 "No compose hierarchies found"（实测复现）。
+     */
     private fun pressBack() {
-        rule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        val clicked = runCatching {
+            val nodes = rule.onAllNodesWithContentDescription("返回").fetchSemanticsNodes()
+            if (nodes.isEmpty()) {
+                false
+            } else {
+                rule.onAllNodesWithContentDescription("返回")[0].performClick()
+                true
+            }
+        }.getOrDefault(false)
+        if (!clicked) {
+            rule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        }
         pump(4)
     }
 
     private fun readLegalDoc() {
         rule.onAllNodesWithText("去阅读")[0].performClick()
+        pump(2)
         var reached = false
         repeat(60) {
             if (visible("已阅读至", substring = true)) {

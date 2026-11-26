@@ -19,9 +19,12 @@ object AmbientFx {
     var enabled by mutableStateOf(true)
         private set
 
+    /** 测试期覆盖值：init() 不得覆盖它，否则 @BeforeClass 的设置会在 Activity 启动时被 prefs 冲掉。 */
+    private var testOverride: Boolean? = null
+
     fun init(ctx: Context) {
         val p = ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        enabled = p.getBoolean(KEY, true)
+        enabled = testOverride ?: p.getBoolean(KEY, true)
     }
 
     fun set(ctx: Context, value: Boolean) {
@@ -38,6 +41,7 @@ object AmbientFx {
      * 换成静态值；生产路径不受影响。
      */
     internal fun setForTest(value: Boolean) {
+        testOverride = value
         enabled = value
     }
 
