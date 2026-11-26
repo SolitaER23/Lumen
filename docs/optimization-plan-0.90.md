@@ -14,8 +14,12 @@
 > | A8 死代码/歌词 | ✅ 0.91.0（删 StreamCapability、lumen_recent；歌词磁盘缓存接通） |
 > | A11 OkHttp | ✅ 0.91.0（util/Http 单例） |
 > | A4 动画/UI 测试 | ⚠️ 部分：开关与 4 处动画门控已落地；UiFlowTest 仍被阻塞（见 changelog 已知问题） |
-> | A7 仓库瘦身 | ⏳ 待执行（需在全部提交推送后统一强推） |
-> | A9/A10/A12/A13/A14 | ⏳ 待做 |
+> | A7 仓库瘦身 | ✅ 已执行：filter-repo + LFS prune + 强推；新 clone 148 MB → **3.49 MB** |
+> | A9 下载超时 | ✅ 0.91.0（onTimeout 通知 + stopSelf） |
+> | A10 脚本加固 | ✅ 证书校验 fail-closed、密钥内容扫描 |
+> | A12 ProGuard | ✅ 删除整层 keep（无 Gson 反射/无 @Serializable），真机冒烟通过 |
+> | A13 Diagnostics | ✅ 去掉 Build.MODEL |
+> | A14 卫生 | ✅ 三项 lint 改就地标注；dist 4.75 GB 归档到 dist/archive |
 
 ---
 
