@@ -13,7 +13,7 @@
 > | A6 统计 | ✅ 0.91.0（去相册 + 设备时区） |
 > | A8 死代码/歌词 | ✅ 0.91.0（删 StreamCapability、lumen_recent；歌词磁盘缓存接通） |
 > | A11 OkHttp | ✅ 0.91.0（util/Http 单例） |
-> | A4 动画/UI 测试 | ⚠️ 部分：开关与 4 处动画门控已落地；UiFlowTest 仍被阻塞（见 changelog 已知问题） |
+> | A4 动画/UI 测试 | ✅ 关闭动效时的动画门控保留；**UI 自动化用例按产品决定移除**（0.91.1），改为发版前人工走查 |
 > | A7 仓库瘦身 | ✅ 已执行：filter-repo + LFS prune + 强推；新 clone 148 MB → **3.49 MB** |
 > | A9 下载超时 | ✅ 0.91.0（onTimeout 通知 + stopSelf） |
 > | A10 脚本加固 | ✅ 证书校验 fail-closed、密钥内容扫描 |

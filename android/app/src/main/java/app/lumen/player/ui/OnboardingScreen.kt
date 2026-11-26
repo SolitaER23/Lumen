@@ -596,7 +596,7 @@ private fun DrawScope.sparkle(center: Offset, radius: Float, color: Color) {
 private fun ExpressiveBackground(accent: Color) {
     val surface = MaterialTheme.colorScheme.surface
     val tertiary = MaterialTheme.colorScheme.tertiary
-    // 测试环境下关闭无限动画（见 AmbientFx.setForTest），否则 Compose 永远不 idle
+    // 用户关闭氛围动效时用静态相位
     val t = if (!AmbientFx.enabled) {
         0.35f
     } else {

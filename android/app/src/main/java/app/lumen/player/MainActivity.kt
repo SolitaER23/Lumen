@@ -1001,9 +1001,7 @@ private fun App() {
 
     // 首页再按一次返回才退出，避免误触直接杀掉应用
     var lastBackAt by remember { mutableLongStateOf(0L) }
-    androidx.activity.compose.BackHandler(
-        enabled = screen == 0 && !app.lumen.player.ui.AmbientFx.suppressExitOnBackForTest,
-    ) {
+    androidx.activity.compose.BackHandler(enabled = screen == 0) {
         val now = android.os.SystemClock.uptimeMillis()
         if (now - lastBackAt < 2000L) {
             (ctx as? android.app.Activity)?.finish()

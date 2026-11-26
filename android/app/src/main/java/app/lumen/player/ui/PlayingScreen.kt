@@ -392,7 +392,7 @@ private fun WavyProgress(
     val pulseMs = 460
     val barColor = activeColor
 
-    // 测试环境下关闭（见 AmbientFx.setForTest）：无限动画会让 Compose 永远不 idle
+    // 用户关闭氛围动效时不跑无限动画（省电，也让自动化测试能 idle）
     val wave = if (AmbientFx.enabled) {
         val transition = rememberInfiniteTransition(label = "wave")
         val phaseValue by transition.animateFloat(
