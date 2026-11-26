@@ -6,12 +6,9 @@
     <!-- 刻意的实现选择，代码里有注释说明 -->
     <!-- commit() 用于「必须同步落盘并拿到结果」的场景（凭据/统计 Token 保存） -->
     <issue id="ApplySharedPref" severity="ignore" />
-    <!-- 自托管场景需要局域网明文 HTTP，策略由 NetworkPolicy 在应用层把关 -->
-    <issue id="InsecureBaseConfiguration" severity="ignore" />
-    <!-- MediaSessionService 必须 exported，控制器鉴权在 onConnect 里做 -->
-    <issue id="ExportedService" severity="ignore" />
-    <!-- allowBackup=false，不需要 dataExtractionRules -->
-    <issue id="DataExtractionRules" severity="ignore" />
+    <!-- InsecureBaseConfiguration / ExportedService / DataExtractionRules 已改为就地
+         tools:ignore（清单与 network_security_config.xml）：这样新增的导出组件或明文配置
+         仍会被 lint 提示，不会被全局忽略悄悄放过。 -->
     <!-- 只构建 arm64-v8a，不支持 ChromeOS -->
     <issue id="ChromeOsAbiSupport" severity="ignore" />
     <!-- 版本升级提示由发版流程人工确认，不在 CI 里卡 -->

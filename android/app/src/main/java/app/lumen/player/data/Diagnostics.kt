@@ -12,7 +12,8 @@ object Diagnostics {
         val locale = Locale.getDefault().toString()
         return buildString {
             appendLine("Lumen ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-            appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
+            // 只保留厂商与 SDK：Build.MODEL 是准标识符，诊断文本常被贴到公开 issue
+            appendLine("Device: ${Build.MANUFACTURER}")
             appendLine("Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
             appendLine("ABI: $abi")
             appendLine("Locale: $locale")

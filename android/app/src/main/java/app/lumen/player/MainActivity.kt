@@ -459,7 +459,7 @@ private fun App() {
                     error = null
                     offline = false
                     loggedIn = true
-                    // 不再自动开始分析：由首页弹窗提示用户手动触发
+                    // 仅刷新曲库；端侧分析功能已在 0.90.0 移除
                 }
             } catch (e: Exception) {
                 val cached = withContext(Dispatchers.IO) { AlbumCache.load(ctx) }
@@ -505,7 +505,7 @@ private fun App() {
                 libraryVersion += 1
                 offline = false
                 withContext(Dispatchers.IO) { AlbumCache.save(ctx, ok) }
-                // 不自动开始分析：恢复联网只刷新曲库，分析仍由用户手动触发
+                // 恢复联网只刷新曲库（分析功能已移除）
                 break
             }
         }

@@ -35,6 +35,22 @@ Get-ChildItem -Path $Root -Recurse -File -Include "keystore.properties", "secret
         }
     }
 
+# 4) 内容扫描：代码/配置里硬编码的令牌与口令（文件名检查抓不到）
+$contentRe = [regex]'(?i)(bearers+[A-Za-z0-9._-]{16,}|tokens*[=:]s*["''][A-Za-z0-9._-]{16,}|passwords*[=:]s*["''][^"'']{6,}|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})'
+$scanExt = @("*.kt", "*.kts", "*.java", "*.py", "*.ps1", "*.sh", "*.yml", "*.yaml", "*.json", "*.properties", "*.xml")
+$scanned = 0
+Get-ChildItem -Path $Root -Recurse -File -Include $scanExt -ErrorAction SilentlyContinue |
+    Where-Object { -not $ignoreRe.IsMatch($_.FullName) -and $_.FullName -notmatch '[\/](docs|.tmp)' } |
+    ForEach-Object {
+        $scanned++
+        $hit = Select-String -Path $_.FullName -Pattern $contentRe -ErrorAction SilentlyContinue |
+            Where-Object { $_.Line -notmatch '<REDACTED>|testpass|"test"|example\.com' } |
+            Select-Object -First 1
+        if ($hit) {
+            $problems.Add("疑似硬编码凭据: " + $_.FullName + ":" + $hit.LineNumber)
+        }
+    }
+
 Push-Location $Root
 try {
     $tracked = git ls-files 2>$null

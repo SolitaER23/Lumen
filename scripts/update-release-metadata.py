@@ -53,6 +53,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("apk", nargs="?", default=str(APK_DEFAULT))
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--allow-unverified-cert",
+        action="store_true",
+        help="本地演练用：apksigner 不可用时仍继续（CI 与正式发版不要用）",
+    )
     args = parser.parse_args()
 
     apk = Path(args.apk)
@@ -60,8 +65,19 @@ def main() -> int:
         print(f"APK not found: {apk}")
         return 1
 
+    # 证书校验 **fail-closed**：读不到指纹（apksigner 缺失/APK 未签名）也算失败。
+    # 旧实现是 "if cert and cert != ..."，apksigner 不在 PATH 时会静默放行，等于没有校验。
     cert = apk_cert_sha256(apk)
-    if cert and cert != CERT_SHA256:
+    if cert is None:
+        print(
+            "无法读取 APK 签名证书（apksigner 不可用，或 APK 未签名）。\n"
+            "  请安装 Android SDK build-tools 并确保 apksigner 在 PATH；\n"
+            "  仅本地演练可用 --allow-unverified-cert 跳过。"
+        )
+        if not args.allow_unverified_cert:
+            return 3
+        print("  已按 --allow-unverified-cert 跳过校验（不会有指纹写入文档）")
+    elif cert != CERT_SHA256:
         print(f"证书指纹不匹配：\n  实际 {cert}\n  预期 {CERT_SHA256}")
         return 2
 
