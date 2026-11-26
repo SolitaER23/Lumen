@@ -9,6 +9,7 @@ import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadNotificationHelper
 import androidx.media3.exoplayer.offline.DownloadService as Media3DownloadService
+import androidx.media3.exoplayer.scheduler.PlatformScheduler
 import androidx.media3.exoplayer.scheduler.Scheduler
 
 /**
@@ -42,29 +43,30 @@ class DownloadService : Media3DownloadService(FOREGROUND_ID) {
 
     override fun getDownloadManager(): DownloadManager = MediaCache.downloadManager(this)
 
-    override fun getScheduler(): Scheduler? = null
+    /**
+     * 交给 JobScheduler 托管：进程被杀、设备重启后由系统按 [Requirements] 重新拉起下载，
+     * 不再依赖用户手动点「全部继续」（审计 D6）。要求没满足时（例如只在 Wi-Fi 下载）
+     * 任务会挂起等待，而不是失败。
+     */
+    override fun getScheduler(): Scheduler = PlatformScheduler(this, SCHEDULER_JOB_ID)
 
     /**
      * Android 14+ 对 `dataSync` 前台服务设了「6 小时/日」上限，超时会回调这里。
      * 不处理的话用户只会看到下载"卡住"，且没有任何恢复入口。
      */
     override fun onTimeout(startId: Int, fgsType: Int) {
+        // 先把队列落为「暂停」：否则 Download 停在 DOWNLOADING 而没有任何人在推进，
+        // 管理页会一直显示「下载中」却永远不动（审计 D19）。
+        runCatching { getDownloadManager().pauseDownloads() }
         runCatching {
             val nm = getSystemService(NotificationManager::class.java)
-            val open = android.app.PendingIntent.getActivity(
-                this,
-                0,
-                Intent(this, app.lumen.player.MainActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                android.app.PendingIntent.FLAG_IMMUTABLE,
-            )
             nm.notify(
                 TIMEOUT_ID,
                 Notification.Builder(this, CHANNEL)
                     .setSmallIcon(android.R.drawable.stat_sys_warning)
                     .setContentTitle(L10n.t("下载已暂停"))
                     .setContentText(L10n.t("系统限制了后台下载时长，点此回到应用继续"))
-                    .setContentIntent(open)
+                    .setContentIntent(openApp)
                     .setAutoCancel(true)
                     .build(),
             )
@@ -73,13 +75,24 @@ class DownloadService : Media3DownloadService(FOREGROUND_ID) {
         stopSelf(startId)
     }
 
+    /** 点通知回到应用：旧实现传 null，进度通知只能看不能点（审计 D18）。 */
+    private val openApp: android.app.PendingIntent by lazy {
+        android.app.PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, app.lumen.player.MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
     override fun getForegroundNotification(
         downloads: MutableList<Download>,
         notMetRequirements: Int,
     ): Notification = helper.buildProgressNotification(
         this,
         android.R.drawable.stat_sys_download,
-        null,
+        openApp,
         null,
         downloads,
         notMetRequirements,
@@ -89,5 +102,6 @@ class DownloadService : Media3DownloadService(FOREGROUND_ID) {
         const val CHANNEL = "lumen_downloads"
         private const val FOREGROUND_ID = 1002
         private const val TIMEOUT_ID = 1003
+        private const val SCHEDULER_JOB_ID = 1004
     }
 }

@@ -86,6 +86,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -130,7 +131,6 @@ import app.lumen.player.data.SettingsStore
 import app.lumen.player.data.SubsonicClient
 import app.lumen.player.data.Track
 import app.lumen.player.playback.Playback
-import app.lumen.player.playback.AlbumDownload
 import app.lumen.player.playback.Downloads
 import app.lumen.player.playback.MediaCache
 import app.lumen.player.playback.PlaybackEngine
@@ -325,11 +325,15 @@ private fun App() {
     var termsRead by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var privacyRead by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var libraryVersion by remember { mutableIntStateOf(0) }
-    var downloads by remember { mutableStateOf<List<AlbumDownload>>(emptyList()) }
+    // 下载状态来自进程级快照（事件驱动，离开页面也继续更新）
+    val downloads by Downloads.snapshot.collectAsState()
+    val waitingForNetworkDownload by Downloads.waitingForNetwork.collectAsState()
+    var wifiOnlyDownloads by remember { mutableStateOf(Downloads.wifiOnly(ctx)) }
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
     var starred by remember { mutableStateOf<List<Track>>(emptyList()) }
     var starredIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var downloadedTrackIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // 由快照直接推导（纯内存），不再每次去查下载索引
+    val downloadedTrackIds = remember(downloads) { Downloads.completedTrackIds() }
     var homeTab by remember { mutableIntStateOf(0) }
     val homeCache = remember { HomeCache() }
     val albumTracksCache = remember { mutableStateMapOf<String, List<Track>>() }
@@ -654,6 +658,26 @@ private fun App() {
     }
 
     val client = remember(cfg) { SubsonicClient(cfg) }
+    // 下载库里只有合成 URI（不含 u/t/s）；这里提供「请求 id + 格式 → 真实地址」的实时签名。
+    // 界面不在前台（服务被系统拉起）时由 Downloads 用持久化配置兜底。
+    LaunchedEffect(client, loggedIn) {
+        if (loggedIn) {
+            Downloads.setUrlResolver { requestId, format, rate ->
+                val base = client.streamUrl(Downloads.trackIdOf(requestId))
+                if (format == null && rate == null) {
+                    base
+                } else {
+                    buildString {
+                        append(base)
+                        format?.let { append("&format=").append(it) }
+                        rate?.let { append("&maxBitRate=").append(it) }
+                    }
+                }
+            }
+        } else {
+            Downloads.setUrlResolver { _, _, _ -> "" }
+        }
+    }
     val coverOf = remember(client) { { id: String -> client.coverUrl(id) } }
     val scope = rememberCoroutineScope()
 
@@ -674,7 +698,6 @@ private fun App() {
         homeTab = 0
         scope.launch {
             loadAlbums(c, useCache = false)
-            downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
             runCatching {
                 val fresh = app.lumen.player.data.SubsonicClient(c)
                 val list = withContext(Dispatchers.IO) { fresh.starredTracks() }
@@ -733,7 +756,6 @@ private fun App() {
             loggedIn = false
             loading = false
             albums = emptyList()
-            downloads = emptyList()
             accounts = emptyList()
             activeAccountId = null
             navStack.clear()
@@ -741,7 +763,6 @@ private fun App() {
             openAlbum = null
             starred = emptyList()
             starredIds = emptySet()
-            downloadedTrackIds = emptySet()
             lyrics = null
             lyricsTrackId = null
             rating = 0f
@@ -809,7 +830,6 @@ private fun App() {
     LaunchedEffect(loggedIn) {
         if (loggedIn) {
             runCatching { ctx.startService(android.content.Intent(ctx, PlaybackService::class.java)) }
-            downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
             runCatching {
                 val list = withContext(Dispatchers.IO) { client.starredTracks() }
                 starred = list
@@ -864,10 +884,6 @@ private fun App() {
         }
     }
 
-    // 下载完成情况 → 单曲是否已下载（含专辑组里已完成的曲目）
-    LaunchedEffect(downloads) {
-        downloadedTrackIds = withContext(Dispatchers.IO) { Downloads.completedTrackIds(ctx) }
-    }
     LaunchedEffect(playback.playing) {
         while (playback.playing) {
             playback.tick()
@@ -900,21 +916,7 @@ private fun App() {
     }
     val current = playback.current
 
-    // 下载状态：事件驱动（下载开始/进度/完成/删除时刷新），不再按秒轮询
-    LaunchedEffect(screen, homeTab) {
-        val watched = screen == 3 || screen == 4 || (screen == 0 && homeTab == 2)
-        if (!watched) return@LaunchedEffect
-        val onChange: () -> Unit = {
-            scope.launch { downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) } }
-        }
-        Downloads.observe(ctx, onChange)
-        downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
-        try {
-            kotlinx.coroutines.awaitCancellation()
-        } finally {
-            Downloads.unobserve(onChange)
-        }
-    }
+    // 下载状态由 Downloads 内部订阅 DownloadManager 并维护进程级快照，这里不再轮询
 
     // 封面分档预热：切歌时把播放页要用的 600px 版本放进 Coil 缓存，
     // 列表用的是 200px，两层互不覆盖，进播放页时 0 等待
@@ -1065,22 +1067,18 @@ private fun App() {
                     }
                     key.screen == 4 -> DownloadsScreen(
                         summaries = downloads,
+                        waitingForNetwork = waitingForNetworkDownload,
                         tracksOf = { key -> Downloads.tracksOf(ctx, key) },
                         onBack = { goBack() },
-                        onDelete = { id ->
-                            Downloads.delete(ctx, id)
-                            scope.launch { downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) } }
-                        },
-                        onDeleteTrack = { trackId ->
-                            Downloads.deleteTrack(ctx, trackId)
-                            scope.launch { downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) } }
-                        },
+                        onDelete = { id -> Downloads.delete(ctx, id) },
+                        onDeleteTrack = { requestId -> Downloads.deleteTrack(ctx, requestId) },
+                        onRetry = { id -> Downloads.retry(ctx, id) },
+                        onRetryTrack = { requestId -> Downloads.retryTrack(ctx, requestId) },
+                        onPauseGroup = { key -> Downloads.pauseGroup(ctx, key) },
+                        onResumeGroup = { key -> Downloads.resumeGroup(ctx, key) },
                         onPauseAll = { Downloads.pauseAll(ctx) },
                         onResumeAll = { Downloads.resumeAll(ctx) },
-                        onClearAll = {
-                            downloads.forEach { Downloads.delete(ctx, it.key) }
-                            downloads = emptyList()
-                        },
+                        onClearAll = { Downloads.deleteAll(ctx) },
                     )
                     key.screen == 13 -> app.lumen.player.ui.TermsScreen(
                         onBack = { goBack() },
@@ -1095,6 +1093,11 @@ private fun App() {
                         cfg = cfg,
                         downloadCount = downloads.sumOf { it.total },
                         downloadBytes = downloads.sumOf { it.bytes },
+                        wifiOnlyDownloads = wifiOnlyDownloads,
+                        onWifiOnlyDownloads = { enabled ->
+                            wifiOnlyDownloads = enabled
+                            Downloads.setWifiOnly(ctx, enabled)
+                        },
                         onManageDownloads = { navigate(NavKey(4, null)) },
                         accounts = accounts,
                         activeAccountId = activeAccountId,
@@ -1175,9 +1178,7 @@ private fun App() {
                         onOpenPrivacy = { navigate(NavKey(12, null)) },
                         onOpenTerms = { navigate(NavKey(13, null)) },
                         onClearSongCache = {
-                            withContext(Dispatchers.IO) {
-                                MediaCache.clearSongCache(ctx, Downloads.downloadedUris(ctx))
-                            }
+                            withContext(Dispatchers.IO) { MediaCache.clearStreamCache(ctx) }
                         },
                         onClearImageCache = { withContext(Dispatchers.IO) { MediaCache.clearImageCache(ctx) } },
                         onClearLyricsCache = { withContext(Dispatchers.IO) { app.lumen.player.data.LyricsCache.clear(ctx) } },
@@ -1187,7 +1188,6 @@ private fun App() {
                             runCatching { playback.stopAndClear() }
                             app.lumen.player.data.SettingsStore.clearCredentials(ctx)
                             albums = emptyList()
-                            downloadedTrackIds = emptySet()
                             lyrics = null
                             lyricsTrackId = null
                             nowPlayingId = null
@@ -1225,10 +1225,13 @@ private fun App() {
                         onToggleStar = { current?.let { toggleStar(it) } },
                         onDownloadTrack = {
                             current?.let { tr ->
-                                Downloads.enqueueTrack(ctx, tr) { tt -> streamUrl(client, tt) }
-                                scope.launch {
-                                    delay(800)
-                                    downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
+                                val queued = Downloads.enqueueTrack(ctx, tr) { tt -> streamUrl(client, tt) }
+                                if (!queued) {
+                                    android.widget.Toast.makeText(
+                                        ctx,
+                                        L10n.t("存储空间不足，已取消本次下载"),
+                                        android.widget.Toast.LENGTH_LONG,
+                                    ).show()
                                 }
                             }
                         },
@@ -1333,10 +1336,15 @@ private fun App() {
                             themeOpts = themeOpts,
                             selfColor = perPageColorOn,
                             onDownload = {
-                                Downloads.enqueue(ctx, album, albumTracksCache[album.id].orEmpty()) { tr -> streamUrl(client, tr) }
-                                scope.launch {
-                                    delay(600)
-                                    downloads = withContext(Dispatchers.IO) { Downloads.summaries(ctx) }
+                                val list = albumTracksCache[album.id].orEmpty()
+                                val queued = list.isNotEmpty() &&
+                                    Downloads.enqueue(ctx, album, list) { tr -> streamUrl(client, tr) }
+                                if (!queued && list.isNotEmpty()) {
+                                    android.widget.Toast.makeText(
+                                        ctx,
+                                        L10n.t("存储空间不足，已取消本次下载"),
+                                        android.widget.Toast.LENGTH_LONG,
+                                    ).show()
                                 }
                             },
                             onShuffle = {

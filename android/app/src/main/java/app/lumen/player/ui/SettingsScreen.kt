@@ -81,6 +81,8 @@ fun SettingsScreen(
     onLogout: () -> Unit,
     downloadCount: Int,
     downloadBytes: Long,
+    wifiOnlyDownloads: Boolean = false,
+    onWifiOnlyDownloads: (Boolean) -> Unit = {},
     onManageDownloads: () -> Unit,
     onClearSongCache: suspend () -> Unit = {},
     onClearImageCache: suspend () -> Unit = {},
@@ -368,6 +370,12 @@ fun SettingsScreen(
                         action = {
                             PillButton(L10n.t("管理")) { onManageDownloads() }
                         },
+                    )
+                    ToggleRow(
+                        title = L10n.t("仅 Wi-Fi 下载"),
+                        hint = L10n.t("移动网络下下载会等待，连上 Wi-Fi 后自动继续"),
+                        checked = wifiOnlyDownloads,
+                        onChange = onWifiOnlyDownloads,
                     )
                 }
             }

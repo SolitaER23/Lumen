@@ -40,12 +40,15 @@ object LocalData {
         runCatching { PlaybackEngine.peek()?.stopAndClear() }
 
         withContext(Dispatchers.IO) {
-            // 2) 离线下载：先按组删除（异步投递给 DownloadService），再清索引与元数据
-            runCatching { Downloads.summaries(app).forEach { Downloads.delete(app, it.key) } }
+            // 2) 离线下载：暂停并同步清空索引。
+            // 旧实现只按组异步投递删除，紧接着清空整个缓存目录，下载线程仍在写同一批 span
+            // （审计 D16）；removeAllNow 会先 pause 再逐条移除，并清空内存镜像。
+            runCatching { Downloads.removeAllNow(app) }
             Downloads.clearMeta(app)
 
-            // 3) 媒体流缓存 + 封面缓存
-            runCatching { MediaCache.clearStreamingCache(app, emptySet()) }
+            // 3) 媒体缓存（含删除残留的下载 span）+ 封面缓存
+            runCatching { MediaCache.clearAllCache(app) }
+            runCatching { MediaCache.clearImageCache(app) }
 
             // 4) 曲库元数据：专辑列表、专辑曲目
             AlbumCache.clear(app)

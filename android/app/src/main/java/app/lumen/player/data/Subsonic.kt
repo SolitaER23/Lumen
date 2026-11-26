@@ -44,6 +44,8 @@ data class Track(
     val seconds: Int = 0,
     val suffix: String = "",
     val starred: Boolean = false,
+    /** 服务端给出的原始文件字节数（Subsonic 的 song.size）；0 表示未知。 */
+    val sizeBytes: Long = 0L,
 )
 
 // ---------------------------------------------------------------------------
@@ -108,6 +110,7 @@ internal fun parseAlbumDetail(root: JSONObject, albumId: String): List<Track> {
             seconds = s.optInt("duration"),
             suffix = s.optString("suffix"),
             starred = s.optString("starred").isNotBlank(),
+            sizeBytes = s.optLong("size"),
         )
     }.sortedWith(compareBy({ it.disc }, { it.track }))
 }
@@ -343,6 +346,7 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
             seconds = s.optInt("duration"),
             suffix = s.optString("suffix"),
             starred = s.optString("starred").isNotBlank(),
+            sizeBytes = s.optLong("size"),
         )
     }
 
