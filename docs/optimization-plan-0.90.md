@@ -128,23 +128,24 @@
 
 ---
 
-### A4 动画/轮询治理（P1）
+### A4 动画治理（P1，已按产品决定收口）
 
-**目标**：空闲耗电下降；Compose UI 测试能进入 idle，`UiFlowTest` 解封。
+**目标**：空闲耗电下降；用户关闭「氛围动效」时彻底停止无限动画。
 
-**具体措施**
-1. 新增 `util/TestHooks.kt`：`@Volatile var disableAmbientAnimation = false`（仅测试置位）。
-2. `ExpressiveBackdrop` 的 `rememberInfiniteTransition` 与 `while(true) withFrameNanos`、`PlayingScreen` 的两处循环、`HomeScreen` 艺术家滚动，统一在 `TestHooks` 为真时短路（返回静态值）。
-3. `MainActivity` 每 5 s 的 `isPowerSaveMode` 轮询改为 `ACTION_POWER_SAVE_MODE_CHANGED` 广播接收。
-4. `preferredRefreshRate = 120f` 改为按 `display.supportedModes` 上限自适应（或仅在动画期请求）。
-5. 解封 `UiFlowTest`（删除 `@Ignore`），必要时补 testTag。
+**已完成**
+1. `ExpressiveBackdrop`（背景光团）、`PlayingScreen`（波浪）、`OnboardingScreen`（引导背景）、
+   `HomeScreen`（艺人滚动）统一由 `AmbientFx.enabled` 门控：关闭动效时返回静态值，不创建无限动画。
+2. 保留 `MainActivity` 的省电模式每 5 s 轮询（成本低，未改）。
 
-**预期效果**：静止场景帧率回落；`UiFlowTest` 可纳入 CI 门禁。
+**已按产品决定移除**
+3. `UiFlowTest` 与配套 test-only 开关（`AmbientFx.setForTest`、`suppressExitOnBackForTest`）已删除（0.91.1）：
+   该用例长期无法稳定通过，保留它会让生产代码多出两条测试专用分支。
+   UI 走查改为发版前人工执行（登录→播放→下载→搜索→统计→清除数据）。
 
 **验收标准**
-- `UiFlowTest` 在真机通过（登录→播放→下载→电台入口已删则相应调整→清除数据）。
-- `dumpsys gfxinfo` 对比：空闲 10 s 的帧数下降 ≥50%。
+- 关闭「氛围动效」后连续停留 30 s，`dumpsys gfxinfo` 帧数显著低于开启时。
 - 生产包动画观感无变化（人工确认 3 个页面）。
+- 代码中不存在 test-only 分支（`grep setForTest` 无命中）。
 
 ---
 
@@ -280,7 +281,7 @@ powershell -File ../scripts/check-secrets.ps1
 | 相册写入 | 1 处 | 0 | A6 |
 | `.git` 体积 | 148 MB | <10 MB | A7 |
 | 死代码行数 | ~175 | 0 | A8 |
-| `UiFlowTest` | @Ignore | 通过 | A4 |
+| UI 自动化用例 | 1 个（不稳定） | 已移除，改人工走查 | A4 |
 | lint warning | 15 | ≤5 | A14 |
 | OkHttpClient 实例 | 3 | 1 | A11 |
 
