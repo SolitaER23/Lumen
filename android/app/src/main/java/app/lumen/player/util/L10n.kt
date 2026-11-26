@@ -290,6 +290,8 @@ object L10n {
         "Material You 生效中：封面相关开关与专辑锁色已禁用。" to "Material You is active: cover-related switches and album colour lock are disabled.",
         "以上开关按需组合；互相冲突时会自动禁用。" to "Combine these switches freely; conflicting ones are disabled automatically.",
         "封面取色" to "Cover colouring",
+        "氛围动效" to "Ambient motion",
+        "背景光团缓慢漂移与呼吸；关闭后完全静止以省电" to "Background glows drift and breathe slowly; off keeps them completely still to save power",
         "旧曲淡出，新曲淡入" to "The old track fades out and the new one fades in",
         "开启" to "On",
         "歌曲缓存" to "Song cache",

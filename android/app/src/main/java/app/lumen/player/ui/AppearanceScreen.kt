@@ -183,7 +183,7 @@ fun AppearanceScreen(
                         fontWeight = FontWeight.Medium,
                     )
                     Text(
-                        L10n.t("背景光团呼吸与漂浮粒子；关闭后完全停止渲染"),
+                        L10n.t("背景光团缓慢漂移与呼吸；关闭后完全静止以省电"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 10.sp,
                         lineHeight = 14.sp,

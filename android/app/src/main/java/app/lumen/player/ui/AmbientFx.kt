@@ -8,8 +8,8 @@ import androidx.compose.runtime.setValue
 /**
  * 全局氛围动效开关（背景光团呼吸）。
  *
- * 关闭时 ExpressiveBackdrop 不再创建无限动画，只绘制一帧静态背景，
- * 完全停止相关渲染，避免空转耗电。
+ * 关闭时背景相位时钟停止推进（不再申请绘制帧），画面停在最后一帧，
+ * 既保留静态背景，也避免空转耗电。
  */
 object AmbientFx {
     private const val PREFS = "lumen_ui_fx"

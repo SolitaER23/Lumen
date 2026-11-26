@@ -1,16 +1,14 @@
 package app.lumen.player.ui
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -27,69 +25,103 @@ import kotlin.math.sin
  * - 只做渐变绘制，保证滚动/转场流畅。
  */
 class BackdropMotion(
-    val drift: androidx.compose.runtime.State<Float>,
-    val breathe: androidx.compose.runtime.State<Float>,
-    val sheen: androidx.compose.runtime.State<Float>,
+    val drift: State<Float>,
+    val breathe: State<Float>,
+    val sheen: State<Float>,
 )
 
-@Composable
-fun rememberBackdropMotion(): BackdropMotion = rememberBackdropMotionFor(11_000)
+/**
+ * 背景相位时钟：自己逐帧推进，可随时停下。
+ *
+ * 之前用 rememberInfiniteTransition，动画一旦创建就一直跑，
+ * 「暂停 / 省电 / 关闭氛围动效」都没法让它真正停下。改成自有时钟后：
+ * 停下即不再请求下一帧；恢复时按累计时间接着走，画面不会跳。
+ */
+private class PhaseClock {
+    private var elapsedMs = 0.0
+    private var lastFrameNs = 0L
 
-@Composable
-private fun rememberBackdropMotionFor(periodMs: Int): BackdropMotion {
-    androidx.compose.runtime.key(periodMs) {
-        return rememberBackdropMotionInner(periodMs)
+    var drift = 0f
+        private set
+    var breathe = BREATHE_MIN
+        private set
+    var sheen = SHEEN_MIN
+        private set
+
+    /** 暂停后恢复：丢掉停顿期间的时间差，从当前相位继续。 */
+    fun resume() {
+        lastFrameNs = 0L
+    }
+
+    fun advance(frameNs: Long, breathePeriodMs: Int) {
+        if (lastFrameNs != 0L) {
+            // 掉帧或系统卡顿时夹住步长，避免相位猛跳
+            elapsedMs += ((frameNs - lastFrameNs) / 1_000_000.0).coerceIn(0.0, MAX_STEP_MS)
+        }
+        lastFrameNs = frameNs
+        drift = ((elapsedMs % DRIFT_PERIOD_MS) / DRIFT_PERIOD_MS * TWO_PI).toFloat()
+        breathe = triangle(elapsedMs, breathePeriodMs.toDouble(), BREATHE_MIN, BREATHE_MAX)
+        sheen = triangle(elapsedMs, SHEEN_PERIOD_MS, SHEEN_MIN, SHEEN_MAX)
+    }
+
+    /** 三角波 0→1→0，等价于 RepeatMode.Reverse 的往返。 */
+    private fun triangle(t: Double, periodMs: Double, from: Float, to: Float): Float {
+        val half = ((t % (periodMs * 2)) / periodMs).toFloat()
+        return if (half <= 1f) from + (to - from) * half else to - (to - from) * (half - 1f)
+    }
+
+    companion object {
+        const val DRIFT_PERIOD_MS = 36_000.0
+        const val SHEEN_PERIOD_MS = 7_500.0
+        const val BREATHE_MIN = 0.82f
+        const val BREATHE_MAX = 1.20f
+        const val SHEEN_MIN = 0.45f
+        const val SHEEN_MAX = 1f
+        val TWO_PI = 2 * Math.PI
+        private const val MAX_STEP_MS = 64.0
     }
 }
 
+/**
+ * 背景相位。
+ *
+ * @param active 是否推进。false 时连帧都不再申请（暂停 / 省电 / 不可见），
+ *   画面停在最后一帧的相位，恢复时从同一相位接着走。
+ * @param periodMs 光团呼吸周期。
+ */
 @Composable
-private fun rememberBackdropMotionInner(periodMs: Int): BackdropMotion {
-    if (!AmbientFx.enabled) {
-        // 关闭动效：返回恒定相位，Canvas 仍然只绘制一帧静态背景
-        return BackdropMotion(
-            androidx.compose.runtime.rememberUpdatedState(0f),
-            androidx.compose.runtime.rememberUpdatedState(1f),
-            androidx.compose.runtime.rememberUpdatedState(1f),
-        )
+fun rememberBackdropMotion(active: Boolean = true, periodMs: Int = 11_000): BackdropMotion {
+    val drift = remember { mutableFloatStateOf(0f) }
+    val breathe = remember { mutableFloatStateOf(PhaseClock.BREATHE_MIN) }
+    val sheen = remember { mutableFloatStateOf(PhaseClock.SHEEN_MIN) }
+    val clock = remember { PhaseClock() }
+
+    // 关闭氛围动效同样算「不推进」：这是「关闭后完全停止渲染」的落点
+    val running = active && AmbientFx.enabled
+
+    LaunchedEffect(running, periodMs) {
+        if (!running) return@LaunchedEffect
+        clock.resume()
+        while (true) {
+            withFrameNanos { frameNs ->
+                clock.advance(frameNs, periodMs)
+                drift.floatValue = clock.drift
+                breathe.floatValue = clock.breathe
+                sheen.floatValue = clock.sheen
+            }
+        }
     }
-    val transition = rememberInfiniteTransition(label = "expressive-bg")
-    val drift by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(36_000, easing = LinearEasing)),
-        label = "drift",
-    )
-    val breathe by transition.animateFloat(
-        initialValue = 0.82f,
-        targetValue = 1.20f,
-        animationSpec = infiniteRepeatable(tween(periodMs, easing = LinearEasing), RepeatMode.Reverse),
-        label = "breathe",
-    )
-    val sheen by transition.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(7_500, easing = LinearEasing), RepeatMode.Reverse),
-        label = "sheen",
-    )
-    return BackdropMotion(
-        androidx.compose.runtime.rememberUpdatedState(drift),
-        androidx.compose.runtime.rememberUpdatedState(breathe),
-        androidx.compose.runtime.rememberUpdatedState(sheen),
-    )
+
+    return BackdropMotion(drift, breathe, sheen)
 }
 
 @Composable
 fun ExpressiveBackdrop(
     modifier: Modifier = Modifier,
-    /** P0-1：不播放/不可见/省电时传 false，彻底停止无限动画（不再每帧重绘） */
-    animate: Boolean = true,
-    /** F3：由上层共享的相位；传了就与其它页面同一相位，切换时不会跳位 */
-    sharedMotion: BackdropMotion? = null,
+    /** F3：由上层共享的相位（主界面所有页面共用一个时钟）；不传则用自带的一份 */
+    motion: BackdropMotion = rememberBackdropMotion(),
 ) {
     val scheme = MaterialTheme.colorScheme
-
-    // 相位用 State 承载：只在绘制阶段读取，避免整树每帧重组
-    val anims = sharedMotion ?: if (animate) rememberBackdropMotion() else null
 
     val base = scheme.surface
     // P2-4：光斑与底色亮度差不足时自动提亮，保证在极端配色下也看得见
@@ -104,10 +136,10 @@ fun ExpressiveBackdrop(
     }
 
     Canvas(modifier.fillMaxSize()) {
-        val drift = anims?.drift?.value ?: 0.6f
-        val breatheRaw = anims?.breathe?.value ?: 1f
+        val drift = motion.drift.value
+        val breatheRaw = motion.breathe.value
         val breathe = breatheRaw.coerceIn(0.70f, 1.32f)
-        val sheen = anims?.sheen?.value ?: 0.8f
+        val sheen = motion.sheen.value
         val w = size.width
         val h = size.height
         drawRect(base)

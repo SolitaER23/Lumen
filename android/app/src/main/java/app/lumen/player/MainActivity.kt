@@ -1363,10 +1363,13 @@ private fun App() {
         Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
             // 只在需要时读一次按压位置的老实现已删除：入场方向现在由 NavOriginStore + 共享元素决定
             Box(Modifier.fillMaxSize()) {
-                val sharedMotion = app.lumen.player.ui.rememberBackdropMotion()
+                // 暂停 / 省电时不再推进相位：背景停在当前这帧，省掉整屏每帧重绘
+                val sharedMotion = app.lumen.player.ui.rememberBackdropMotion(
+                    active = playback.playing && !powerSave.value,
+                )
                 app.lumen.player.ui.ExpressiveBackdrop(
                     Modifier.matchParentSize(),
-                    sharedMotion = sharedMotion,
+                    motion = sharedMotion,
                 )
                 // 返回不再跟手：压暗层只做极轻微的过渡底色，避免转场时露出直射背景
                 Box(
@@ -1443,8 +1446,7 @@ private fun App() {
                             Box(Modifier.fillMaxSize()) {
                                 app.lumen.player.ui.ExpressiveBackdrop(
                                     Modifier.matchParentSize(),
-                                    animate = playback.playing && !powerSave.value,
-                                    sharedMotion = sharedMotion,
+                                    motion = sharedMotion,
                                 )
                                 screenContent(pageKey as NavKey)
                             }
