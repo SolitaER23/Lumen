@@ -1058,13 +1058,6 @@ private fun RecentList(
     }
 }
 
-private fun loadRecentOrder(ctx: android.content.Context): List<Int> {
-    val raw = ctx.getSharedPreferences("lumen_recent", android.content.Context.MODE_PRIVATE)
-        .getString("order", null) ?: return listOf(0, 1, 2)
-    val parsed = raw.split(",").mapNotNull { it.toIntOrNull() }.filter { it in 0..2 }.distinct()
-    return if (parsed.size == 3) parsed else listOf(0, 1, 2)
-}
-
 private fun rowsOfDownloads(downloads: List<AlbumDownload>): List<List<AlbumDownload>> {
     if (downloads.isEmpty()) return emptyList()
     if (downloads.size == 1) return listOf(downloads)
@@ -1209,7 +1202,8 @@ private fun VerticalArtistName(text: String, modifier: Modifier = Modifier) {
     val overflow = (textHeight - boxHeight).coerceAtLeast(0)
 
     // 只有真的溢出才启动无限动画，否则静止（否则每张卡都在跑一个时钟，明显耗帧）
-    val offset = if (overflow > 0) {
+    // 测试环境下关闭无限动画（见 AmbientFx.setForTest）
+    val offset = if (overflow > 0 && AmbientFx.enabled) {
         val transition = rememberInfiniteTransition(label = "artist")
         val v by transition.animateFloat(
             initialValue = 0f,

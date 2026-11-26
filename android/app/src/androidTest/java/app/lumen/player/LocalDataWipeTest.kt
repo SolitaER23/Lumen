@@ -49,7 +49,18 @@ class LocalDataWipeTest {
         prefs("lumen_playback").edit().putString("state", "{}").commit()
         prefs("lumen_downloads").edit().putString("name_album:1", "Album").commit()
         prefs("lumen_palette").edit().putString("s_1", "[1,2]").commit()
-        prefs("lumen_stream_caps").edit().putString("cap_x", "{}").commit()
+        // 个人行为数据（A5：原先漏清）
+        prefs("lumen_search_hist").edit().putString("hist", "[\"lumen\"]").commit()
+        prefs("lumen_network").edit().putBoolean("allow_public_cleartext", true).commit()
+        prefs("lumen_recent").edit().putString("recent", "[]").commit()
+        prefs("lumen_home_scroll").edit().putInt("pos", 120).commit()
+
+        // 已下线功能的历史残留（A1：升级用户可能还有）
+        File(ctx.filesDir, "clap_music_fp16.onnx").writeBytes(ByteArray(4096))
+        File(ctx.filesDir, "radio_tracks.json").writeText("[]")
+        File(ctx.cacheDir, "mood_tracklist.json").writeText("{}")
+        prefs("lumen_mood").edit().putBoolean("hint_shown", true).commit()
+        prefs("lumen_radio").edit().putFloat("strength", 0.5f).commit()
 
         // 账号 + 凭据
         SettingsStore.save(ctx, ServerConfig("http://192.0.2.10:4533", "demo", "pw"))
@@ -76,7 +87,19 @@ class LocalDataWipeTest {
         assertTrue("播放状态未清", prefs("lumen_playback").all.isEmpty())
         assertTrue("下载元数据未清", prefs("lumen_downloads").all.isEmpty())
         assertTrue("主题种子未清", prefs("lumen_palette").all.isEmpty())
-        assertTrue("取流能力缓存未清", prefs("lumen_stream_caps").all.isEmpty())
+
+        // 个人行为数据（A5）
+        assertTrue("搜索历史未清", prefs("lumen_search_hist").all.isEmpty())
+        assertTrue("网络偏好未清", prefs("lumen_network").all.isEmpty())
+        assertTrue("最近浏览未清", prefs("lumen_recent").all.isEmpty())
+        assertTrue("首页滚动位置未清", prefs("lumen_home_scroll").all.isEmpty())
+
+        // 已下线功能的残留（A1）
+        assertFalse("旧模型未清", File(ctx.filesDir, "clap_music_fp16.onnx").exists())
+        assertFalse("电台曲库缓存未清", File(ctx.filesDir, "radio_tracks.json").exists())
+        assertFalse("曲目清单缓存未清", File(ctx.cacheDir, "mood_tracklist.json").exists())
+        assertTrue("旧分析提示未清", prefs("lumen_mood").all.isEmpty())
+        assertTrue("旧电台偏好未清", prefs("lumen_radio").all.isEmpty())
 
         // 账号与凭据
         assertTrue("当前凭据未清", prefs("lumen_settings").all.isEmpty())

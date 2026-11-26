@@ -9,6 +9,7 @@ import androidx.media3.datasource.cache.CacheKeyFactory
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.offline.DownloadManager
+import app.lumen.player.data.SettingsStore
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -44,8 +45,24 @@ object MediaCache {
         database ?: StandaloneDatabaseProvider(ctx.applicationContext).also { database = it }
     }
 
-    /** 已下载内容的独立 cache key，避免与在线播放的同一 URI 并发读写互相卡住。 */
-    fun downloadKey(trackId: String): String = "$trackId#lumen-dl"
+    /**
+     * 账号作用域指纹。
+     *
+     * 缓存键里**必须**带账号身份：不同 Navidrome 上的曲目 id 完全可能相同，
+     * 只用 `track:<id>` 会让 A 服务器的音频命中 B 服务器的缓存（错歌 + 跨账号串数据）。
+     * 这里只读 base/user（不解密密码），并对结果做一次短哈希，避免把服务器地址写进键名。
+     */
+    internal fun accountScope(ctx: Context): String = scopeOf(SettingsStore.identity(ctx))
+
+    /** 纯函数形式，便于单测。 */
+    internal fun scopeOf(identity: String): String = sha256Hex("lumen-cache|" + identity).take(8)
+
+    /** 已下载内容的独立 cache key（账号隔离），避免与在线播放的同一 URI 并发读写互相卡住。 */
+    fun downloadKey(ctx: Context, trackId: String): String =
+        "acct:" + accountScope(ctx) + "|" + trackId + "#lumen-dl"
+
+    /** 0.74~0.90 的下载键（无账号前缀），仅用于兼容升级前已下载的内容。 */
+    internal fun legacyDownloadKey(trackId: String): String = "$trackId#lumen-dl"
 
     private fun trackIdOf(uri: android.net.Uri): String? =
         runCatching { uri.getQueryParameter("id") }.getOrNull()?.takeIf { it.isNotBlank() }
@@ -59,7 +76,10 @@ object MediaCache {
             .setUpstreamDataSourceFactory(DefaultDataSource.Factory(ctx.applicationContext, http))
             .setCacheKeyFactory(object : CacheKeyFactory {
                 override fun buildCacheKey(spec: androidx.media3.datasource.DataSpec): String =
-                    cacheKeyFor(spec.uri) { k -> runCatching { cache(ctx).getCachedSpans(k).isNotEmpty() }.getOrDefault(false) }
+                    cacheKeyFor(
+                        ctx,
+                        spec.uri,
+                    ) { k -> runCatching { cache(ctx).getCachedSpans(k).isNotEmpty() }.getOrDefault(false) }
             })
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
@@ -72,14 +92,23 @@ object MediaCache {
      * 同一首歌的原始流与转码流字节不同，必须区分 format/bitRate，否则会串味。
      * 没有 `id` 的罕见请求退回 URI 的 SHA-256 摘要。
      */
-    internal fun cacheKeyFor(uri: android.net.Uri, hasDownloadSpans: (String) -> Boolean): String {
+    internal fun cacheKeyFor(
+        ctx: Context,
+        uri: android.net.Uri,
+        hasDownloadSpans: (String) -> Boolean,
+    ): String {
         val id = trackIdOf(uri)
         if (id != null) {
-            val dl = downloadKey(id)
+            val scope = accountScope(ctx)
+            // 已下载内容优先（新键 > 旧键，保证升级前的离线内容仍能命中）
+            val dl = downloadKey(ctx, id)
             if (hasDownloadSpans(dl)) return dl
+            val legacyDl = legacyDownloadKey(id)
+            if (hasDownloadSpans(legacyDl)) return legacyDl
             val format = uri.getQueryParameter("format")?.takeIf { it.isNotBlank() } ?: "raw"
             val bitrate = uri.getQueryParameter("maxBitRate")?.takeIf { it.isNotBlank() }
-            return "track:" + id + "#" + format + if (bitrate != null) "@" + bitrate else ""
+            return "acct:" + scope + "|track:" + id + "#" + format +
+                if (bitrate != null) "@" + bitrate else ""
         }
         return "uri:" + sha256Hex(uri.toString())
     }

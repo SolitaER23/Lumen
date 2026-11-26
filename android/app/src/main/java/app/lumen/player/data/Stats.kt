@@ -152,17 +152,23 @@ data class StatsDay(val date: String, val count: Int)
 /** 带可读原因的统计请求异常。 */
 class StatsException(message: String) : Exception(message)
 
+/**
+ * 统计面板地址。时区必须跟随设备：写死 Asia/Shanghai 会让非中国时区用户的
+ * 「按星期 / 24 小时」分布整体错位。
+ */
+internal fun dashboardUrl(base: String, days: Int, zoneId: String): String {
+    val encoded = java.net.URLEncoder.encode(zoneId, "UTF-8")
+    return "$base/api/stats/dashboard?days=$days&timezone=$encoded"
+}
+
 class StatsClient(private val cfg: StatsConfig) {
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .build()
+    private val http = app.lumen.player.util.Http.client
 
     fun dashboard(days: Int): StatsDashboard {
         var base = cfg.base.trim().trimEnd('/')
         // 允许用户直接粘贴 dashboard 地址
         base = base.removeSuffix("/api/stats/dashboard")
-        val url = "$base/api/stats/dashboard?days=$days&timezone=Asia%2FShanghai"
+        val url = dashboardUrl(base, days, java.time.ZoneId.systemDefault().id)
         val req = Request.Builder()
             .url(url)
             .header("Authorization", "Bearer ${cfg.token}")

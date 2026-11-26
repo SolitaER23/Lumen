@@ -177,6 +177,17 @@ object SettingsStore {
     private const val PREF_PASSWORD_ENC = "password_enc"
     private const val PREF_PASSWORD_LEGACY = "password"
 
+    /**
+     * 只读身份字段（服务器地址 + 用户名），**不解密密码**。
+     * 用于给媒体缓存做账号命名空间：每次读都做一次 Keystore 解密代价太高。
+     */
+    fun identity(ctx: Context, file: String = FILE): String {
+        val p = ctx.getSharedPreferences(file, Context.MODE_PRIVATE)
+        val base = p.getString("base", "").orEmpty().trim().lowercase()
+        val user = p.getString("user", "").orEmpty().trim().lowercase()
+        return base + "|" + user
+    }
+
     fun load(ctx: Context, file: String = FILE): ServerConfig {
         val p = ctx.getSharedPreferences(file, Context.MODE_PRIVATE)
         var unreadable = false

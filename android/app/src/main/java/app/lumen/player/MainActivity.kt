@@ -178,6 +178,16 @@ private val LumenColors = darkColorScheme(
 )
 
 private fun loginErrorMessage(e: Exception): String {
+    if (e is app.lumen.player.data.InsecureBaseException) {
+        return if (e.verdict == app.lumen.player.data.CleartextVerdict.PUBLIC_CLEARTEXT) {
+            L10n.tf(
+                "该地址在公网使用明文 HTTP，已被拒绝。请改用 HTTPS，或在下方勾选风险开关后重试。",
+                "Plain HTTP to a public host is blocked. Use HTTPS, or tick the risk switch below and retry.",
+            )
+        } else {
+            L10n.tf("服务器地址格式不正确，请包含 http:// 或 https://", "Invalid server address. Include http:// or https://")
+        }
+    }
     val message = e.message.orEmpty()
     val lower = message.lowercase()
     return when {
@@ -595,7 +605,8 @@ private fun App() {
                     allowPublicCleartext = allowPublicCleartext,
                     onAllowPublicCleartextChange = { enabled ->
                         allowPublicCleartext = enabled
-                        app.lumen.player.data.NetworkSettings.setAllowPublicCleartext(ctx, enabled)
+                        // 同时更新数据层闸门，保证开关与拦截逻辑永远一致
+                        app.lumen.player.data.NetworkGate.setAllowPublicCleartext(ctx, enabled)
                     },
                     onRequestLocalNetwork = {
                         val target = cfg
@@ -818,20 +829,36 @@ private fun App() {
             if (tr != null) {
                 rating = withContext(Dispatchers.IO) { Ratings.get(ctx, tr.id) }
                 scrobbledId = null
-                val cachedLyrics = lyricsCache[tr.id]
+                // 两级缓存：内存 LRU（40 条）→ 磁盘 LyricsCache（离线可用）
+                val inMemory = lyricsCache[tr.id]
                 if (lyricsCache.containsKey(tr.id)) {
-                    lyrics = cachedLyrics
+                    lyrics = inMemory
                     lyricsLoading = false
                 } else {
                     lyricsLoading = true
-                    runCatching {
-                        lyrics = withContext(Dispatchers.IO) { client.lyrics(tr.id, tr.title, tr.artist) }
+                    val fromDisk = withContext(Dispatchers.IO) {
+                        app.lumen.player.data.LyricsCache.get(ctx, tr.id)
                     }
-                    lyricsCache[tr.id] = lyrics
-                    if (lyricsCache.size > 40) {
-                        lyricsCache.keys.firstOrNull()?.let { lyricsCache.remove(it) }
+                    if (fromDisk != null) {
+                        lyrics = fromDisk
+                        lyricsCache[tr.id] = fromDisk
+                        lyricsLoading = false
+                    } else {
+                        runCatching {
+                            lyrics = withContext(Dispatchers.IO) { client.lyrics(tr.id, tr.title, tr.artist) }
+                        }
+                        lyricsCache[tr.id] = lyrics
+                        // 只在拿到有效歌词时落盘，避免把"没有歌词"也固化下来
+                        lyrics?.takeIf { it.isNotEmpty() }?.let { lines ->
+                            withContext(Dispatchers.IO) {
+                                app.lumen.player.data.LyricsCache.put(ctx, tr.id, lines)
+                            }
+                        }
+                        if (lyricsCache.size > 40) {
+                            lyricsCache.keys.firstOrNull()?.let { lyricsCache.remove(it) }
+                        }
+                        lyricsLoading = false
                     }
-                    lyricsLoading = false
                 }
             }
         }
@@ -974,7 +1001,9 @@ private fun App() {
 
     // 首页再按一次返回才退出，避免误触直接杀掉应用
     var lastBackAt by remember { mutableLongStateOf(0L) }
-    androidx.activity.compose.BackHandler(enabled = screen == 0) {
+    androidx.activity.compose.BackHandler(
+        enabled = screen == 0 && !app.lumen.player.ui.AmbientFx.suppressExitOnBackForTest,
+    ) {
         val now = android.os.SystemClock.uptimeMillis()
         if (now - lastBackAt < 2000L) {
             (ctx as? android.app.Activity)?.finish()

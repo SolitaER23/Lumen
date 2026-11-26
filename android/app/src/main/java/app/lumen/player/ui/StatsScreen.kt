@@ -200,28 +200,8 @@ fun StatsScreen(
                                         java.io.FileOutputStream(file).use {
                                             bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
                                         }
-                                        // 同时保存到相册（Pictures/Lumen），方便用户在系统相册里查看与再次分享
-                                        runCatching {
-                                            if (android.os.Build.VERSION.SDK_INT >= 29) {
-                                                val values = android.content.ContentValues().apply {
-                                                    put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "lumen-stats.png")
-                                                    put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
-                                                    put(
-                                                        android.provider.MediaStore.Images.Media.RELATIVE_PATH,
-                                                        "Pictures/Lumen",
-                                                    )
-                                                }
-                                                val out = ctx.contentResolver.insert(
-                                                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                                                    values,
-                                                )
-                                                out?.let { uri ->
-                                                    ctx.contentResolver.openOutputStream(uri)?.use { os ->
-                                                        bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, os)
-                                                    }
-                                                }
-                                            }
-                                        }
+                                        // 只写应用私有缓存，经 FileProvider 分享：
+                                        // 不再复制到公共相册（Pictures/Lumen）——收听画像不应进系统媒体库
                                         android.net.Uri.parse(
                                             androidx.core.content.FileProvider.getUriForFile(
                                                 ctx,

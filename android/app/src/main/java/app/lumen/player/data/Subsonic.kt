@@ -262,6 +262,11 @@ private interface SubsonicApi {
 /** OpenSubsonic 客户端：token + salt 认证。 */
 class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
     private val base = cfg.base.trimEnd('/')
+
+    init {
+        // 策略必须在数据层兜底：登录页只是"第一道门"
+        NetworkGate.check(base)
+    }
     private val user = cfg.user
     private val password = cfg.password
     // 注意：构造参数不能与属性同名，否则属性初始化时会被参数（null）遮蔽，token 会算成 md5(pw + "null")
@@ -269,10 +274,7 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
     private val token = md5Hex(password + salt)
 
 
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .build()
+    private val http = app.lumen.player.util.Http.client
 
     // Retrofit + Gson 负责请求/解析，Gson 的 JsonObject 再转成 org.json 供现有解析器复用
     private val api: SubsonicApi by lazy {

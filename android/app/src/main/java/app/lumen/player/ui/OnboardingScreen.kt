@@ -596,13 +596,19 @@ private fun DrawScope.sparkle(center: Offset, radius: Float, color: Color) {
 private fun ExpressiveBackground(accent: Color) {
     val surface = MaterialTheme.colorScheme.surface
     val tertiary = MaterialTheme.colorScheme.tertiary
-    val transition = rememberInfiniteTransition(label = "guide-bg")
-    val t by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(14000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "drift",
-    )
+    // 测试环境下关闭无限动画（见 AmbientFx.setForTest），否则 Compose 永远不 idle
+    val t = if (!AmbientFx.enabled) {
+        0.35f
+    } else {
+        val transition = rememberInfiniteTransition(label = "guide-bg")
+        val animated by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(14000, easing = LinearEasing), RepeatMode.Reverse),
+            label = "drift",
+        )
+        animated
+    }
     Canvas(Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height

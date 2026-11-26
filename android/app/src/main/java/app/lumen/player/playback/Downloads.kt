@@ -96,12 +96,23 @@ object Downloads {
         }
     }
 
-    /** 单个下载占用的字节数：优先用自定义 cache key，取不到再回退到旧 URI key。 */
-    private fun cachedBytesFor(cache: SimpleCache, id: String, uri: android.net.Uri): Long {
-        val byKey = runCatching { cache.getCachedSpans(MediaCache.downloadKey(id)).sumOf { it.length } }
-            .getOrDefault(0L)
-        if (byKey > 0) return byKey
-        return runCatching { cache.getCachedSpans(uri.toString()).sumOf { it.length } }.getOrDefault(0L)
+    /**
+     * 单个下载占用的字节数。
+     *
+     * 依次尝试：请求里记录的自定义键（新键/旧键都记在里面）→ 当前账号键 → 历史无作用域键 → URI。
+     * 这样升级前下载的内容不会被显示成 0 字节。
+     */
+    private fun cachedBytesFor(ctx: Context, cache: SimpleCache, d: Download): Long {
+        val candidates = LinkedHashSet<String>(4)
+        d.request.customCacheKey?.let { candidates.add(it) }
+        candidates.add(MediaCache.downloadKey(ctx, d.request.id))
+        candidates.add(MediaCache.legacyDownloadKey(d.request.id))
+        candidates.add(d.request.uri.toString())
+        candidates.forEach { key ->
+            val bytes = runCatching { cache.getCachedSpans(key).sumOf { it.length } }.getOrDefault(0L)
+            if (bytes > 0) return bytes
+        }
+        return 0L
     }
 
     /** 清理下载元数据（名称/艺人/专辑）；下载内容由 MediaCache 单独清理。 */
@@ -138,12 +149,12 @@ object Downloads {
         }
     }
 
-    private fun request(id: String, url: String, key: String, suffix: String): DownloadRequest =
+    private fun request(ctx: Context, id: String, url: String, key: String, suffix: String): DownloadRequest =
         DownloadRequest.Builder(id, android.net.Uri.parse(url))
             .setData(key.toByteArray(Charsets.UTF_8))
             .setMimeType(mimeFor(url, suffix))
-            // 独立 cache key：既不与在线播放同一 URI 并发冲突，也方便“清缓存”时保留
-            .setCustomCacheKey(MediaCache.downloadKey(id))
+            // 独立 cache key（含账号作用域）：既不与在线播放同一 URI 并发冲突，也方便“清缓存”时保留
+            .setCustomCacheKey(MediaCache.downloadKey(ctx, id))
             .build()
 
     /** 整张专辑 */
@@ -156,7 +167,7 @@ object Downloads {
             Media3DownloadService.sendAddDownload(
                 ctx,
                 DownloadService::class.java,
-                request(t.id, urlFor(t), key, t.suffix),
+                request(ctx, t.id, urlFor(t), key, t.suffix),
                 true,
             )
         }
@@ -176,7 +187,7 @@ object Downloads {
         Media3DownloadService.sendAddDownload(
             ctx,
             DownloadService::class.java,
-            request(track.id, urlFor(track), key, track.suffix),
+            request(ctx, track.id, urlFor(track), key, track.suffix),
             true,
         )
     }
@@ -206,7 +217,7 @@ object Downloads {
                     name = prefs.getString("name_$key", null) ?: key,
                     total = list.size,
                     done = list.count { it.state == Download.STATE_COMPLETED },
-                    bytes = list.sumOf { d -> cachedBytesFor(cache, d.request.id, d.request.uri) },
+                    bytes = list.sumOf { d -> cachedBytesFor(ctx, cache, d) },
                     failed = list.any { it.state == Download.STATE_FAILED },
                     isSingle = key.startsWith(PREFIX_TRACK),
                     albumId = prefs.getString("album_$key", null).orEmpty(),
@@ -226,7 +237,9 @@ object Downloads {
                     if (d.state == Download.STATE_COMPLETED || d.state == Download.STATE_DOWNLOADING ||
                         d.state == Download.STATE_QUEUED
                     ) {
-                        add(MediaCache.downloadKey(d.request.id))
+                        d.request.customCacheKey?.let { add(it) }
+                        add(MediaCache.downloadKey(ctx, d.request.id))
+                        add(MediaCache.legacyDownloadKey(d.request.id))
                         add(d.request.uri.toString())
                     }
                 }
@@ -277,7 +290,7 @@ object Downloads {
             while (c.moveToNext()) {
                 val d = c.download
                 if (keyOf(d) != groupKey) continue
-                val size = cachedBytesFor(cache, d.request.id, d.request.uri)
+                val size = cachedBytesFor(ctx, cache, d)
                 out.add(
                     DownloadTrack(
                         id = d.request.id,

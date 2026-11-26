@@ -9,7 +9,6 @@ import app.lumen.player.data.PlayHistory
 import app.lumen.player.data.Ratings
 import app.lumen.player.data.SettingsStore
 import app.lumen.player.data.StatsStore
-import app.lumen.player.data.StreamCapabilityStore
 import app.lumen.player.playback.Downloads
 import app.lumen.player.playback.MediaCache
 import app.lumen.player.playback.PlaybackEngine
@@ -58,14 +57,30 @@ object LocalData {
             StatsStore.clear(app)
             PlaybackStateStore.clear(app)
 
-            // 6) 其他派生缓存：封面主题种子、服务器取流能力、歌词
+            // 6) 其他派生缓存：封面主题种子、歌词
             PaletteStore.clear(app)
-            StreamCapabilityStore.clear(app)
             LyricsCache.clear(app)
 
-            // 7) 最后清账号与凭据（含 salt）
+            // 7) 已下线功能留下的数据（模型 / moods.db / 电台缓存 / 相关 prefs）
+            runCatching { LegacyCleanup.run(app, force = true) }
+
+            // 8) 其余个人数据：搜索历史、最近浏览、网络偏好里的风险开关
+            clearPrefs(app, "lumen_search_hist", "lumen_network", "lumen_recent", "lumen_home_scroll")
+
+            // 9) 最后清账号与凭据（含 salt）
             Accounts.clearAll(app)
             SettingsStore.clear(app)
+        }
+    }
+
+    /**
+     * 保留白名单（不清）：外观 `lumen_appearance`、语言 `lumen_lang`、已同意条款 `lumen_legal`、
+     * 引导完成标记 `lumen_onboarding`。它们属于"本机设置"而非个人数据，清掉只会让用户重新配置。
+     * 其余任何新增落盘 store 都必须在上面的步骤里登记。
+     */
+    private fun clearPrefs(ctx: Context, vararg names: String) {
+        names.forEach { name ->
+            runCatching { ctx.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit() }
         }
     }
 }

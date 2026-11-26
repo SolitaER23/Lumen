@@ -392,26 +392,34 @@ private fun WavyProgress(
     val pulseMs = 460
     val barColor = activeColor
 
-    val transition = rememberInfiniteTransition(label = "wave")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(2100, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "phase",
-    )
-    // 近似“节奏”：约 130 BPM 的脉动，播放时幅度更大
-    val pulse by transition.animateFloat(
-        initialValue = 0.30f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(pulseMs, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "pulse",
-    )
+    // 测试环境下关闭（见 AmbientFx.setForTest）：无限动画会让 Compose 永远不 idle
+    val wave = if (AmbientFx.enabled) {
+        val transition = rememberInfiniteTransition(label = "wave")
+        val phaseValue by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = (2f * PI).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(2100, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "phase",
+        )
+        // 近似“节奏”：约 130 BPM 的脉动，播放时幅度更大
+        val pulseValue by transition.animateFloat(
+            initialValue = 0.30f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(pulseMs, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "pulse",
+        )
+        phaseValue to pulseValue
+    } else {
+        0f to 1f
+    }
+    val phase = wave.first
+    val pulse = wave.second
 
     Canvas(
         modifier

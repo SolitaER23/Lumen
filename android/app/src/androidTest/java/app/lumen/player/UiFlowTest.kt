@@ -36,19 +36,40 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 @org.junit.Ignore(
-    "阻塞项：应用有常驻环境动画（背景/呼吸/波形），Compose 的 idling resource 永远不 idle，" +
-        "规则在找不到 compose hierarchy / 等待 idle 时直接失败。需要先加一个 test-only 的" +
-        "「关闭环境动画」开关（TestHooks.disableAmbientAnimation），再解除忽略。" +
-        "数据层与播放层的等价覆盖已由 ServerE2ETest 提供。",
+    "已知阻塞：环境动画开关（AmbientFx.setForTest）与返回键退出抑制（suppressExitOnBackForTest）" +
+        "都已生效，规则能找到 compose hierarchy；但用例执行到第 4 秒左右 Activity 会被系统主动销毁" +
+        "（logcat: PAUSED→STOPPED→DESTROYED，进程仍存活），随后任何 onNode 都报 " +
+        "\"No compose hierarchies found\"。已排除 singleTask、权限授予、双击退出三个原因，" +
+        "下一步应查 ActivityScenario 与 FLAG_SECURE/窗口重建（setShowWhenLocked）的交互。" +
+        "数据层与播放层覆盖由 ServerE2ETest 提供。",
 )
 class UiFlowTest {
+
+    companion object {
+        /**
+         * 必须早于 Activity 启动：4 处无限动画（背景/波浪/引导/艺人滚动）会让
+         * Compose 的 idling resource 永远忙碌。@BeforeClass 在测试规则之前执行，
+         * 因此 Activity 第一次 compose 时动画已是静态值。
+         */
+        @org.junit.BeforeClass
+        @JvmStatic
+        fun prepareProcess() {
+            // 只关闭氛围动效；权限走 adb reverse + 127.0.0.1，不碰运行时权限
+            //（grantRuntimePermission / pm grant 都会让前台 Activity 被暂停或进程重启，
+            //  Compose 规则随即报 "No compose hierarchies found"）。
+            app.lumen.player.ui.AmbientFx.setForTest(false)
+            // 测试里会多次按返回，必须关掉"再按一次退出"
+            app.lumen.player.ui.AmbientFx.setSuppressExitOnBackForTest(true)
+        }
+    }
 
     @get:Rule
     val rule = createAndroidComposeRule<MainActivity>()
 
     private val ctx get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val args get() = InstrumentationRegistry.getArguments()
-    private val base: String get() = args.getString("serverBase") ?: "http://192.168.1.92:8899"
+    // 默认走 adb reverse 映射的本机端口（127.0.0.1 不需要 ACCESS_LOCAL_NETWORK）
+    private val base: String get() = args.getString("serverBase") ?: "http://127.0.0.1:8899"
     private val user: String get() = args.getString("serverUser") ?: "test"
     private val pass: String get() = args.getString("serverPass") ?: "testpass"
 
@@ -56,10 +77,6 @@ class UiFlowTest {
 
     @Before
     fun setUp() {
-        runCatching {
-            InstrumentationRegistry.getInstrumentation().uiAutomation
-                .grantRuntimePermission(ctx.packageName, "android.permission.ACCESS_LOCAL_NETWORK")
-        }
         rule.mainClock.autoAdvance = false
     }
 
@@ -128,6 +145,11 @@ class UiFlowTest {
 
     @Test
     fun fullFlow() {
+        // 服务器不可达时跳过（而不是红），保证无 mock 环境下的默认套件仍是绿的
+        org.junit.Assume.assumeTrue(
+            "服务器不可达，跳过 UI 流程: " + base,
+            runCatching { client.ping() }.getOrDefault(false),
+        )
         val album = runBlocking { client.newestAlbums(size = 6).first() }
         val track = runBlocking { client.tracks(album.id).first() }
 

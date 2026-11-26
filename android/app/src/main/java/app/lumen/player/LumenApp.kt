@@ -2,7 +2,13 @@ package app.lumen.player
 
 import android.app.Application
 import app.lumen.player.data.Appearance
+import app.lumen.player.data.NetworkGate
+import app.lumen.player.local.LegacyCleanup
 import app.lumen.player.util.L10n
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -26,7 +32,13 @@ class LumenApp : Application(), SingletonImageLoader.Factory {
         // 此时 MainActivity 还没跑过：语言与外观迁移必须在 Application 就绪。
         L10n.init(this)
         Appearance.migrate(this)
+        // 数据层的明文策略闸门：必须早于任何 SubsonicClient 构造
+        NetworkGate.refresh(this)
+        // 下线功能的一次性清理（释放 ~148 MB + 旧的听歌画像），幂等
+        appScope.launch { runCatching { LegacyCleanup.run(this@LumenApp) } }
     }
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)

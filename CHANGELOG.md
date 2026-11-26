@@ -19,6 +19,40 @@
 
 ---
 
+## [0.91.0] - 2026-11-26
+
+### 安全与数据隔离
+
+- **媒体缓存键加账号命名空间**：键改为 `acct:<scope>|track:<id>#<format>`，下载键同步；
+  此前多账号（不同服务器）的同 id 曲目会互相命中缓存，切号后可能播放到另一台服务器的音频；
+  升级前的离线内容仍可通过请求里记录的 `customCacheKey` 命中，不会被判成「未下载」；
+- **明文 HTTP 校验下沉到数据层**：新增 `NetworkGate`，`SubsonicClient` 构造即校验，
+  公网 http 未授权时直接抛 `InsecureBaseException`；清单里冗余的 `usesCleartextTraffic` 已移除。
+
+### 隐私与空间
+
+- **一次性清理已下线功能的数据**：`LegacyCleanup` 在启动时删除 148 MB 旧模型、`moods.db`、
+  电台曲库、曲目清单缓存与 `lumen_mood`/`lumen_radio`/`lumen_stream_caps`，幂等且走白名单；
+- 「清除本机数据」补齐搜索历史、网络偏好、最近浏览、首页滚动位置，并强制重跑上述清理；
+- **统计海报不再写入公共相册**：只留私有缓存 + FileProvider 分享；统计时区改为设备时区。
+
+### 性能与代码组织
+
+- OkHttp 改为进程级单例（`util/Http.kt`），Subsonic/统计共用连接池；
+- 删除无调用方的 `StreamCapability`（137 行）与 `lumen_recent` 死分支；
+- **歌词磁盘缓存接通**：换歌先读盘、拿到歌词后落盘，设置页「歌词缓存」不再永远 0 B；
+- 新增测试开关：`AmbientFx.setForTest(false)` 关闭 4 处无限动画，`suppressExitOnBackForTest` 关闭「再按一次退出」。
+
+### 测试
+
+- 新增 `LegacyCleanupTest`、`MediaCacheScopeTest`、`NetworkGateTest`；
+- `LocalDataWipeTest` 增加搜索历史/网络偏好/旧模型残留断言。
+
+### 已知问题
+
+- `UiFlowTest` 仍 `@Ignore`：动画开关与返回键抑制已生效、hierarchy 可获取，但用例执行约 4 秒后
+  Activity 被系统销毁（进程存活），随后规则报 `No compose hierarchies found`；
+  已排除 singleTask、权限授予、双击退出三个原因。
 ## [0.90.0] - 2026-11-26
 
 ### 移除端侧大模型功能，回归纯听歌体验

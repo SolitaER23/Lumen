@@ -77,8 +77,8 @@ android {
         applicationId = "app.lumen.player"
         minSdk = 26
         targetSdk = 37
-        versionCode = 224
-        versionName = "0.90.0"
+        versionCode = 225
+        versionName = "0.91.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }
         buildConfigField("String", "LEGAL_VERSION", "\"" + legalVersion + "\"")

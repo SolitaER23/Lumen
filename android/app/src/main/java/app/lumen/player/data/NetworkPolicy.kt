@@ -28,6 +28,18 @@ enum class CleartextVerdict {
     INVALID,
 }
 
+/** 地址不合规时抛出：公网明文被策略拒绝，或地址本身非法。 */
+class InsecureBaseException(
+    val base: String,
+    val verdict: CleartextVerdict,
+) : IllegalArgumentException(
+    if (verdict == CleartextVerdict.PUBLIC_CLEARTEXT) {
+        "公网地址使用明文 HTTP 被拒绝：请改用 HTTPS，或在登录页勾选风险开关"
+    } else {
+        "服务器地址不合法：" + base
+    },
+)
+
 object NetworkPolicy {
 
     fun evaluate(base: String, allowPublicCleartext: Boolean): CleartextVerdict {
@@ -79,6 +91,40 @@ object NetworkPolicy {
         if (parts.size != 4) return null
         val nums = parts.map { it.toIntOrNull()?.takeIf { n -> n in 0..255 } ?: return null }
         return nums[0] to nums[1]
+    }
+}
+
+/**
+ * 策略闸门：让**数据层**也能拦截，而不是只靠登录页。
+ *
+ * [refresh] 在 Application 启动与用户切换开关时调用；[check] 在构造网络客户端前调用。
+ * 这样即便有人手改 prefs、或未来新增了别的连接入口，也无法绕过公网明文限制。
+ */
+object NetworkGate {
+    @Volatile
+    private var allowPublicCleartext: Boolean = false
+
+    fun refresh(ctx: android.content.Context) {
+        allowPublicCleartext = NetworkSettings.allowPublicCleartext(ctx)
+    }
+
+    fun setAllowPublicCleartext(ctx: android.content.Context, value: Boolean) {
+        allowPublicCleartext = value
+        NetworkSettings.setAllowPublicCleartext(ctx, value)
+    }
+
+    /** 仅测试用：直接设置闸门，避免为了一个布尔值去碰 SharedPreferences。 */
+    internal fun setAllowForTest(value: Boolean) {
+        allowPublicCleartext = value
+    }
+
+    /** 不合规直接抛 [InsecureBaseException]。 */
+    fun check(base: String) {
+        when (val verdict = NetworkPolicy.evaluate(base, allowPublicCleartext)) {
+            CleartextVerdict.OK -> Unit
+            CleartextVerdict.PUBLIC_CLEARTEXT -> throw InsecureBaseException(base, verdict)
+            CleartextVerdict.INVALID -> throw InsecureBaseException(base, verdict)
+        }
     }
 }
 
