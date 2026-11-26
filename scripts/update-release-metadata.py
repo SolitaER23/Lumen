@@ -25,11 +25,28 @@ CERT_SHA256 = "c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37"
 BT = chr(96)  # 反引号：用于拼 markdown 的行内代码
 
 
+def _apksigner() -> str | None:
+    """定位 apksigner。
+
+    Windows 上 SDK 只提供 apksigner.bat，而 subprocess 不会像 shell 那样按 PATHEXT
+    解析扩展名——直接调 "apksigner" 会 FileNotFoundError，于是 fail-closed 的证书校验
+    在 Windows 上永远失败（0.92.0 发版时踩到）。这里显式尝试三种名字。
+    """
+    for name in ("apksigner", "apksigner.bat", "apksigner.exe"):
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
 def apk_cert_sha256(apk: Path) -> str | None:
     """Best-effort：用 apksigner 读签名证书 SHA-256（本地与 CI 均可用）。"""
+    exe = _apksigner()
+    if exe is None:
+        return None
     try:
         out = subprocess.run(
-            ["apksigner", "verify", "--print-certs", str(apk)],
+            [exe, "verify", "--print-certs", str(apk)],
             capture_output=True, text=True, timeout=120,
         ).stdout
     except (FileNotFoundError, subprocess.SubprocessError):
