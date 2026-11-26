@@ -321,7 +321,7 @@ object L10n {
         "已保存的歌词文本，清理后需重新获取" to "Saved lyrics; they are fetched again after clearing",
         "清理异常数据" to "Clear failed data",
         "已忽略曲目" to "Ignored tracks",
-        "提取码已复制" to "Code copied",
+        "下载地址已复制" to "Download link copied",
         "清理" to "Clear",
         "诊断信息已复制" to "Diagnostics copied",
     )

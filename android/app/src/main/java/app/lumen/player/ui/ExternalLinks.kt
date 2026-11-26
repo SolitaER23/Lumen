@@ -6,8 +6,8 @@ import android.net.Uri
 
 object ExternalLinks {
     const val BILIBILI_URL = "https://space.bilibili.com/20567705"
-    const val UPDATE_URL = "https://pan.quark.cn/s/f35d0450e4b1?pwd=3GF3"
-    const val UPDATE_CODE = "3GF3"
+    /** 更新入口：GitHub Releases 的最新版本页（不再使用网盘渠道）。 */
+    const val UPDATE_URL = "https://github.com/SolitaER23/Lumen/releases/latest"
     const val FEEDBACK_NAME = "bilibili@晓月枫"
 
     fun open(ctx: Context, url: String) {

@@ -405,18 +405,18 @@ fun SettingsScreen(
                     )
                     AboutRow(
                         L10n.tf("检查更新", "Check for updates"),
-                        L10n.tf("夸克网盘 · 3GF3", "Quark · 3GF3"),
+                        L10n.tf("GitHub · 最新版本", "GitHub · latest release"),
                         onClick = { ExternalLinks.open(ctx, ExternalLinks.UPDATE_URL) },
                         chevron = true,
                         onLongClick = {
                             val clipboard = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
                                 as android.content.ClipboardManager
                             clipboard.setPrimaryClip(
-                                android.content.ClipData.newPlainText("Lumen update code", ExternalLinks.UPDATE_CODE),
+                                android.content.ClipData.newPlainText("Lumen update url", ExternalLinks.UPDATE_URL),
                             )
                             android.widget.Toast.makeText(
                                 ctx,
-                                L10n.t("提取码已复制"),
+                                L10n.t("下载地址已复制"),
                                 android.widget.Toast.LENGTH_SHORT,
                             ).show()
                         },

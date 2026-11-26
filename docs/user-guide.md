@@ -14,8 +14,8 @@
 3. 打开 APK 完成安装；
 4. 首次启动会先显示用户协议与隐私条款，阅读并同意后进入引导。
 
-> 本应用不通过应用商店分发。官方渠道为夸克网盘与 GitHub Releases（https://github.com/SolitaER23/Lumen/releases ），
-> 两者发布的包使用同一签名证书；下载后请核对 `SHA256SUMS.txt` 中的 SHA-256。
+> 本应用不通过应用商店分发。唯一官方渠道是 GitHub Releases（https://github.com/SolitaER23/Lumen/releases），
+> 应用内「设置 → 关于 → 检查更新」可直接打开；下载后请核对 `SHA256SUMS.txt` 中的 SHA-256。
 
 ## 连接服务器
 
@@ -35,9 +35,8 @@
 
 ## 更新
 
-官方更新渠道：**夸克网盘**  
-https://pan.quark.cn/s/f35d0450e4b1?pwd=3GF3  
-提取码：`3GF3`
+官方更新渠道：**GitHub Releases**  
+https://github.com/SolitaER23/Lumen/releases
 
 - 仅从官方渠道下载新 APK，并核对 SHA-256；
 - 新版本需使用**同一签名证书**覆盖安装；

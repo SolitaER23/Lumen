@@ -52,7 +52,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 ## 安装与更新（终端用户）
 
 - 支持 Android 8.0+、**arm64-v8a**；32 位设备无法安装；
-- 从官方夸克网盘渠道下载 APK，需允许“安装未知应用”；
+- 从 [GitHub Releases](https://github.com/SolitaER23/Lumen/releases) 下载 APK，需允许“安装未知应用”；
 - 新版本必须使用同一签名证书覆盖安装；正式证书与早期 debug 测试版不能互相覆盖；
 - 卸载会删除本机账号、历史、评分与下载（应用不启用云备份）；
 - 详细步骤、校验方式与故障排查见 [docs/user-guide.md](docs/user-guide.md) 与 [docs/distribution.md](docs/distribution.md)。
@@ -67,7 +67,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 ## 关键附件
 
-当前正式直发版本：**0.92.0 / versionCode 228**
+当前正式直发版本：**0.92.1 / versionCode 229**
 
 - [分发包与校验说明](docs/distribution.md)
 - [用户指南](docs/user-guide.md)
@@ -75,8 +75,8 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - [用户协议](docs/terms-of-service.md)
 - [兼容性说明](docs/compatibility.md)
 - [Release CI](.github/workflows/release.yml)
-- 官方更新渠道：[夸克网盘](https://pan.quark.cn/s/f35d0450e4b1?pwd=3GF3)，提取码 `3GF3`
-- 分发包：`dist/Lumen-0.92.0.apk`、`dist/SHA256SUMS.txt`
+- 官方更新渠道：[GitHub Releases](https://github.com/SolitaER23/Lumen/releases)（应用内「设置 → 关于 → 检查更新」直达）
+- 分发包：`dist/Lumen-0.92.1.apk`、`dist/SHA256SUMS.txt`
 - 发布后同步元数据：`python scripts/update-release-metadata.py`
 
 ## 构建
