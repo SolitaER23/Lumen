@@ -1,7 +1,7 @@
 # Mock Subsonic 服务器（开发联调用）
 
 一个只实现 Lumen 实际调用端点的最小 Subsonic/OpenSubsonic 服务，用于在没有 Navidrome 的环境下跑通
-「登录 → 曲库 → 取流 → 端侧分析」整条链路。**仅供本地测试，不要暴露到公网。**
+「登录 → 曲库 → 取流 → 播放」整条链路。**仅供本地测试，不要暴露到公网。**
 
 ## 启动
 
@@ -21,12 +21,12 @@ python tools/mock-subsonic/server.py --port 8899
 
 ```powershell
 cmd /c "gradlew.bat :app:connectedDebugAndroidTest `
-  -Pandroid.testInstrumentationRunnerArguments.class=app.lumen.player.MockServerE2ETest `
-  -Pandroid.testInstrumentationRunnerArguments.mockBase=http://<本机局域网IP>:8899"
+  -Pandroid.testInstrumentationRunnerArguments.class=app.lumen.player.ServerE2ETest `
+  -Pandroid.testInstrumentationRunnerArguments.serverBase=http://<本机局域网IP>:8899"
 ```
 
-`MockServerE2ETest` 会自己申请 `ACCESS_LOCAL_NETWORK`（Android 17 起没有该权限连不上局域网），
-然后验证：ping → 专辑/曲目列表 → 收藏/上报 → 取流 → WAV 解码 → CLAP fp16 推理 → 情绪结果。
+`ServerE2ETest` 会自己申请 `ACCESS_LOCAL_NETWORK`（Android 17 起没有该权限连不上局域网），
+然后验证：ping → 专辑/曲目列表 → 收藏/上报 → 取流 → ExoPlayer 起播。
 
 ## 已知限制
 

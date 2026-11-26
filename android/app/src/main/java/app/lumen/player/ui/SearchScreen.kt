@@ -76,7 +76,6 @@ fun SearchScreen(
     }
     // 页面内返回按钮 / 系统返回统一走同一入口
     androidx.activity.compose.BackHandler { onBack() }
-    val ctx = androidx.compose.ui.platform.LocalContext.current
     var query by remember { mutableStateOf("") }
     var artists by remember { mutableStateOf<List<Artist>>(emptyList()) }
     var albums by remember { mutableStateOf<List<Album>>(emptyList()) }
@@ -111,16 +110,9 @@ fun SearchScreen(
         delay(300)
         try {
             val (a, al, sg) = withContext(Dispatchers.IO) { client.search(q) }
-            val local = withContext(Dispatchers.IO) {
-                runCatching {
-                    val byTag = app.lumen.player.data.TrackTagSearch.search(ctx, q)
-                    val byMood = app.lumen.player.data.TrackTagSearch.searchMood(ctx, q)
-                    (byTag + byMood.filter { m -> byTag.none { it.id == m.id } })
-                }.getOrDefault(emptyList())
-            }
             artists = a
             albums = al
-            songs = (sg + local.filter { t -> sg.none { it.id == t.id } })
+            songs = sg
             if (q.length >= 2 && (a.isNotEmpty() || al.isNotEmpty() || sg.isNotEmpty())) {
                 history = (listOf(q) + history.filter { it != q }).take(8)
                 histPrefs.edit().putString("items", history.joinToString("\n")).apply()

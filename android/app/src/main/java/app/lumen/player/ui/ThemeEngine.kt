@@ -47,7 +47,6 @@ data class ThemeOptions(
     val isDark: Boolean = true,
     val style: PaletteStyle = PaletteStyle.TONAL,
     val amoled: Boolean = false,
-    val moodTint: Boolean = true,
     val gradient: Boolean = false,
 )
 

@@ -13,9 +13,3 @@
 # Kotlinx serialization
 -keepattributes RuntimeVisibleAnnotations
 -keep class kotlinx.serialization.** { *; }
-
-# ONNX Runtime：R8 混淆会移除 JNI 反射用到的类/方法名，
-# 导致原生层 GetMethodID 拿不到 java_class 而 abort（release 崩溃的根因）。
--keep class ai.onnxruntime.** { *; }
--keepclassmembers class ai.onnxruntime.** { *; }
--dontwarn ai.onnxruntime.**

@@ -2,11 +2,7 @@ package app.lumen.player
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import app.lumen.player.data.AudioSource
-import app.lumen.player.data.MoodAnalyzer
-import app.lumen.player.data.SegmentMode
 import app.lumen.player.data.ServerConfig
-import app.lumen.player.data.StreamCapability
 import app.lumen.player.data.SubsonicClient
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -16,13 +12,12 @@ import app.lumen.player.playback.MediaCache
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 真实 HTTP 服务器联调：token 认证 → 曲库 → 取流 → 端侧分析（fp16 模型）。
+ * 真实 HTTP 服务器联调：token 认证 → 曲库 → 取流 → 播放。
  *
  * 既可对 mock 服务器（tools/mock-subsonic）跑，也可对真实 Navidrome 跑。参数全部走
  * instrumentation，仓库里**不保存任何真实凭据**：
@@ -48,7 +43,7 @@ class ServerE2ETest {
     private val writeActions: Boolean get() = args.getString("writeActions") == "true"
 
     @Test
-    fun libraryStreamAndAnalysisWork() = runBlocking {
+    fun libraryAndStreamWork() = runBlocking {
         // 每次安装都会重置运行时权限；Android 17 起没有 ACCESS_LOCAL_NETWORK 就连不上局域网
         runCatching {
             InstrumentationRegistry.getInstrumentation().uiAutomation
@@ -75,24 +70,9 @@ class ServerE2ETest {
             client.scrobble(tracks[0].id, submission = false)
         }
 
-        // 取流 + 端侧分析（真实音频 + 随包 fp16 模型）
+        // 取流地址必须能构造出来（真实播放链路由 playbackBecomesReady 覆盖）
         val streamUrl = client.streamUrl(tracks[0].id)
-        val capability = StreamCapability(SegmentMode.FULL, "整段读取")
-        val source = AudioSource(
-            transcodeUrl = streamUrl,
-            durationSec = tracks[0].seconds,
-            rawUrl = streamUrl,
-            // 只有帧式容器能按字节切段；flac/wav 等走整段读取
-            rawRangeSafe = tracks[0].suffix.lowercase() in setOf("mp3", "aac", "ogg", "opus"),
-        )
-        MoodAnalyzer(ctx).use { analyzer ->
-            val result = analyzer.analyze(tracks[0].id, source, capability)
-            assertEquals("特征维度应为 CLAP 1024", 1024, result.feature.size)
-            assertTrue("valence 越界: " + result.valence, result.valence in 0f..1f)
-            assertTrue("arousal 越界: " + result.arousal, result.arousal in 0f..1f)
-            assertTrue("标签为空", result.tags.isNotEmpty())
-            assertTrue("BPM 异常: " + result.tempo, result.tempo == 0f || result.tempo in 30f..240f)
-        }
+        assertTrue("取流地址为空", streamUrl.startsWith("http"))
     }
 
     /** ExoPlayer 能否用「带 token 的 stream URL + 磁盘缓存」真正开始播放（验证解码链路）。 */

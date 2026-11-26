@@ -4,10 +4,10 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 版本 | `0.89.0` / `versionCode 223` |
-| APK | `Lumen-0.89.0.apk` |
-| 文件大小 | `158,132,807` 字节（约 150.8 MiB） |
-| SHA-256 | `2501D451484B63C93AC454E2B9ED1354088BE8DD69DA85F62DD0F54140584962` |
+| 版本 | `0.90.0` / `versionCode 224` |
+| APK | `Lumen-0.90.0.apk` |
+| 文件大小 | `3,357,282` 字节（约 3.2 MiB） |
+| SHA-256 | `168E94BFF8A147B5DFFE3BE241B150DDC122768AF0FD3C07A81591D78BD8E50C` |
 | 签名证书 DN | `CN=Lumen, OU=Release, O=Lumen, L=Shanghai, ST=Shanghai, C=CN` |
 | 证书 SHA-256 | `c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37` |
 | 最低系统 | Android 8.0（API 26） |
@@ -47,12 +47,12 @@
 校验示例：
 
 ```bash
-sha256sum Lumen-0.89.0.apk
-# 应输出 2501D451484B63C93AC454E2B9ED1354088BE8DD69DA85F62DD0F54140584962
+sha256sum Lumen-0.90.0.apk
+# 应输出 168E94BFF8A147B5DFFE3BE241B150DDC122768AF0FD3C07A81591D78BD8E50C
 ```
 
 ```bash
-apksigner verify --print-certs Lumen-0.89.0.apk
+apksigner verify --print-certs Lumen-0.90.0.apk
 # 证书 SHA-256 应为 c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37
 ```
 
@@ -65,14 +65,14 @@ apksigner verify --print-certs Lumen-0.89.0.apk
 - 仅从上述官方渠道下载新 APK，并核对本文件与 `dist/SHA256SUMS.txt` 中的 SHA-256；
 - 不要使用来源不明的转存或二次打包版本；
 - 必须使用**同一签名证书**的新 APK 覆盖安装；
-- **0.50.0 起更换为正式证书**：早期 debug 签名测试版不能覆盖升级，需要卸载重装；卸载会清除本机账号、历史、评分、心情分析与下载；
+- **0.50.0 起更换为正式证书**：早期 debug 签名测试版不能覆盖升级，需要卸载重装；卸载会清除本机账号、历史、评分与下载；
 - 更新前建议记录服务器地址与账号。
 
 ## 卸载
 
 - 卸载会删除本机数据（应用不启用云备份）；
 - 如需保留使用记录，请先自行记录服务器与账号信息；
-- 设置 → 账号 →「清除本机数据」可在不卸载时清除账号、历史、评分、心情、统计配置、下载与缓存。
+- 设置 → 账号 →「清除本机数据」可在不卸载时清除账号、历史、评分、统计配置、下载与缓存。
 
 ## 支持渠道
 
@@ -121,13 +121,8 @@ apksigner verify --print-certs Lumen-0.89.0.apk
 | 登录与曲库同步 | ✅ | 0.51.0 回归时 95 张专辑，封面与动态取色正常 |
 | 播放 | ✅ | MediaSession `state=PLAYING`，元数据正确 |
 | 后台播放与通知 | ✅ | `lumen_playback` 渠道 MediaStyle 前台通知，切后台继续播放 |
-| 端侧分析（ONNX Runtime 1.22.0） | ✅ | `ClapAssetCopyTest` 在设备上通过（模型落盘一次、标记校验、自愈） |
 | 条款门禁 | ✅ | 用户协议 / 隐私条款分别滚动到底后才可同意；在线版本文案显示正确 |
 | 权限流程 | ✅ | Android 17 首次启动请求「本地网络」权限；授权后自动重试登录成功 |
-| 0.52.0 后台分析 | ✅ | 登录后立即开始；首页「专辑」右侧出现「正在分析」胶囊，提示弹窗只出现一次；切换账号后自动续跑 |
-| 0.52.0 分析气泡 | ✅ | 点击胶囊弹出进度气泡：157/1567 → 158/1567 实时刷新，阶段与曲名同步变化；点空白处关闭 |
-| 0.52.0 分段取流 | ✅ | 探测落到 Range 模式：状态条「分段读取 · 约 1.1 MB/首」；debug 日志单首 ~4 s、连续多首成功，mode=RANGE |
-| 0.52.0 降级路径 | ✅ | 分段失败自动回退整段并更新状态条；本机服务器 timeOffset 被忽略，已不走该分支 |
 | 0.53.0 浅色模式 | ✅ | 外观 → 深浅模式切「浅色」：设置页/首页立即转浅色，首页标题与专辑名自动转深色，状态栏图标同步反转 |
 | 0.53.0 主题设置 | ✅ | 外观新增深浅模式/配色风格/对比度三档/六个颜色开关/专辑锁色，真机切换生效 |
 | 0.53.0 配色来源 | ✅ | 设置页底部显示「配色来源：…」，取色失败显示「已降级」 |
@@ -142,7 +137,7 @@ apksigner verify --print-certs Lumen-0.89.0.apk
 ### 已知问题与注意事项
 
 - **Android 17 本地网络权限**：0.51.0 之前的构建在 Android 17 上会因缺少 `ACCESS_LOCAL_NETWORK` 而报「无法连接服务器」（网络本身可达）；0.51.0 起已修复，但**从旧版本升级的用户首次启动需要允许该权限**。
-- **数据清空**：在真机上跑 `connectedDebugAndroidTest` 时，AGP 会先卸载应用，导致本机账号、队列、评分与心情数据被清空，需重新登录。日常验证请避免在有数据的主力机上直接跑 instrumentation。
+- **数据清空**：在真机上跑 `connectedDebugAndroidTest` 时，AGP 会先卸载应用，导致本机账号、队列与评分数据被清空，需重新登录。日常验证请避免在有数据的主力机上直接跑 instrumentation。
 - **release 变体的 instrumentation 跑不起来**：`testBuildType = "release"` 时 JUnit runner 依赖的 `androidx.tracing` / Kotlin stdlib 内部类会被 R8 裁掉，进程在 `AndroidJUnitRunner.onCreate` 即崩溃（与 Coil 无关）。因此混淆包内的封面渲染目前靠「R8 mapping 保留 + 启动无崩溃」间接确认；**最终目视建议登录后看一眼首页封面**。
 
 ## 维护者：签名与发布
@@ -168,10 +163,9 @@ CI 手动 release 使用以下 secrets：
 - [x] `apksigner verify` 证书与上表一致
 - [x] `versionName` / `versionCode` / `targetSdk` 与 build.gradle.kts 一致
 - [ ] 16 KB page 校验：`llvm-readelf -l` 的 LOAD Align 为 `0x4000`
-- [ ] 设备端 CLAP/ONNX 冒烟测试通过（`connectedDebugAndroidTest`）
-- [ ] SHA-256 与分发包一致（`sha256sum -c`）
-- [ ] 在 Pixel 10a 完成冒烟：登录、播放、后台播放、下载、通知、分析、电台
-- [ ] 同一签名覆盖安装上一版，账号/历史/评分/心情数据保留
+- [x] SHA-256 与分发包一致（`sha256sum -c`）
+- [ ] 在 Pixel 10a 完成冒烟：登录、播放、后台播放、下载、通知、搜索
+- [ ] 同一签名覆盖安装上一版，账号/历史/评分数据保留
 - [ ] 首次启动同意流程可拒绝并退出；同意后不再重复
 - [ ] HTTP 登录提示、通知权限、诊断复制可用
 - [ ] 保留 `mapping.txt` 与 keystore 离线备份

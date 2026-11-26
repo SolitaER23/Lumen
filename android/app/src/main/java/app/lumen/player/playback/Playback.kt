@@ -42,12 +42,6 @@ class Playback(private val ctx: Context) {
     /** 切歌音量渐变时长（毫秒，0 = 关闭） */
     var fadeMs: Long = 260L
 
-    /** 按当前曲目 BPM 调整淡入淡出；默认开启 */
-    var smartFade: Boolean = true
-
-    private var currentTempo = 0f
-    private var tempoJob: kotlinx.coroutines.Job? = null
-
     private val fadeScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var fadeJob: Job? = null
 
@@ -77,14 +71,6 @@ class Playback(private val ctx: Context) {
     var queue: List<Track> = emptyList()
         private set
     var albumId: String? = null
-        private set
-    /**
-     * 当前队列是否由氛围电台生成。
-     *
-     * 为什么不用 albumId 判断：电台队列的 albumId 是本地化文案（"氛围电台"/"Ambient Radio"），
-     * 切语言后字符串会对不上；用独立布尔位才稳定。
-     */
-    var radioMode by mutableStateOf(false)
         private set
     var index by mutableIntStateOf(-1)
         private set
@@ -120,10 +106,8 @@ class Playback(private val ctx: Context) {
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            mediaItem?.mediaId?.let { runCatching { app.lumen.player.data.Radio.notePlayed(it) } }
                 index = player.currentMediaItemIndex
                 if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) coverDirection = 1
-                loadTempo()
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -215,28 +199,6 @@ class Playback(private val ctx: Context) {
         }
     }
 
-    /** 异步读取当前曲目的 BPM，供智能衔接使用。 */
-    private fun loadTempo() {
-        val tr = current ?: return
-        currentTempo = 0f
-        tempoJob?.cancel()
-        tempoJob = fadeScope.launch {
-            val tempo = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                runCatching { app.lumen.player.data.MoodStore.get(ctx, tr.id)?.tempo ?: 0f }
-                    .getOrDefault(0f)
-            }
-            currentTempo = tempo
-        }
-    }
-
-    /** 智能衔接用 1 拍的长度；没有 BPM 或未开启时退回设置值。 */
-    private fun transitionMs(): Long {
-        if (!smartFade || fadeMs <= 0L) return fadeMs
-        val bpm = currentTempo
-        if (bpm < 30f || bpm > 240f) return fadeMs
-        return (60_000f / bpm).toLong().coerceIn(180L, 700L)
-    }
-
     /** 切歌：先淡出、切换、再淡入；快速连切时跳过淡出、切换后快速淡入 */
     private fun switchWithFade(doSwitch: () -> Unit) {
         if (fadeMs <= 0L || !player.isPlaying) {
@@ -244,7 +206,7 @@ class Playback(private val ctx: Context) {
             doSwitch()
             return
         }
-        val duration = transitionMs()
+        val duration = fadeMs
         if (fadeJob?.isActive == true) {
             cancelFade(true)
             doSwitch()
@@ -262,11 +224,10 @@ class Playback(private val ctx: Context) {
         }
     }
 
-    fun play(tracks: List<Track>, startIndex: Int, album: String, radio: Boolean = false) {
+    fun play(tracks: List<Track>, startIndex: Int, album: String) {
         if (tracks.isEmpty()) return
         queue = tracks
         albumId = album
-        radioMode = radio
         // 已知需要转码的曲目直接给转码地址，避免"先失败再兜底"的那一下
         val items = tracks.map(::mediaItemOf)
         // 注意：流 URL 带 Subsonic 的 u/t/s（可重放凭据），日志必须脱敏
@@ -348,7 +309,6 @@ class Playback(private val ctx: Context) {
         queue = emptyList()
         index = -1
         albumId = null
-        radioMode = false
         // 曲目 id 属于某个服务器账号：换账号/清数据后旧的"需转码"结论不再可信
         transcodeNeeded.clear()
         positionMs = 0L
@@ -389,15 +349,13 @@ class Playback(private val ctx: Context) {
         if (tracks.isEmpty()) return
         queue = tracks
         albumId = album
-        // 冷启动不假定是电台：恢复后按普通队列处理，用户重新进电台再判定
-        radioMode = false
         val items = tracks.map(::mediaItemOf)
         val idx = startIndex.coerceIn(0, items.lastIndex)
         // 不往播放器装载：保持完全静默，UI 用 queue/index/position 显示“上次播放”，点播放时才真正装载
         index = idx
         positionMs = progressMs.coerceAtLeast(0L)
         resumePosition = progressMs.coerceAtLeast(0L)
-        app.lumen.player.util.Logx.i("LumenMood", "restore hint idx=$idx pos=$progressMs state=${player.playbackState}")
+        app.lumen.player.util.Logx.i("LumenPlay", "restore hint idx=$idx pos=$progressMs state=${player.playbackState}")
     }
 
     fun next() {

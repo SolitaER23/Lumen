@@ -19,8 +19,9 @@ keystore.properties
 *.jks
 *.keystore
 
-# 端侧模型（294 MB，不进 git；分发方式见 MODELS.md）
-/models
+# 已移除端侧模型的本地权重归档（大文件不入库，见
+# removed-ai-model-features/MANIFEST.md）
+/removed-ai-model-features/models/
 
 # mock 服务器的测试音频（用 tools/mock-subsonic/gen-media.ps1 重新生成）
 /tools/mock-subsonic/media/

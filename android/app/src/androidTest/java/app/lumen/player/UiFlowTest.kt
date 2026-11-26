@@ -4,7 +4,6 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -16,7 +15,6 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import app.lumen.player.data.Legal
 import app.lumen.player.data.ServerConfig
 import app.lumen.player.data.SubsonicClient
 import kotlinx.coroutines.runBlocking
@@ -27,7 +25,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * UI 点击流：同意门禁 → 引导 → 登录 → 曲库 → 播放 → 下载 → 电台 → 清除本机数据。
+ * UI 点击流：同意门禁 → 引导 → 登录 → 曲库 → 播放 → 下载 → 清除本机数据。
  *
  * 两个环境约束：
  * 1. 应用有常驻环境动画，自动时钟下 Compose 永远不会 idle —— 全程用手动时钟推进帧；
@@ -159,14 +157,9 @@ class UiFlowTest {
         waitFor("下载", timeoutMs = 10_000)
         rule.onAllNodesWithText("下载")[0].performClick()
 
-        // 4) 回首页 → 长按「专辑」进电台
+        // 4) 回首页 → 设置 → 清除本机数据 → 回登录页
         pressBack()
         waitFor("专辑", timeoutMs = 10_000)
-        rule.onAllNodesWithText("专辑")[0].performTouchInput { longClick() }
-        waitFor("电台", timeoutMs = 15_000, substring = true)
-
-        // 5) 设置 → 清除本机数据 → 回登录页
-        pressBack()
         clearDataFromSettings()
     }
 }

@@ -36,8 +36,6 @@ object StatsReport {
         d: StatsDashboard,
         ins: StatsInsights,
         rangeLabel: String,
-        mood: List<Pair<String, Int>>,
-        analyzed: Int,
         palette: Palette,
         title: String,
         labels: ReportLabels,
@@ -123,17 +121,6 @@ object StatsReport {
         y += 40f
         y = ranks(c, d.albums.take(6).map { (it.name + " · " + it.artist) to it.count }, PAD, y, W - PAD * 2, accent, smallPaint)
 
-        // 本机数据 + 心情
-        y += 44f
-        c.drawText(labels.localData, PAD, y, sectionPaint)
-        y += 40f
-        c.drawText(labels.analyzedLine.format(analyzed), PAD, y, smallPaint)
-        y += 32f
-        if (mood.isNotEmpty()) {
-            c.drawText(labels.moodLine.format(mood.joinToString(" · ") { "${it.first} ${it.second}" }), PAD, y, smallPaint)
-            y += 32f
-        }
-
         // 最近播放
         if (d.history.isNotEmpty()) {
             y += 20f
@@ -169,9 +156,6 @@ object StatsReport {
         val byHour: String,
         val topArtists: String,
         val topAlbums: String,
-        val localData: String,
-        val analyzedLine: String,
-        val moodLine: String,
         val recent: String,
         val footer: String,
     )

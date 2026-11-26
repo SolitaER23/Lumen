@@ -6,9 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /**
- * 全局氛围动效开关（背景光团呼吸 + 装饰粒子）。
+ * 全局氛围动效开关（背景光团呼吸）。
  *
- * 关闭时 ExpressiveBackdrop 不再创建无限动画，Canvas 也不再绘制粒子，
+ * 关闭时 ExpressiveBackdrop 不再创建无限动画，只绘制一帧静态背景，
  * 完全停止相关渲染，避免空转耗电。
  */
 object AmbientFx {

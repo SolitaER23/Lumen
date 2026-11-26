@@ -224,23 +224,7 @@ class MainActivity : ComponentActivity() {
         // Pixel 10a 是 120Hz 面板：明确请求固定源 120Hz，动画期间才不会被降到 60
         window.attributes = window.attributes.apply { preferredRefreshRate = 120f }
 
-        app.lumen.player.data.MoodStore.ensureColumns(this)
-    // 一次性清理：删除所有非 5 窗的历史结果，让分析统一按 5 窗重算
-    runCatching {
-        val prefs = getSharedPreferences("lumen_mood", MODE_PRIVATE)
-        if (!prefs.getBoolean("mood_purge_v5", false)) {
-            val n = app.lumen.player.data.MoodStore.clearNonFiveWindow(this)
-            prefs.edit().putBoolean("mood_purge_v5", true).apply()
-            android.util.Log.i("LumenMood", "purged non-5-window rows: " + n)
-        }
-    }
-    app.lumen.player.ui.AmbientFx.init(this)
-    app.lumen.player.data.MoodStore.currentModelId =
-        if (app.lumen.player.playback.MoodAnalysisRunner.isFineMode(this)) {
-            "clap-music-v2-fine"
-        } else {
-            "clap-music-v1"
-        }
+        app.lumen.player.ui.AmbientFx.init(this)
 
     setContent {
             App()
@@ -286,7 +270,6 @@ private fun App() {
     var themeMode by remember { mutableStateOf(app.lumen.player.data.Appearance.themeMode(ctx)) }
     var paletteStyle by remember { mutableStateOf(app.lumen.player.data.Appearance.paletteStyle(ctx)) }
     var amoledOn by remember { mutableStateOf(app.lumen.player.data.Appearance.amoled(ctx)) }
-    var moodTintOn by remember { mutableStateOf(app.lumen.player.data.Appearance.moodTint(ctx)) }
     var gradientOn by remember { mutableStateOf(app.lumen.player.data.Appearance.gradientTheme(ctx)) }
     var materialYouOn by remember { mutableStateOf(app.lumen.player.data.Appearance.materialYou(ctx)) }
     var perPageColorOn by remember { mutableStateOf(app.lumen.player.data.Appearance.perPageColor(ctx)) }
@@ -322,26 +305,9 @@ private fun App() {
         isDark = isDarkTheme,
         style = app.lumen.player.ui.PaletteStyle.of(paletteStyle),
         amoled = amoledOn,
-        moodTint = moodTintOn,
         gradient = gradientOn,
     )
     var fadeMs by remember { mutableLongStateOf(app.lumen.player.data.Appearance.fadeMs(ctx)) }
-    var smartFade by remember { mutableStateOf(app.lumen.player.data.Appearance.smartFade(ctx)) }
-    // 电台偏好对齐上次的选择（与外观偏好同类，清本机数据时保留）
-    var radioVibe by remember { mutableStateOf(app.lumen.player.data.RadioPrefs.vibe(ctx)) }
-    var radioStrength by remember { mutableFloatStateOf(app.lumen.player.data.RadioPrefs.strength(ctx)) }
-    var radioAuto by remember { mutableStateOf(app.lumen.player.data.RadioPrefs.autoPick(ctx)) }
-    var radioTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
-    var radioLoading by remember { mutableStateOf(false) }
-    var radioProgress by remember { mutableFloatStateOf(0f) }
-    var radioError by remember { mutableStateOf<String?>(null) }
-    // 预览队列：构建好但还没有交给播放器（进电台页默认不打断当前播放）
-    var radioQueue by remember { mutableStateOf<List<Track>>(emptyList()) }
-    var radioSeedTitle by remember { mutableStateOf<String?>(null) }
-    var radioSeedId by remember { mutableStateOf<String?>(null) }
-    var radioJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    // 本机已分析曲目数：首页电台行与电台页空态都要用
-    var analyzedCount by remember { mutableIntStateOf(0) }
     var langMode by remember { mutableStateOf(app.lumen.player.util.L10n.mode(ctx)) }
     var showOnboarding by remember { mutableStateOf(!app.lumen.player.data.Onboarding.completed(ctx)) }
     var legalAccepted by remember { mutableStateOf(app.lumen.player.data.Legal.accepted(ctx)) }
@@ -368,7 +334,6 @@ private fun App() {
         5 -> "artist:${selectedArtist?.id ?: ""}"
         6 -> "search"
         7 -> "stats"
-        10 -> "radio"
         11 -> "changelog"
         12 -> "privacy"
         13 -> "terms"
@@ -383,7 +348,6 @@ private fun App() {
     var rating by remember { mutableFloatStateOf(0f) }
     var scrobbledId by remember { mutableStateOf<String?>(null) }
     var nowPlayingId by remember { mutableStateOf<String?>(null) }
-    var mood by remember { mutableStateOf<app.lumen.player.data.MoodResult?>(null) }
     val navStack = remember { androidx.compose.runtime.mutableStateListOf<NavKey>() }
     // 转场方向：true = 返回（performBack）。页面转场用它区分"从入口展开"与"收缩回入口"
     var navBack by remember { mutableStateOf(false) }
@@ -436,13 +400,6 @@ private fun App() {
             }
         }
         loading = false
-    }
-
-    // 后台分析提示：每次安装只提示一次
-    var showMoodHint by remember { mutableStateOf(false) }
-    LaunchedEffect(loggedIn) {
-        val prefs = ctx.getSharedPreferences("lumen_mood", android.content.Context.MODE_PRIVATE)
-        if (loggedIn && !prefs.getBoolean("hint_shown", false)) showMoodHint = true
     }
 
     // 登录尝试与表单状态解耦：每次提交（loginNonce）都重新认证；
@@ -540,82 +497,6 @@ private fun App() {
                 withContext(Dispatchers.IO) { AlbumCache.save(ctx, ok) }
                 // 不自动开始分析：恢复联网只刷新曲库，分析仍由用户手动触发
                 break
-            }
-        }
-    }
-
-    // ── 手动开始分析：不再自动跑，首次进入首页时弹窗询问 ──
-    var showStartPrompt by remember { mutableStateOf(false) }
-    var showSelfCheck by remember { mutableStateOf(false) }
-    var showAnalyzed by remember { mutableStateOf(false) }
-    LaunchedEffect(loggedIn) {
-        if (loggedIn && !app.lumen.player.playback.MoodAnalysisRunner.isActive()) {
-            showStartPrompt = true
-        }
-    }
-    if (showSelfCheck) {
-        app.lumen.player.ui.AnalysisSelfCheck(onDismiss = { showSelfCheck = false })
-    }
-    if (showStartPrompt) {
-        androidx.compose.ui.window.Dialog(onDismissRequest = { showStartPrompt = false }) {
-            val scale = remember { androidx.compose.animation.core.Animatable(0.88f) }
-            LaunchedEffect(Unit) {
-                scale.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 420f))
-            }
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.graphicsLayer { scaleX = scale.value; scaleY = scale.value },
-            ) {
-                Column(Modifier.padding(22.dp)) {
-                    Text(
-                        L10n.t("开始分析曲库？"),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        L10n.t("分析会在本机读取每首约 5 段音频，生成封面配色、氛围电台与节拍动效所需的数据。不保存整首歌，也不上传音频。"),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
-                        modifier = Modifier.padding(top = 10.dp),
-                    )
-                    Row(
-                        Modifier.fillMaxWidth().padding(top = 18.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Surface(
-                            onClick = { showStartPrompt = false },
-                            shape = RoundedCornerShape(percent = 50),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Box(Modifier.padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                                Text(L10n.t("稍后"), color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
-                            }
-                        }
-                        Surface(
-                            onClick = {
-                                showStartPrompt = false
-                                runCatching {
-                                    app.lumen.player.playback.MoodAnalysisRunner.start(
-                                        ctx,
-                                        app.lumen.player.data.SubsonicClient(cfg),
-                                        albums,
-                                    )
-                                }
-                            },
-                            shape = RoundedCornerShape(percent = 50),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Box(Modifier.padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                                Text(L10n.t("开始分析"), color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -775,8 +656,6 @@ private fun App() {
         homeCache.artists = emptyList()
         homeCache.newest = emptyList()
         homeCache.recentTracks = emptyList()
-        radioTracks = emptyList()
-        app.lumen.player.data.Radio.clearCache(ctx)
         openAlbum = null
         selectedArtist = null
         navStack.clear()
@@ -854,7 +733,6 @@ private fun App() {
             downloadedTrackIds = emptySet()
             lyrics = null
             lyricsTrackId = null
-            mood = null
             rating = 0f
             nowPlayingId = null
             scrobbledId = null
@@ -869,12 +747,6 @@ private fun App() {
         navStack.add(NavKey(screen, openAlbum))
         screen = target.screen
         openAlbum = target.album
-    }
-
-    if (showAnalyzed) {
-        androidx.activity.compose.BackHandler { showAnalyzed = false }
-        app.lumen.player.ui.AnalyzedTracksScreen(onBack = { showAnalyzed = false })
-        return
     }
 
     /**
@@ -908,182 +780,8 @@ private fun App() {
             p.transcodeUrl = { t -> client.streamUrl(t.id) + "&format=mp3&maxBitRate=320" }
         }
     }
-    val currentMoment = remember(mood, playback.positionMs, playback.durationMs) {
-        val m = mood ?: return@remember app.lumen.player.data.AudioMoment(null, null)
-        val pos = playback.positionMs
-        val seg = m.segments.firstOrNull { pos >= it.startMs && pos < it.endMs }
-            ?: m.segments.firstOrNull { pos < it.startMs }
-            ?: m.segments.lastOrNull { pos >= it.endMs }
-        val tags: List<String> = when {
-            seg != null -> seg.tags
-            m.segments.isNotEmpty() -> m.segments.firstOrNull()?.tags.orEmpty()
-            else -> {
-                val names = m.tags.map { it.name }
-                if (names.isEmpty()) {
-                    emptyList()
-                } else {
-                    val p = if (playback.durationMs > 0) (pos.toFloat() / playback.durationMs).coerceIn(0f, 0.999f) else 0f
-                    listOf(names[(p * names.size).toInt().coerceIn(0, names.lastIndex)])
-                }
-            }
-        }
-        val event = app.lumen.player.data.AudioEvent.fromTags(tags)
-        app.lumen.player.data.AudioMoment(
-            event = event,
-            detail = app.lumen.player.data.AudioEvent.detailFor(tags) ?: event?.label(),
-        )
-    }
-
-    fun playRadio(queue: List<Track>) {
-        if (queue.isEmpty()) return
-        playback.play(queue, 0, L10n.tf("氛围电台", "Ambient Radio"), radio = true)
-        playback.tick()
-    }
-
-    /**
-     * 生成电台候选队列，**不碰播放器**。
-     *
-     * 种子用 id + 标题显式传入，而不是每次现取 `playback.current`：
-     * 播放电台后 current 已经是电台里的曲目，"换一批"若重新取种子就会悄悄换掉整台电台
-     * （0.75 开发期实测：种子《The Grants》→ 换一批 → 种子《Dance Till We Die》）。
-     *
-     * @param startWhenReady true 时才在构建完成后接着起播（首页胶囊 / 显式选场景）；
-     *                       电台页的泛入口永远只预览。
-     */
-    fun buildRadio(
-        vibe: app.lumen.player.data.RadioVibe,
-        seedId: String?,
-        seedTitle: String?,
-        startWhenReady: Boolean = false,
-        exclude: Set<String> = emptySet(),
-    ) {
-        radioJob?.cancel()
-        radioError = null
-        radioLoading = true
-        radioProgress = 0f
-        radioSeedTitle = seedTitle
-        radioSeedId = seedId
-        // 捕获到局部：协程里读可变状态会被后续一次构建覆盖
-        val seedForBuild = seedId
-        radioJob = scope.launch {
-            val library = radioTracks.ifEmpty {
-                val loaded = runCatching {
-                    withContext(Dispatchers.IO) {
-                        app.lumen.player.data.Radio.loadLibrary(ctx, client) { p ->
-                            scope.launch { radioProgress = p }
-                        }
-                    }
-                }.getOrElse { e ->
-                    radioLoading = false
-                    radioError = e.message ?: L10n.tf("生成电台失败", "Failed to build station")
-                    return@launch
-                }
-                radioTracks = loaded
-                loaded
-            }
-            if (library.isEmpty()) {
-                radioLoading = false
-                radioError = L10n.tf("曲库为空，无法生成电台。", "The library is empty; cannot build a station.")
-                return@launch
-            }
-            // 选曲是全表特征点积（1024 维 × 候选数），build 内部已切到 Default 线程
-            val built = runCatching {
-                app.lumen.player.data.Radio.build(
-                    ctx,
-                    library,
-                    seedForBuild,
-                    vibe,
-                    strength = radioStrength,
-                    autoPick = radioAuto,
-                    exclude = exclude,
-                )
-            }.getOrElse { e ->
-                radioLoading = false
-                radioError = e.message ?: L10n.tf("生成电台失败", "Failed to build station")
-                return@launch
-            }
-            radioLoading = false
-            if (built.isEmpty()) {
-                radioQueue = emptyList()
-                radioError = L10n.tf(
-                    "还没有足够的分析数据（本机已分析 ${analyzedCount} 首）。可以继续分析，完成后再回来。",
-                    "Not enough analyzed tracks yet (${analyzedCount} analyzed). Continue the analysis and come back.",
-                )
-                return@launch
-            }
-            radioError = null
-            radioQueue = built
-            if (startWhenReady) playRadio(built)
-        }
-    }
-
-    /** 「换一批」：同场景、**同种子**，只排除刚听过的这一批。 */
-    fun regenerateRadio() {
-        val head = radioQueue.take(6).map { it.id }.toSet()
-        buildRadio(
-            vibe = radioVibe,
-            seedId = radioSeedId,
-            seedTitle = radioSeedTitle,
-            startWhenReady = playback.radioMode,
-            exclude = head,
-        )
-    }
-
-    /**
-     * 打开电台页。
-     *
-     * @param vibe 非空 = 用户明确点了某个场景（手选即代表"不要自动匹配"）
-     * @param autoStart 是否构建完就起播（显式选场景 = true；泛入口 = false，只预览）
-     */
-    fun openRadio(
-        vibe: app.lumen.player.data.RadioVibe? = null,
-        autoStart: Boolean = false,
-    ) {
-        navigate(NavKey(10, null))
-        val target = vibe ?: radioVibe
-        if (vibe != null) {
-            radioVibe = vibe
-            app.lumen.player.data.RadioPrefs.setVibe(ctx, vibe)
-            // 手选场景后不再"跟随当前歌曲"，否则下一次构建会把用户的场景覆盖掉
-            if (radioAuto) {
-                radioAuto = false
-                app.lumen.player.data.RadioPrefs.setAutoPick(ctx, false)
-            }
-        }
-        val seed = playback.current
-        // 已经在听这台电台时直接复用，不要再用"当前曲目"重新算一遍
-        val reusable = vibe == null &&
-            radioQueue.isNotEmpty() &&
-            target == radioVibe &&
-            (playback.radioMode || radioSeedId == seed?.id)
-        when {
-            reusable && autoStart -> playRadio(radioQueue)
-            reusable -> Unit
-            else -> buildRadio(
-                vibe = target,
-                seedId = seed?.id,
-                seedTitle = seed?.title,
-                startWhenReady = autoStart,
-            )
-        }
-    }
-
-    // 已分析曲目数：首页电台行与电台页空态共用（分析进行时刷得快一点）
-    LaunchedEffect(loggedIn, screen) {
-        if (!loggedIn) return@LaunchedEffect
-        while (true) {
-            analyzedCount = withContext(Dispatchers.IO) {
-                app.lumen.player.data.MoodStore.count(ctx)
-            }
-            delay(if (app.lumen.player.playback.MoodAnalysisRunner.running) 15_000L else 60_000L)
-        }
-    }
-
     LaunchedEffect(fadeMs) {
         playback.fadeMs = fadeMs
-    }
-    LaunchedEffect(smartFade) {
-        playback.smartFade = smartFade
     }
     // 冷启动恢复上次队列与进度（保持暂停，不自动播放）
     LaunchedEffect(loggedIn, playback) {
@@ -1110,22 +808,7 @@ private fun App() {
     }
 
     // 换歌自动加载歌词（播放页下方常驻显示）
-    // 分析写入后立即刷新当前曲目的分析数据（无需切换曲目）
-    LaunchedEffect(playback.current?.id, app.lumen.player.data.MoodStore.revision) {
-        val tr = playback.current ?: return@LaunchedEffect
-        val fresh = withContext(Dispatchers.IO) { app.lumen.player.data.MoodStore.get(ctx, tr.id) }
-        app.lumen.player.util.Logx.i(
-            "LumenMood",
-            "live mood id=" + tr.id + " found=" + (fresh != null) +
-                " env=" + (fresh?.env?.size ?: -1) +
-                " beats=" + (fresh?.beatsMs?.size ?: -1) +
-                " starts=" + (fresh?.windowsStartMs?.size ?: -1),
-        )
-        if (fresh != null) mood = fresh
-    }
-
     LaunchedEffect(playback.current?.id) {
-        app.lumen.player.playback.MoodAnalysisRunner.notePlaying(playback.current?.id)
         val tr = playback.current
         if (tr != null) app.lumen.player.data.PlayHistory.record(ctx, tr)
         libraryVersion += 1
@@ -1135,11 +818,6 @@ private fun App() {
             if (tr != null) {
                 rating = withContext(Dispatchers.IO) { Ratings.get(ctx, tr.id) }
                 scrobbledId = null
-                mood = withContext(Dispatchers.IO) { app.lumen.player.data.MoodStore.get(ctx, tr.id) }
-                app.lumen.player.util.Logx.i(
-                    "LumenMood",
-                    "load mood id=${tr.id} found=${mood != null} beats=${mood?.beatsMs?.size ?: -1} tempo=${mood?.tempo ?: -1f}",
-                )
                 val cachedLyrics = lyricsCache[tr.id]
                 if (lyricsCache.containsKey(tr.id)) {
                     lyrics = cachedLyrics
@@ -1211,13 +889,6 @@ private fun App() {
         }
     }
 
-    LaunchedEffect(current?.id, playback.playing, mood) {
-        app.lumen.player.playback.MusicPulse.sync(current?.id, playback.playing, mood)
-    }
-    LaunchedEffect(playback.positionMs) {
-        app.lumen.player.playback.MusicPulse.setPosition(playback.positionMs)
-    }
-
     // 封面分档预热：切歌时把播放页要用的 600px 版本放进 Coil 缓存，
     // 列表用的是 200px，两层互不覆盖，进播放页时 0 等待
     LaunchedEffect(current?.albumId) {
@@ -1255,11 +926,9 @@ private fun App() {
         paletteStyle,
         isDarkTheme,
         amoledOn,
-        moodTintOn,
         gradientOn,
         materialYouOn,
         pinnedAlbumId,
-        mood,
     ) {
         // ① Material You（Android 12+）
         if (materialYouOn && android.os.Build.VERSION.SDK_INT >= 31) {
@@ -1280,7 +949,7 @@ private fun App() {
             paletteStatus = "已锁定专辑配色"
             return@LaunchedEffect
         }
-        // ③ 封面 + 情绪
+        // ③ 封面取色
         val t = current
         if (t == null) {
             scheme = app.lumen.player.ui.fallbackScheme(isDarkTheme, amoledOn)
@@ -1291,12 +960,11 @@ private fun App() {
             ctx,
             t.albumId,
             client.coverUrl(t.albumId, 200),
-            if (moodTintOn) mood else null,
             themeOpts,
         )
         if (s != null) {
             scheme = s
-            paletteStatus = if (moodTintOn && mood != null) "封面取色 · 已叠加情绪" else "封面取色"
+            paletteStatus = "封面取色"
         } else {
             // P1-3：取色失败显式降级，不再沿用上一张封面
             scheme = app.lumen.player.ui.fallbackScheme(isDarkTheme, amoledOn)
@@ -1396,87 +1064,7 @@ private fun App() {
                     key.screen == 11 -> app.lumen.player.ui.ChangelogScreen(
                         onBack = { goBack() },
                     )
-                    key.screen == 10 -> app.lumen.player.ui.RadioScreen(
-                        vibe = radioVibe,
-                        loading = radioLoading,
-                        progress = radioProgress,
-                        error = radioError,
-                        analyzedCount = analyzedCount,
-                        seedTitle = radioSeedTitle,
-                        preview = radioQueue,
-                        current = playback.current,
-                        coverUrl = playback.current?.let { client.coverUrl(it.albumId, 300) },
-                        coverModifier = playback.current?.let { track ->
-                            Modifier.albumSharedElement("np-" + track.albumId)
-                        } ?: Modifier,
-                        playing = playback.playing,
-                        radioLive = playback.radioMode,
-                        strength = radioStrength,
-                        onStrength = { value ->
-                            radioStrength = value
-                            app.lumen.player.data.RadioPrefs.setStrength(ctx, value)
-                        },
-                        autoPick = radioAuto,
-                        onAutoPick = { value ->
-                            radioAuto = value
-                            app.lumen.player.data.RadioPrefs.setAutoPick(ctx, value)
-                            buildRadio(
-                                vibe = radioVibe,
-                                seedId = radioSeedId,
-                                seedTitle = radioSeedTitle,
-                                startWhenReady = playback.radioMode,
-                            )
-                        },
-                        onBack = { goBack() },
-                        onStart = { playRadio(radioQueue) },
-                        onVibe = { vibe ->
-                            radioVibe = vibe
-                            app.lumen.player.data.RadioPrefs.setVibe(ctx, vibe)
-                            if (radioAuto) {
-                                radioAuto = false
-                                app.lumen.player.data.RadioPrefs.setAutoPick(ctx, false)
-                            }
-                            // 已经在听电台时换场景 = 换队列并继续播；预览态只重建预览。
-                            // 种子保持不变：换的是场景，不是"从哪首歌出发"。
-                            buildRadio(
-                                vibe = vibe,
-                                seedId = radioSeedId ?: playback.current?.id,
-                                seedTitle = radioSeedTitle ?: playback.current?.title,
-                                startWhenReady = playback.radioMode,
-                            )
-                        },
-                        onRegenerate = { regenerateRadio() },
-                        onReseed = {
-                            buildRadio(
-                                vibe = radioVibe,
-                                seedId = null,
-                                seedTitle = null,
-                                startWhenReady = playback.radioMode,
-                            )
-                        },
-                        onToggle = { playback.toggle() },
-                        onNext = { playback.next() },
-                        onRetry = {
-                            radioQueue = emptyList()
-                            radioTracks = emptyList()
-                            app.lumen.player.data.Radio.clearCache(ctx)
-                            buildRadio(radioVibe, playback.current?.id, playback.current?.title)
-                        },
-                        onContinueAnalysis = {
-                            val runner = app.lumen.player.playback.MoodAnalysisRunner
-                            when {
-                                runner.isPaused() -> runner.resume()
-                                !runner.running -> scope.launch {
-                                    runCatching {
-                                        app.lumen.player.playback.MoodAnalysisRunner.start(ctx, client, albums)
-                                    }
-                                }
-                            }
-                        },
-                        onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
-                    )
                     key.screen == 3 -> SettingsScreen(
-                        onOpenAnalyzed = { showAnalyzed = true },
                         cfg = cfg,
                         downloadCount = downloads.sumOf { it.total },
                         downloadBytes = downloads.sumOf { it.bytes },
@@ -1507,11 +1095,6 @@ private fun App() {
                         onAmoled = {
                             amoledOn = it
                             app.lumen.player.data.Appearance.setAmoled(ctx, it)
-                        },
-                        moodTint = moodTintOn,
-                        onMoodTint = {
-                            moodTintOn = it
-                            app.lumen.player.data.Appearance.setMoodTint(ctx, it)
                         },
                         gradientTheme = gradientOn,
                         onGradientTheme = {
@@ -1550,7 +1133,6 @@ private fun App() {
                             pinnedAlbumId = null
                         },
                         fadeMs = fadeMs,
-                        smartFade = smartFade,
                         langMode = langMode,
                         onLangMode = { mode ->
                             app.lumen.player.util.L10n.setMode(ctx, mode)
@@ -1559,12 +1141,6 @@ private fun App() {
                         onFadeMs = { v ->
                             fadeMs = v
                             app.lumen.player.data.Appearance.setFadeMs(ctx, v)
-                        },
-                        // 之前只渲染了这个开关，却没有把 smartFade / onSmartFade 传进设置页：
-                        // UI 永远显示默认的"开启"，点它也不会写回，属于"看着能点、其实没接上"。
-                        onSmartFade = { v ->
-                            smartFade = v
-                            app.lumen.player.data.Appearance.setSmartFade(ctx, v)
                         },
                         onClearLocalData = { clearLocalData() },
                         onOpenGuide = { showOnboarding = true },
@@ -1578,15 +1154,6 @@ private fun App() {
                         },
                         onClearImageCache = { withContext(Dispatchers.IO) { MediaCache.clearImageCache(ctx) } },
                         onClearLyricsCache = { withContext(Dispatchers.IO) { app.lumen.player.data.LyricsCache.clear(ctx) } },
-                        onClearMoodAbnormal = {
-                            withContext(Dispatchers.IO) { app.lumen.player.data.MoodStore.clearAbnormal(ctx) }
-                        },
-                        onIgnoreFailedTracks = {
-                            withContext(Dispatchers.IO) { app.lumen.player.data.MoodStore.ignoreFailures(ctx) }
-                        },
-                        onRestoreIgnoredTracks = {
-                            withContext(Dispatchers.IO) { app.lumen.player.data.MoodStore.clearIgnored(ctx) }
-                        },
                         onBack = { goBack() },
                         onLogout = {
                             // 登出 = 断开当前连接：停播、清队列与凭据，但保留账号列表与外观偏好
@@ -1596,7 +1163,6 @@ private fun App() {
                             downloadedTrackIds = emptySet()
                             lyrics = null
                             lyricsTrackId = null
-                            mood = null
                             nowPlayingId = null
                             scrobbledId = null
                             openAlbum = null
@@ -1609,22 +1175,6 @@ private fun App() {
                         },
                     )
                     key.screen == 2 -> PlayingScreen(
-                        onReanalyze = {
-                            val tr = playback.current
-                            if (tr != null) {
-                                app.lumen.player.data.MoodStore.deleteResult(ctx, tr.id)
-                                android.widget.Toast.makeText(
-                                    ctx,
-                                    L10n.tf("已清除该曲结果，将重新分析", "Cleared; will re-analyse"),
-                                    android.widget.Toast.LENGTH_SHORT,
-                                ).show()
-                                scope.launch {
-                                    runCatching {
-                                        app.lumen.player.playback.MoodAnalysisRunner.start(ctx, client, albums)
-                                    }
-                                }
-                            }
-                        },
                         coverModifier = Modifier,
                         albumName = current?.album?.takeIf { it.isNotBlank() } ?: (key.album?.name ?: ""),
                         starred = current?.let { starredIds.contains(it.id) } ?: false,
@@ -1641,7 +1191,6 @@ private fun App() {
                             if (!playback.playing) playback.toggle()
                         },
                         rating = rating,
-                        mood = mood,
                         onRating = { v ->
                             rating = v
                             current?.let { Ratings.set(ctx, it.id, v) }
@@ -1675,20 +1224,12 @@ private fun App() {
                         HomeScreen(
                             client = client,
                             albums = albums,
-                            analyzing = app.lumen.player.playback.MoodAnalysisRunner.running,
-                            analysisDone = app.lumen.player.playback.MoodAnalysisRunner.done,
-                            analysisTotal = app.lumen.player.playback.MoodAnalysisRunner.total,
-                            analysisPhase = app.lumen.player.playback.MoodAnalysisRunner.phase,
-                            analysisTrack = app.lumen.player.playback.MoodAnalysisRunner.currentTitle,
-                            analysisMode = app.lumen.player.playback.MoodAnalysisRunner.modeLabel,
-                            analysisModeDetail = app.lumen.player.playback.MoodAnalysisRunner.modeDetail,
                             downloadedIds = downloadedTrackIds,
                             loading = loading,
                             error = error,
                             coverUrl = coverOf,
                             onOpen = onOpenAlbum,
                             onSettings = onOpenSettings,
-                            onOpenSelfCheck = { showSelfCheck = true },
                             onRetry = { scope.launch { loadAlbums(cfg) } },
                             onSearch = onOpenSearch,
                             onOpenArtist = onOpenArtist,
@@ -1698,14 +1239,6 @@ private fun App() {
                             positionMs = playback.positionMs,
                             durationMs = playback.durationMs.takeIf { it > 0 } ?: ((current?.seconds ?: 0) * 1000L),
                             onToggle = { if (current != null) playback.toggle() },
-                            onOpenRadio = { openRadio() },
-                            onPickVibe = { vibe -> openRadio(vibe, autoStart = true) },
-                            radioState = app.lumen.player.ui.RadioRailState(
-                                ready = analyzedCount > 0,
-                                analyzing = app.lumen.player.playback.MoodAnalysisRunner.running,
-                                done = app.lumen.player.playback.MoodAnalysisRunner.done,
-                                total = app.lumen.player.playback.MoodAnalysisRunner.total,
-                            ),
                             onOpenStats = { navigate(NavKey(7, null)) },
                             tab = homeTab,
                             onTabChange = { homeTab = it },
@@ -1771,7 +1304,6 @@ private fun App() {
                             download = downloads.firstOrNull { it.key == "album:${album.id}" },
                             downloadedIds = downloadedTrackIds,
                             themeOpts = themeOpts,
-                            mood = if (current?.albumId == album.id) mood else null,
                             selfColor = perPageColorOn,
                             onDownload = {
                                 Downloads.enqueue(ctx, album, albumTracksCache[album.id].orEmpty()) { tr -> streamUrl(client, tr) }
@@ -1807,7 +1339,6 @@ private fun App() {
                 val sharedMotion = app.lumen.player.ui.rememberBackdropMotion()
                 app.lumen.player.ui.ExpressiveBackdrop(
                     Modifier.matchParentSize(),
-                    event = currentMoment.event,
                     sharedMotion = sharedMotion,
                 )
                 // 返回不再跟手：压暗层只做极轻微的过渡底色，避免转场时露出直射背景
@@ -1842,12 +1373,11 @@ private fun App() {
                                     4 -> "downloads"
                                     6 -> "search"
                                     7 -> "stats"
-                                    10 -> "radio"
                                     else -> null
                                 }
                                 // 方向由导航动作决定：navigate() 是进入，performBack() 是返回。
-                                // 不能用"目标是不是首页"判断——从播放页返回电台页同样是返回，
-                                // 否则电台页会错误地从首页入口的位置再"长"出来一次。
+                                // 不能用"目标是不是首页"判断——从播放页返回专辑页同样是返回，
+                                // 否则专辑页会错误地从首页入口的位置再"长"出来一次。
                                 val returning = navBack
                                 val key = if (returning) originKeyOf(from) else originKeyOf(to)
                                 val origin = app.lumen.player.ui.NavOriginStore
@@ -1886,8 +1416,6 @@ private fun App() {
                             Box(Modifier.fillMaxSize()) {
                                 app.lumen.player.ui.ExpressiveBackdrop(
                                     Modifier.matchParentSize(),
-                                    drivePulse = true,
-                                    event = currentMoment.event,
                                     animate = playback.playing && !powerSave.value,
                                     sharedMotion = sharedMotion,
                                 )
@@ -1897,8 +1425,8 @@ private fun App() {
 
                         // 播放页有自己的控制区，不再显示底栏（用动画隐显，避免"啪"地出现）
                         androidx.compose.animation.AnimatedVisibility(
-                            // 电台页自带播放控制，与播放页同规则不再叠加迷你条（避免两个播放键）
-                            visible = screen != 2 && screen != 10,
+                            // 播放页有自己的控制区，不再叠加迷你条
+                            visible = screen != 2,
                             enter = androidx.compose.animation.fadeIn(
                                 androidx.compose.animation.core.tween(180),
                             ) + androidx.compose.animation.slideInVertically(
@@ -1931,51 +1459,7 @@ private fun App() {
                     }
                 }
 
-                if (showMoodHint) {
-                    MoodNoticeDialog(
-                        onDismiss = {
-                            showMoodHint = false
-                            ctx.getSharedPreferences("lumen_mood", android.content.Context.MODE_PRIVATE)
-                                .edit().putBoolean("hint_shown", true).apply()
-                        },
-                    )
-                }
             }
         }
     }
-}
-
-
-/** 首次登录后的后台分析提示：说明可能的短暂卡顿/发热，分析结束自动恢复。 */
-@Composable
-private fun MoodNoticeDialog(onDismiss: () -> Unit) {
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                L10n.t("正在后台分析曲库"),
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-        },
-        text = {
-            Text(
-                L10n.t(
-                    "为了让配色、氛围电台与节拍动效贴合每首歌，Lumen 会在后台逐首分析曲库（每首约 1~2 秒）。" +
-                        "分析期间可能出现短暂卡顿或设备发热，属于正常现象，全部分析结束后会自动恢复正常。" +
-                        "你可以继续听歌，切到后台也会继续。",
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-                lineHeight = 20.sp,
-            )
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text(L10n.t("知道了"), color = MaterialTheme.colorScheme.primary)
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    )
 }

@@ -17,7 +17,7 @@ object Legal {
     /** 旧版本（Int）记录，仅用于迁移。 */
     private const val KEY_LEGACY_INT = "accepted_version"
 
-    /** 当前随包的条款版本，例如 `2026-11-25`。 */
+    /** 当前随包的条款版本，例如 `2026-11-26`。 */
     fun currentVersion(): String = BuildConfig.LEGAL_VERSION
 
     fun accepted(ctx: Context): Boolean {

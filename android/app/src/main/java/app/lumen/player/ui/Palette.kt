@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.graphics.Color
-import app.lumen.player.data.MoodResult
 import blend.Blend
 import hct.Hct
 import quantize.QuantizerCelebi
@@ -57,41 +56,8 @@ private suspend fun coverBitmap(ctx: Context, url: String): Bitmap? = withContex
     }.getOrNull()
 }
 
-/** 取色结果缓存（P2-1：64 条，按 albumId + 选项 + 情绪档）。 */
+/** 取色结果缓存（64 条，按 albumId + 选项）。 */
 private val schemeCache = object : android.util.LruCache<String, ColorScheme>(64) {}
-
-/** 情绪锚点色：按标签给 HCT 锚点，再按坐标做小幅修正。 */
-private fun moodAnchorArgb(m: MoodResult): Int {
-    val (hue, chroma, tone) = when (m.label) {
-        "Happy" -> Triple(52.0, 70.0, 62.0)
-        "Excited" -> Triple(28.0, 75.0, 64.0)
-        "Tender" -> Triple(338.0, 45.0, 70.0)
-        "Calm" -> Triple(168.0, 32.0, 66.0)
-        "Sad" -> Triple(232.0, 30.0, 55.0)
-        "Angry" -> Triple(8.0, 75.0, 55.0)
-        else -> Triple(286.0, 45.0, 52.0)
-    }
-    val hueShift = (m.valence - 0.5f) * 18.0 - (m.arousal - 0.5f) * 10.0
-    return Hct.from((hue + hueShift + 360.0) % 360.0, chroma, tone).toInt()
-}
-
-/**
- * 封面主色为主、情绪色只做「协调偏移」：
- * 色相按情绪强度旋转 25%–75%，色度混合 15%–45%，明度保持封面。
- */
-fun moodTintedSeed(coverSeed: Int, mood: MoodResult): Int {
-    val moodColor = moodAnchorArgb(mood)
-    val strength = (
-        (kotlin.math.abs(mood.valence - 0.5f) + kotlin.math.abs(mood.arousal - 0.5f)) * 2f
-        ).coerceIn(0f, 1f)
-    val cover = Hct.fromInt(coverSeed)
-    val moodHct = Hct.fromInt(moodColor)
-    val amount = (0.25f + 0.50f * strength).toDouble()
-    val rotated = Hct.fromInt(Blend.hctHue(coverSeed, moodColor, amount))
-    val chromaK = (0.15 + 0.30 * strength.toDouble()).coerceIn(0.0, 0.45)
-    val chroma = cover.chroma * (1.0 - chromaK) + moodHct.chroma * chromaK
-    return Hct.from(rotated.hue, chroma, cover.tone).toInt()
-}
 
 /** 从封面图算出 1~3 个种子（已约束）。失败返回 null。 */
 private fun seedsOf(source: Bitmap, albumId: String): List<Int>? {
@@ -124,39 +90,23 @@ suspend fun schemeFromCover(
     ctx: Context,
     albumId: String,
     url: String,
-    mood: MoodResult?,
     opts: ThemeOptions,
 ): ColorScheme? = withContext(Dispatchers.IO) {
-    val moodBucket = if (opts.moodTint && mood != null) {
-        "${(mood.valence * 10).toInt()}${(mood.arousal * 10).toInt()}"
-    } else {
-        "-"
-    }
-    val key = "$albumId|${opts.contrast}|${opts.style.key}|${opts.isDark}|${opts.amoled}|${opts.gradient}|$moodBucket"
+    val key = "$albumId|${opts.contrast}|${opts.style.key}|${opts.isDark}|${opts.amoled}|${opts.gradient}"
     schemeCache.get(key)?.let { return@withContext it }
 
     val stored = PaletteStore.seeds(ctx, albumId)
     val seeds = stored ?: fetchSeeds(ctx, url, albumId)?.also { PaletteStore.put(ctx, albumId, it) }
     if (seeds.isNullOrEmpty()) return@withContext null
 
-    val tinted = if (opts.moodTint && mood != null) {
-        listOf(moodTintedSeed(seeds.first(), mood)) + seeds.drop(1)
-    } else {
-        seeds
-    }
-    val scheme = buildScheme(tinted, opts)
+    val scheme = buildScheme(seeds, opts)
     schemeCache.put(key, scheme)
     scheme
 }
 
 /** 同步命中内存缓存（页面首帧直接用，避免"先错色再改色"的闪烁）。 */
-fun schemeFromCache(albumId: String, mood: MoodResult?, opts: ThemeOptions): ColorScheme? {
-    val moodBucket = if (opts.moodTint && mood != null) {
-        "${(mood.valence * 10).toInt()}${(mood.arousal * 10).toInt()}"
-    } else {
-        "-"
-    }
-    val key = "$albumId|${opts.contrast}|${opts.style.key}|${opts.isDark}|${opts.amoled}|${opts.gradient}|$moodBucket"
+fun schemeFromCache(albumId: String, opts: ThemeOptions): ColorScheme? {
+    val key = "$albumId|${opts.contrast}|${opts.style.key}|${opts.isDark}|${opts.amoled}|${opts.gradient}"
     return schemeCache.get(key)
 }
 

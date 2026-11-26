@@ -5,16 +5,13 @@ import app.lumen.player.data.Accounts
 import app.lumen.player.data.AlbumCache
 import app.lumen.player.data.AlbumTracksCache
 import app.lumen.player.data.LyricsCache
-import app.lumen.player.data.MoodStore
 import app.lumen.player.data.PlayHistory
-import app.lumen.player.data.Radio
 import app.lumen.player.data.Ratings
 import app.lumen.player.data.SettingsStore
 import app.lumen.player.data.StatsStore
 import app.lumen.player.data.StreamCapabilityStore
 import app.lumen.player.playback.Downloads
 import app.lumen.player.playback.MediaCache
-import app.lumen.player.playback.MoodAnalysisRunner
 import app.lumen.player.playback.PlaybackEngine
 import app.lumen.player.playback.PlaybackStateStore
 import app.lumen.player.ui.PaletteStore
@@ -25,9 +22,8 @@ import kotlinx.coroutines.withContext
  * 「清除本机数据」的唯一入口。
  *
  * 为什么集中在一处：历史上各 store 各自 clear()，新增缓存时很容易漏掉，
- * 导致设置页承诺「删除账号、播放历史、评分、心情、下载与缓存」而实际仍残留
- * 完整曲库目录（albums.json / album_tracks / radio_tracks / mood_tracklist）
- * 与「哪些曲目分析过 / 失败过」的曲目 ID 清单。
+ * 导致设置页承诺「删除账号、播放历史、评分、下载与缓存」而实际仍残留
+ * 完整曲库目录（albums.json / album_tracks）与派生缓存。
  *
  * 约束：**新增任何落盘 store 时必须在此登记**，并在
  * `androidTest/.../LocalDataWipeTest.kt` 里加一条断言。
@@ -52,27 +48,22 @@ object LocalData {
             // 3) 媒体流缓存 + 封面缓存
             runCatching { MediaCache.clearStreamingCache(app, emptySet()) }
 
-            // 4) 分析结果整库 + 曲目清单 + 被中断留下的临时音频
-            MoodStore.clearAll(app)
-            MoodAnalysisRunner.clearCache(app)
-
-            // 5) 曲库元数据：专辑列表、专辑曲目、电台曲库
+            // 4) 曲库元数据：专辑列表、专辑曲目
             AlbumCache.clear(app)
             AlbumTracksCache.clear(app)
-            Radio.clearCache(app)
 
-            // 6) 行为数据：播放历史、评分、统计配置、上次播放队列
+            // 5) 行为数据：播放历史、评分、统计配置、上次播放队列
             PlayHistory.clear(app)
             Ratings.clear(app)
             StatsStore.clear(app)
             PlaybackStateStore.clear(app)
 
-            // 7) 其他派生缓存：封面主题种子、服务器取流能力、歌词
+            // 6) 其他派生缓存：封面主题种子、服务器取流能力、歌词
             PaletteStore.clear(app)
             StreamCapabilityStore.clear(app)
             LyricsCache.clear(app)
 
-            // 8) 最后清账号与凭据（含 salt）
+            // 7) 最后清账号与凭据（含 salt）
             Accounts.clearAll(app)
             SettingsStore.clear(app)
         }

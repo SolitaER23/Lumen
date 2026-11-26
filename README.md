@@ -16,14 +16,18 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 ## 功能
 
 - **首页**：专辑 / 艺人 / 最近 / 收藏四个分区；专辑多碟分页
-- **播放页**：歌词（逐行滚动、可点按跳转）、0–10 评分、心情分析、下载、收藏、播放模式（列表 / 单曲 / 随机）
+- **播放页**：歌词（逐行滚动、可点按跳转）、0–10 评分、下载、收藏、播放模式（列表 / 单曲 / 随机）
 - **最近**：最近播放按单曲展示（本地历史），最近添加按专辑，已下载单独一栏
-- **氛围电台**：首页「专辑」页常驻电台行（点场景即以当前曲目为种子起播）；电台里点正在播放栏进播放页、返回回到电台；基于 CLAP 1024 维音乐特征 + 情绪坐标的本地电台，先进预览再开始，不打断当前播放
 - **多账号**：设置里保存多个 Navidrome 账号并切换，密码与令牌使用 Android Keystore 加密
 - **Navidrome Stat**：可选接入，展示播放统计
-- **心情分析**：端侧 CLAP + DSP（ONNX Runtime），结果只保存在本机，用于动态背景与配色
 - **交互**：返回与进入走同一条共享元素转场（对称、无闪跳）、首页二次返回确认、从点击位置展开的进入动画、封面交叉溶解、切歌音量淡入淡出
 - **离线**：边下边播缓存、整张专辑/单曲下载、独立的缓存清理
+
+## 已移除的端侧模型功能
+
+2026-11-26 起，端侧 CLAP 音频模型、心情分析、氛围电台、情绪配色与音色搜索已从应用移除，应用只保留听歌相关功能。
+被移除的代码、模型权重、测试与文档已**移动**（未删除）到 [removed-ai-model-features/](removed-ai-model-features/)，原始路径、用途与移除原因见
+[MANIFEST.md](removed-ai-model-features/MANIFEST.md)。
 
 ## 技术栈
 
@@ -34,12 +38,11 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 | 音频 | Media3 ExoPlayer 1.11.1（磁盘缓存 + 解码失败自动转码兜底） |
 | 网络 | OkHttp 5.5.1 + Retrofit 3.0.0 + Gson 2.15.0（Subsonic token + salt 认证） |
 | 图片 | Coil 3.6.3（coil-compose + coil-network-okhttp）+ Material Color Utilities 封面取色 |
-| 端侧模型 | ONNX Runtime 1.22.0（CPU EP 优先，XNNPACK 为回退）+ LAION-CLAP HTSAT-base 音乐版 fp16（随包约 144 MB，见 [MODELS.md](MODELS.md)） |
 | 构建 | Gradle 9.9.2（Wrapper）+ AGP 9.5.2 + Kotlin 2.4.21 |
 
 ## 首次启动
 
-首次打开会先显示用户协议与隐私条款确认，同意后进入 6 页功能引导（连接曲库、查找内容、播放控制、个性化、氛围电台、本机隐私），可跳过或逐步查看；完成后可在「设置 → 关于 → 使用引导」重新查看。
+首次打开会先显示用户协议与隐私条款确认，同意后进入 5 页功能引导（连接曲库、查找内容、播放控制、个性化、本机隐私），可跳过或逐步查看；完成后可在「设置 → 关于 → 使用引导」重新查看。
 
 不同意条款时可直接退出，应用不会进入登录或处理账号数据。
 
@@ -52,7 +55,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - 支持 Android 8.0+、**arm64-v8a**；32 位设备无法安装；
 - 从官方夸克网盘渠道下载 APK，需允许“安装未知应用”；
 - 新版本必须使用同一签名证书覆盖安装；正式证书与早期 debug 测试版不能互相覆盖；
-- 卸载会删除本机账号、历史、评分、心情与下载（应用不启用云备份）；
+- 卸载会删除本机账号、历史、评分与下载（应用不启用云备份）；
 - 详细步骤、校验方式与故障排查见 [docs/user-guide.md](docs/user-guide.md) 与 [docs/distribution.md](docs/distribution.md)。
 
 ## 隐私与支持
@@ -65,7 +68,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 ## 关键附件
 
-当前正式直发版本：**0.89.0 / versionCode 223**
+当前正式直发版本：**0.90.0 / versionCode 224**
 
 - [分发包与校验说明](docs/distribution.md)
 - [用户指南](docs/user-guide.md)
@@ -74,7 +77,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - [兼容性说明](docs/compatibility.md)
 - [Release CI](.github/workflows/release.yml)
 - 官方更新渠道：[夸克网盘](https://pan.quark.cn/s/f35d0450e4b1?pwd=3GF3)，提取码 `3GF3`
-- 分发包：`dist/Lumen-0.89.0.apk`、`dist/SHA256SUMS.txt`
+- 分发包：`dist/Lumen-0.90.0.apk`、`dist/SHA256SUMS.txt`
 - 发布后同步元数据：`python scripts/update-release-metadata.py`
 
 ## 构建
@@ -94,10 +97,6 @@ Windows 下把 `./gradlew` 换成 `gradlew.bat`。
 > `LUMEN_KEYSTORE_FILE`、`LUMEN_KEYSTORE_PASSWORD`、`LUMEN_KEY_ALIAS`、`LUMEN_KEY_PASSWORD`。
 > 仓库内残留的 `keystore.properties` 仅作兼容回退并会打印告警；`scripts/check-secrets.ps1` 可校验。
 
-> 情绪分析所需的 ONNX 模型（`assets/mood/*.onnx`，fp16 共约 144 MB）**以 Git LFS 随仓库分发**，来源、许可与校验值见
-> [MODELS.md](MODELS.md)。克隆后未拉取 LFS 对象时，模型只是指针文件：构建仍可通过，但「心情分析」会报「模型落盘失败」，
-> 播放与其它功能不受影响；补拉用 `git lfs pull`。
-
 ## 测试
 
 ```bash
@@ -105,18 +104,17 @@ cd android
 ./gradlew :app:testDebugUnitTest
 ```
 
-目前覆盖 URL 构造、专辑排序、队列索引与情绪计算等纯逻辑。
+目前覆盖 URL 构造、专辑排序、队列索引等纯逻辑。
 
 ## 目录
 
 ```
 android/app/src/main/java/app/lumen/player/
   MainActivity.kt        应用壳、导航与页面装配
-  data/                  配置/账号、Subsonic、缓存、心情、统计、历史
-  playback/              ExoPlayer、下载服务、后台分析执行器
+  data/                  配置/账号、Subsonic、缓存、统计、历史
+  playback/              ExoPlayer、下载服务与播放状态
   ui/                    各页面与主题/背景组件
 android/app/src/main/assets/
-  mood/                  CLAP 音频塔 + 情绪投影层（fp16 共约 144 MB，Git LFS 托管）
   licenses/              第三方许可全文
 ```
 
@@ -132,4 +130,4 @@ android/app/src/main/assets/
 
 Lumen 以 **MIT License** 发布，见 [LICENSE](LICENSE)。
 
-预训练模型：LAION-CLAP HTSAT-base 音乐版（MIT，随上游发布）；推理由 ONNX Runtime（MIT）完成，音乐分析仅使用该模型与本地 DSP。Navidrome（GPL-3.0）与 Navidrome Stat（MIT）仅通过网络协议对接，代码未打包进本应用。
+Navidrome（GPL-3.0）与 Navidrome Stat（MIT）仅通过网络协议对接，代码未打包进本应用。

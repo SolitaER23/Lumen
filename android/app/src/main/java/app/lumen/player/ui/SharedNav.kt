@@ -72,7 +72,7 @@ private fun rememberCoverBoundsTransform(): BoundsTransform {
 /**
  * 让封面参与共享元素转场。
  *
- * @param key 两端必须完全一致（迷你条 / 电台正在播放栏 / 播放页都用 `np-<albumId>`）
+ * @param key 两端必须完全一致（迷你条 / 播放页都用 `np-<albumId>`）
  * @param scope 元素所在的 AnimatedVisibilityScope：页面内传 null 表示用当前页面作用域；
  *              页面之外的浮层（迷你条）必须显式传它自己的 scope。
  */

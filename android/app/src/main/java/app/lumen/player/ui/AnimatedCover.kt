@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 
-/** 封面切换：新旧封面交叉溶解 + 轻微景深缩放，播放页与电台页共用。 */
+/** 封面切换：新旧封面交叉溶解 + 轻微景深缩放，播放页与迷你条共用。 */
 @Composable
 internal fun AnimatedCover(
     url: String,
@@ -31,7 +31,7 @@ internal fun AnimatedCover(
     cornerRadius: Dp = 24.dp,
     /** 用于查四边采样色；为空时回退到主题主色 */
     albumId: String? = null,
-    /** 共享元素 key：播放页传 `np-<albumId>`，与迷你条 / 电台正在播放栏的封面配对 */
+    /** 共享元素 key：播放页传 `np-<albumId>`，与迷你条封面配对 */
     sharedKey: String? = null,
     /** 弱网降级：先展示这张低清图，高清到达后自动覆盖 */
     lowResUrl: String? = null,

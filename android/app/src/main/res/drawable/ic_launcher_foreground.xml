@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Lumen 图标前景层：「光之心」。
-     一颗四角光芒 —— 应用内「氛围电台」sparkle 的放大版，也是 Lumen（流明）本身。
+     一颗四角光芒 —— Lumen（流明）的图形化表达。
      图形外缘 r = 21.5dp，位于 66dp 安全区内，任何 mask / 视差都不会裁切。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"

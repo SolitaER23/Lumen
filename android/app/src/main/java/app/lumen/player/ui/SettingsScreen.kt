@@ -73,7 +73,7 @@ import java.io.File
 import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.graphics.graphicsLayer
 
-/** 设置页：账号、外观、心情分析、存储、语言与关于。 */
+/** 设置页：账号、外观、播放、存储、语言与关于。 */
 @Composable
 fun SettingsScreen(
     cfg: ServerConfig,
@@ -85,10 +85,6 @@ fun SettingsScreen(
     onClearSongCache: suspend () -> Unit = {},
     onClearImageCache: suspend () -> Unit = {},
     onClearLyricsCache: suspend () -> Unit = {},
-    onClearMoodAbnormal: suspend () -> Unit = {},
-    onIgnoreFailedTracks: suspend () -> Int = { 0 },
-    onOpenAnalyzed: () -> Unit = {},
-    onRestoreIgnoredTracks: suspend () -> Int = { 0 },
     contrast: Float = 0.45f,
     onContrast: (Float) -> Unit = {},
     themeMode: String = "system",
@@ -97,8 +93,6 @@ fun SettingsScreen(
     onPaletteStyle: (String) -> Unit = {},
     amoled: Boolean = false,
     onAmoled: (Boolean) -> Unit = {},
-    moodTint: Boolean = true,
-    onMoodTint: (Boolean) -> Unit = {},
     gradientTheme: Boolean = false,
     onGradientTheme: (Boolean) -> Unit = {},
     materialYou: Boolean = false,
@@ -111,8 +105,6 @@ fun SettingsScreen(
     onUnpinColor: () -> Unit = {},
     fadeMs: Long = 260L,
     onFadeMs: (Long) -> Unit = {},
-    smartFade: Boolean = true,
-    onSmartFade: (Boolean) -> Unit = {},
     langMode: String = "system",
     onLangMode: (String) -> Unit = {},
     accounts: List<Account> = emptyList(),
@@ -137,8 +129,6 @@ fun SettingsScreen(
     var cacheSongs by remember { mutableStateOf(0L) }
     var cacheImages by remember { mutableStateOf(0L) }
     var cacheLyrics by remember { mutableStateOf(0L) }
-    var moodAbnormal by remember { mutableIntStateOf(0) }
-    var moodIgnored by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(freed) {
@@ -147,8 +137,6 @@ fun SettingsScreen(
                 cacheSongs = app.lumen.player.playback.MediaCache.streamingBytes(ctx)
                 cacheImages = app.lumen.player.playback.MediaCache.imageBytes(ctx)
                 cacheLyrics = app.lumen.player.data.LyricsCache.bytes(ctx)
-                moodAbnormal = app.lumen.player.data.MoodStore.abnormalCount(ctx)
-                moodIgnored = app.lumen.player.data.MoodStore.ignoredCount(ctx)
             }
         }
     }
@@ -313,7 +301,6 @@ fun SettingsScreen(
                                 themeMode = themeMode,
                                 paletteStyle = paletteStyle,
                                 contrast = contrast,
-                                moodTint = moodTint,
                                 gradientTheme = gradientTheme,
                                 perPageColor = perPageColor,
                                 materialYou = materialYou,
@@ -326,7 +313,6 @@ fun SettingsScreen(
                             onThemeMode = onThemeMode,
                             onPaletteStyle = onPaletteStyle,
                             onContrast = onContrast,
-                            onMoodTint = onMoodTint,
                             onGradientTheme = onGradientTheme,
                             onPerPageColor = onPerPageColor,
                             onMaterialYou = onMaterialYou,
@@ -348,23 +334,6 @@ fun SettingsScreen(
                         labels = listOf(L10n.t("关闭"), L10n.t("短"), L10n.t("标准"), L10n.t("长")),
                         selected = listOf(0L, 150L, 260L, 420L).indexOf(fadeMs).coerceAtLeast(0),
                         onSelect = { index -> onFadeMs(listOf(0L, 150L, 260L, 420L)[index]) },
-                    )
-                    SettingLabel(
-                        L10n.tf("智能衔接", "Smart transition"),
-                        L10n.tf("按当前曲目 BPM 调整淡入淡出", "Adjust crossfade to the current BPM"),
-                        Modifier.padding(top = 18.dp),
-                    )
-                    SegmentedControl(
-                        labels = listOf(L10n.t("关闭"), L10n.t("开启")),
-                        selected = if (smartFade) 1 else 0,
-                        onSelect = { index -> onSmartFade(index == 1) },
-                    )
-                    Text(
-                        L10n.tf("开启后按曲目节拍选择一拍长度的淡入淡出；未分析 BPM 的曲目仍使用上面的时长。", "When enabled, the crossfade uses one beat of the current track; tracks without BPM data fall back to the duration above."),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp,
-                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
             }
@@ -391,77 +360,6 @@ fun SettingsScreen(
                         hint = L10n.t("已保存的歌词文本，清理后需重新获取"),
                         onClear = { scope.launch { onClearLyricsCache(); freed = !freed } },
                     )
-                    StorageRow(
-                        title = L10n.t("已分析曲目"),
-                        value = L10n.t("查看"),
-                        hint = L10n.t("列出已分析的曲目及其分析项（窗数、能量、向量、拍点、BPM、情绪）"),
-                        action = {
-                            Text(
-                                L10n.t("打开"),
-                                color = MaterialTheme.colorScheme.primary,
-                                fontSize = 12.sp,
-                                modifier = Modifier
-                                    .padding(horizontal = 6.dp)
-                                    .clickable { onOpenAnalyzed() },
-                            )
-                        },
-                    )
-                    StorageRow(
-                        title = L10n.t("分析异常数据"),
-                        value = L10n.tf("${moodAbnormal} 条", "${moodAbnormal} items"),
-                        hint = L10n.t("清理后这些曲目会在下次启动时重试；想彻底不分析请用「忽略」"),
-                        action = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    L10n.tf("忽略", "Ignore"),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier
-                                        .padding(horizontal = 6.dp)
-                                        .clickable {
-                                            scope.launch {
-                                                onIgnoreFailedTracks()
-                                                freed = !freed
-                                            }
-                                        },
-                                )
-                                IconButton(onClick = {
-                                    scope.launch {
-                                        onClearMoodAbnormal()
-                                        freed = !freed
-                                    }
-                                }) {
-                                    Icon(
-                                        YoinSymbols.Delete,
-                                        contentDescription = L10n.t("清理异常数据"),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        },
-                    )
-                    if (moodIgnored > 0) {
-                        StorageRow(
-                            title = L10n.t("已忽略曲目"),
-                            value = L10n.tf("${moodIgnored} 首", "${moodIgnored} tracks"),
-                            hint = L10n.t("这些曲目不再参与分析，恢复后下次启动重试"),
-                            action = {
-                                Text(
-                                    L10n.tf("恢复", "Restore"),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier
-                                        .padding(horizontal = 6.dp)
-                                        .clickable {
-                                            scope.launch {
-                                                onRestoreIgnoredTracks()
-                                                freed = !freed
-                                            }
-                                        },
-                                )
-                            },
-                        )
-                    }
                     Spacer(Modifier.height(10.dp))
                     StorageRow(
                         title = L10n.t("离线下载"),
@@ -531,7 +429,7 @@ fun SettingsScreen(
             onDismissRequest = { confirmWipe = false },
             title = { Text(L10n.t("清除本机数据？")) },
             text = {
-                Text(L10n.t("将删除本机保存的账号、播放历史、评分、心情数据、统计配置、离线下载与缓存，并回到登录页。该操作不可撤销。"))
+                Text(L10n.t("将删除本机保存的账号、播放历史、评分、统计配置、离线下载与缓存，并回到登录页。该操作不可撤销。"))
             },
             confirmButton = {
                 TextButton(onClick = {

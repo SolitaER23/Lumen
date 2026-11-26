@@ -144,8 +144,8 @@ fun OnboardingScreen(onDone: () -> Unit) {
             tag = L10n.tf("个性化", "MAKE IT YOURS"),
             title = L10n.tf("让界面\n跟着音乐", "Let the UI\nmove with it"),
             body = L10n.tf(
-                "封面决定主色，端侧心情分析决定色温与呼吸。切歌淡入淡出、多账号和语言都能在设置里调整。",
-                "Cover art sets the primary color; on-device mood analysis sets the temperature and breathing. Crossfade, accounts and language live in Settings.",
+                "封面决定主色与动态背景。切歌淡入淡出、多账号和语言都能在设置里调整。",
+                "Cover art sets the primary color and animated background. Crossfade, accounts and language live in Settings.",
             ),
             bullets = listOf(
                 L10n.tf("封面取色与动态背景", "Cover colors and animated background"),
@@ -167,28 +167,15 @@ fun OnboardingScreen(onDone: () -> Unit) {
             ),
         ),
         GuidePage(
-            tag = L10n.tf("电台", "RADIO"),
-            title = L10n.tf("首页一行，\n随手开台", "One row away\nfrom a station"),
-            body = L10n.tf(
-                "首页「专辑」页顶部有一行电台：点一个场景，就以正在播放的歌为种子开始连续播放；电台里点正在播放的那首歌会进入播放页，返回就回到电台原来的位置。",
-                "A station row sits on top of the Albums page: tap a scene and a continuous station starts from the track you're playing. Inside a station, tap the now-playing row to open the player — going back returns you to the station.",
-            ),
-            bullets = listOf(
-                L10n.tf("首页电台行一键起播", "One tap from the home station row"),
-                L10n.tf("点正在播放栏进播放页", "Tap the now-playing row for the player"),
-                L10n.tf("封面带着飞，返回回原地", "The cover flies along, back returns you"),
-            ),
-        ),
-        GuidePage(
             tag = L10n.tf("隐私", "PRIVACY"),
             title = L10n.tf("所有声音，\n留在本机", "Your sounds\nstay on device"),
             body = L10n.tf(
-                "账号密码使用 Android Keystore 加密；播放历史、评分与端侧分析只保存在本机；音频不会上传，也不含统计 SDK。",
-                "Credentials are encrypted with the Android Keystore. History, ratings and on-device analysis stay local; audio is never uploaded and there is no analytics SDK.",
+                "账号密码使用 Android Keystore 加密；播放历史与评分只保存在本机；音频不会上传，也不含统计 SDK。",
+                "Credentials are encrypted with the Android Keystore. History and ratings stay local; audio is never uploaded and there is no analytics SDK.",
             ),
             bullets = listOf(
                 L10n.tf("凭据加密存储", "Encrypted credentials"),
-                L10n.tf("分析在本机完成", "Analysis runs on device"),
+                L10n.tf("数据保存在本机", "Data stays on device"),
                 L10n.tf("设置里可清除全部本机数据", "Clear all local data in Settings"),
             ),
         ),

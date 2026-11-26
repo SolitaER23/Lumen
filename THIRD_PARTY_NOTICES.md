@@ -16,8 +16,6 @@ Lumen 自身以 MIT 许可发布（见根目录 `LICENSE`）。以下组件随�
 | Retrofit / converter-gson | 3.0.0 | Apache-2.0 | Copyright Square, Inc. | `Apache-2.0.txt` |
 | Gson | 2.15.0 | Apache-2.0 | Copyright Google LLC | `Apache-2.0.txt` |
 | Coil（coil-compose / coil-network-okhttp） | 3.6.3 | Apache-2.0 | Copyright Coil Contributors | `Apache-2.0.txt` |
-| ONNX Runtime（`com.microsoft.onnxruntime:onnxruntime-android`） | 1.22.0 | MIT | Copyright (c) Microsoft Corporation | `MIT.txt` |
-| LAION-CLAP HTSAT-base 音乐版（`clap_music_fp16.onnx` + `audio_projection.onnx`） | music_audioset_epoch_15_esc_90.14 | MIT（laion_clap 代码与权重随上游发布） | Copyright LAION 及上游作者 | `MIT.txt` |
 | Material Color Utilities（vendored Java 源码） | 2026 源码快照 | Apache-2.0 | Copyright 2021-2026 Google LLC | `MCU-Apache-2.0.txt` |
 | Yoin Symbols | 0.2.0 | MIT | Copyright (c) p2o51 | `MIT.txt` |
 | Google Sans Flex（字体） | 字体内嵌版本 | OFL-1.1 | Copyright 2015 The Google Sans Flex Authors | `OFL-1.1.txt` |
@@ -32,6 +30,5 @@ Lumen 自身以 MIT 许可发布（见根目录 `LICENSE`）。以下组件随�
 
 ## 特别说明
 
-- CLAP 权重由上游 `music_audioset_epoch_15_esc_90.14.pt` 导出为 ONNX（fp16 存储 / fp32 计算），权重数值未做再训练或修改；转换与校验步骤见 `MODELS.md` 与 `scripts/convert-model-fp16.py`。
 - Google Sans Flex 以 SIL OFL-1.1 内嵌，未修改字体文件，未单独售卖字体。
 - 本项目不包含任何用户凭据、服务器地址或个人数据；运行期数据仅保存在设备本地。

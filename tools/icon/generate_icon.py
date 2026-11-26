@@ -5,7 +5,7 @@ Lumen 应用图标生成器 —— MD3 Expressive「光之心 / Lumen Core」。
 设计说明
 --------
 · 主体：一颗四角光芒（spark），尖角由内凹弧线连接 —— MD3 Expressive 的
-  「光 / 能量」母题，也是应用内「氛围电台」那一颗 sparkle 圆点的放大版。
+  「光 / 能量」母题，也是 Lumen（流明）的品牌图形。
 · 底色：深紫径向渐变，中心透出暖光；和界面里「封面取色 + 深色沉浸」一致。
 · Lumen = 流明（光通量单位），标志只留下「光」这一件事，缩到 24dp 依然清楚。
 
@@ -162,7 +162,7 @@ _RING_LAYERS = f'''
 
 FG_XML = f'''<?xml version="1.0" encoding="utf-8"?>
 <!-- Lumen 图标前景层：「光之心」。
-     一颗四角光芒 —— 应用内「氛围电台」sparkle 的放大版，也是 Lumen（流明）本身。
+     一颗四角光芒 —— Lumen（流明）的图形化表达。
      图形外缘 r = {SPARK_R}dp，位于 66dp 安全区内，任何 mask / 视差都不会裁切。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"

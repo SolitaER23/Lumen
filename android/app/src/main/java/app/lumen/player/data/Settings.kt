@@ -49,9 +49,9 @@ object Appearance {
 
     /** 从旧文件迁移过来的外观键（与写入端保持一致）。 */
     private val APPEARANCE_KEYS = setOf(
-        KEY_CONTRAST, "theme_mode", "palette_style", "mood_tint", "gradient_theme",
+        KEY_CONTRAST, "theme_mode", "palette_style", "gradient_theme",
         "per_page_color", "material_you", "amoled", "pinned_album", "pinned_seeds",
-        "fade_ms", "smart_fade",
+        "fade_ms",
     )
 
     /** 幂等迁移：把旧 lumen_settings 里的外观键搬到 lumen_appearance。 */
@@ -103,13 +103,6 @@ object Appearance {
 
     fun setPaletteStyle(ctx: Context, v: String) {
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putString("palette_style", v).apply()
-    }
-
-    fun moodTint(ctx: Context): Boolean =
-        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean("mood_tint", true)
-
-    fun setMoodTint(ctx: Context, v: Boolean) {
-        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("mood_tint", v).apply()
     }
 
     fun gradientTheme(ctx: Context): Boolean =
@@ -175,15 +168,6 @@ object Appearance {
     fun setFadeMs(ctx: Context, value: Long) {
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
             .putLong("fade_ms", value.coerceIn(0L, 2000L)).apply()
-    }
-
-    /** 智能衔接：按当前曲目 BPM 调整淡入淡出时长。 */
-    fun smartFade(ctx: Context): Boolean =
-        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean("smart_fade", true)
-
-    fun setSmartFade(ctx: Context, value: Boolean) {
-        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
-            .putBoolean("smart_fade", value).apply()
     }
 }
 

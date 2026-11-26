@@ -45,7 +45,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.lumen.player.data.MoodStore
 import app.lumen.player.data.StatsClient
 import app.lumen.player.data.StatsConfig
 import app.lumen.player.data.StatsDashboard
@@ -66,7 +65,7 @@ import kotlinx.coroutines.withContext
  * 2. 活跃趋势 —— 每日播放柱状 + 日均/峰值/活跃天数
  * 3. 分类汇总 —— 星期分布 / 时段分布
  * 4. 排行榜 —— 艺人、专辑（带占比条）
- * 5. Lumen 侧数据 —— 已完成分析、心情分布（本机数据，与统计服务无关）
+ * 5. 汇总指标 —— 曲目数与总时长
  * 6. 最近播放
  */
 @Composable
@@ -101,8 +100,6 @@ fun StatsScreen(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var data by remember { mutableStateOf<StatsDashboard?>(null) }
-    var analyzed by remember { mutableIntStateOf(0) }
-    var moodTop by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
     var board by remember { mutableIntStateOf(0) } // 0=艺人 1=专辑
     // 上一周期对比：额外拉一次 2 倍区间，两者相减得到前一个窗口
     var prevPlays by remember { mutableIntStateOf(-1) }
@@ -134,14 +131,6 @@ fun StatsScreen(
             error = e.message ?: L10n.t("请求失败")
         }
         loading = false
-    }
-    LaunchedEffect(cfg) {
-        withContext(Dispatchers.IO) {
-            analyzed = runCatching { MoodStore.count(ctx) }.getOrDefault(0)
-            moodTop = runCatching {
-                MoodStore.distribution(ctx).entries.sortedByDescending { it.value }.take(3)
-            }.getOrDefault(emptyList()).map { it.key to it.value }
-        }
     }
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -192,9 +181,6 @@ fun StatsScreen(
                                 byHour = L10n.tf("24 小时分布", "24-hour distribution"),
                                 topArtists = L10n.tf("常听艺人", "Top artists"),
                                 topAlbums = L10n.tf("常听专辑", "Top albums"),
-                                localData = L10n.tf("本机数据", "On this device"),
-                                analyzedLine = L10n.tf("已完成分析 %d 首", "%d tracks analyzed"),
-                                moodLine = L10n.tf("心情分布 %s", "Mood mix %s"),
                                 recent = L10n.tf("最近播放", "Recently played"),
                                 footer = "Lumen · navidrome-stat",
                             )
@@ -205,8 +191,6 @@ fun StatsScreen(
                                             d = d,
                                             ins = ins,
                                             rangeLabel = range,
-                                            mood = moodTop,
-                                            analyzed = analyzed,
                                             palette = reportPalette,
                                             title = L10n.tf("聆听统计", "Listening stats"),
                                             labels = labels,
@@ -432,9 +416,8 @@ fun StatsScreen(
                         }
                     }
                     item {
-                        SectionCard(L10n.tf("本机数据", "On this device")) {
+                        SectionCard(L10n.tf("曲库概览", "Library overview")) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                MiniStat(L10n.tf("已分析", "Analyzed"), "$analyzed", Modifier.weight(1f))
                                 MiniStat(
                                     L10n.tf("统计曲目", "Tracks"),
                                     "${d.tracks}",
@@ -444,19 +427,6 @@ fun StatsScreen(
                                     L10n.tf("时长", "Time"),
                                     formatDuration(d.listenSeconds),
                                     Modifier.weight(1f),
-                                )
-                            }
-                            if (moodTop.isNotEmpty()) {
-                                Spacer(Modifier.height(12.dp))
-                                Text(
-                                    L10n.tf("心情分布（本机）", "Mood mix (local)"),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 11.sp,
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                DistributionBars(
-                                    labels = moodTop.map { moodLabel(it.first) },
-                                    values = moodTop.map { it.second },
                                 )
                             }
                         }
@@ -822,19 +792,6 @@ private fun shortTime(raw: String): String {
     val t = parsePlayedAt(raw) ?: return ""
     return "%02d-%02d %02d:%02d".format(t.monthValue, t.dayOfMonth, t.hour, t.minute)
 }
-
-private fun moodLabel(key: String): String = L10n.tf(
-    when (key) {
-        "Happy" -> "愉悦"
-        "Excited" -> "兴奋"
-        "Tender" -> "温柔"
-        "Calm" -> "平静"
-        "Sad" -> "忧伤"
-        "Angry" -> "愤怒"
-        else -> "紧张"
-    },
-    key,
-)
 
 
 /** Compose Color → ARGB Int（导出长图用）。 */

@@ -5,7 +5,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.lumen.player.data.Accounts
 import app.lumen.player.data.Appearance
-import app.lumen.player.data.MoodStore
 import app.lumen.player.data.ServerConfig
 import app.lumen.player.data.SettingsStore
 import app.lumen.player.local.LocalData
@@ -34,10 +33,6 @@ class LocalDataWipeTest {
     private fun seed() {
         // 曲库元数据
         File(ctx.filesDir, "albums.json").writeText("[]")
-        File(ctx.filesDir, "radio_tracks.json").writeText("[]")
-        File(ctx.cacheDir, "mood_tracklist.json").writeText("{}")
-        // 被中断的分析临时音频
-        File(ctx.cacheDir, "mood_track-1.mp3").writeText("x")
         // 专辑曲目缓存
         val albumTracks = File(ctx.cacheDir, "album_tracks")
         albumTracks.mkdirs()
@@ -60,9 +55,6 @@ class LocalDataWipeTest {
         SettingsStore.save(ctx, ServerConfig("http://192.0.2.10:4533", "demo", "pw"))
         Accounts.add(ctx, "http://192.0.2.10:4533", "demo", "pw")
 
-        // 打开一次心情库，覆盖「wipe 时连接已存在」的路径（deleteDatabase 需要先关连接）
-        MoodStore.count(ctx)
-
         // 外观偏好（wipe 后应当**保留**）
         Appearance.setContrast(ctx, 0.7f)
     }
@@ -72,11 +64,8 @@ class LocalDataWipeTest {
         seed()
         LocalData.wipe(ctx)
 
-        // 曲库 / 分析 / 缓存
+        // 曲库 / 缓存
         assertFalse("albums.json 未清", File(ctx.filesDir, "albums.json").exists())
-        assertFalse("radio_tracks.json 未清", File(ctx.filesDir, "radio_tracks.json").exists())
-        assertFalse("mood_tracklist.json 未清", File(ctx.cacheDir, "mood_tracklist.json").exists())
-        assertFalse("分析临时音频未清", File(ctx.cacheDir, "mood_track-1.mp3").exists())
         assertFalse("album_tracks 未清", File(ctx.cacheDir, "album_tracks").exists())
         assertFalse("lyrics 未清", File(ctx.cacheDir, "lyrics").exists())
 
@@ -93,9 +82,6 @@ class LocalDataWipeTest {
         assertTrue("当前凭据未清", prefs("lumen_settings").all.isEmpty())
         assertTrue("账号索引未清", prefs("lumen_accounts").all.isEmpty())
         assertTrue("账号数量应为 0", Accounts.list(ctx).isEmpty())
-
-        // 心情数据库（含失败/忽略表）
-        assertFalse("moods.db 未删", ctx.getDatabasePath("moods.db").exists())
     }
 
     @Test

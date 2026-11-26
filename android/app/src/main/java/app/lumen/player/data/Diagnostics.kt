@@ -17,8 +17,6 @@ object Diagnostics {
             appendLine("ABI: $abi")
             appendLine("Locale: $locale")
             appendLine("Accounts: ${Accounts.list(ctx).size}")
-            // 只取行数：MoodStore.radio() 会解析整表 1024 维特征，仅为报个数不值得
-            appendLine("Mood rows: ${MoodStore.count(ctx)}")
         }.trim()
     }
 }

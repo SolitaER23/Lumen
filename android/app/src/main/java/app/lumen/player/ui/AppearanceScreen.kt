@@ -47,7 +47,6 @@ data class AppearanceUiState(
     val themeMode: String,
     val paletteStyle: String,
     val contrast: Float,
-    val moodTint: Boolean,
     val gradientTheme: Boolean,
     val perPageColor: Boolean,
     val materialYou: Boolean,
@@ -64,7 +63,6 @@ fun AppearanceScreen(
     onThemeMode: (String) -> Unit,
     onPaletteStyle: (String) -> Unit,
     onContrast: (Float) -> Unit,
-    onMoodTint: (Boolean) -> Unit,
     onGradientTheme: (Boolean) -> Unit,
     onPerPageColor: (Boolean) -> Unit,
     onMaterialYou: (Boolean) -> Unit,
@@ -142,14 +140,6 @@ fun AppearanceScreen(
 
         AppearanceSection("02", L10n.t("封面取色")) {
             ToggleRow(
-                L10n.t("情绪配色"),
-                L10n.t("界面色调随分析出的情绪轻微变化"),
-                state.moodTint,
-                coverSwitchEnabled,
-                onChange = onMoodTint,
-                disabledReason = disableReason,
-            )
-            ToggleRow(
                 L10n.t("封面渐变配色"),
                 L10n.t("从封面提取主色，生成主色、辅色与点缀色"),
                 state.gradientTheme,
@@ -211,7 +201,7 @@ fun AppearanceScreen(
             Text(
                 when {
                     state.youTakeover -> L10n.t("Material You 生效中：封面相关开关与专辑锁色已禁用。")
-                    state.colorLocked -> L10n.t("已锁定专辑配色：情绪/渐变/每页取色暂不可用，解锁后恢复。")
+                    state.colorLocked -> L10n.t("已锁定专辑配色：渐变/每页取色暂不可用，解锁后恢复。")
                     else -> L10n.t("以上开关按需组合；互相冲突时会自动禁用。")
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),

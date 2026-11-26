@@ -77,17 +77,11 @@ android {
         applicationId = "app.lumen.player"
         minSdk = 26
         targetSdk = 37
-        versionCode = 223
-        versionName = "0.89.0"
+        versionCode = 224
+        versionName = "0.90.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }
         buildConfigField("String", "LEGAL_VERSION", "\"" + legalVersion + "\"")
-    }
-
-    androidResources {
-        // 不要给 .onnx 加 noCompress：APK 体积会从 ~278 MB 涨到 ~296 MB。
-        // 压缩资产无法 openFd，落盘逻辑（ClapEmbedder.copyAssetOnce）用标记文件处理，
-        // 只解压一次。新增资产扩展名时请同步检查那里的长度校验策略。
     }
 
     buildFeatures {
@@ -121,7 +115,7 @@ android {
 
     buildTypes {
         debug {
-            // 仅调试包：独立包名，可与正式包共存，便于导出 moods.db 做只读基线
+            // 仅调试包：独立包名，可与正式包共存，便于并行验证
             applicationIdSuffix = ".debug"
         }
         // 仅用于本地取数：与 release 同签名、同包名，但 debuggable，便于 run-as 导出数据库
@@ -177,8 +171,6 @@ dependencies {
     // Coil 3 不再内置网络能力：coil-network-okhttp 提供 OkHttp fetcher，由 LumenApp 显式注册
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
-
     implementation("io.github.p2o51:yoin-symbols:0.2.0")
 
     testImplementation("junit:junit:4.13.2")
@@ -186,7 +178,7 @@ dependencies {
 
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
-    // UI 点击流（登录→播放→下载→电台→清除数据）用 Compose 测试规则驱动
+    // UI 点击流（登录→播放→下载→清除数据）用 Compose 测试规则驱动
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.11.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

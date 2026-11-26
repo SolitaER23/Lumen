@@ -1,6 +1,6 @@
 {
-  "version": "2026-11-25",
-  "updated": "2026-11-25",
+  "version": "2026-11-26",
+  "updated": "2026-11-26",
   "sections": [
     {
       "zh": {
@@ -25,16 +25,14 @@
         "title": "2. 我们不收集的数据",
         "body": [
           "2.1 我方不接收你的音频文件、曲库元数据、服务器地址或服务器凭据。",
-          "2.2 本应用不含埋点统计、广告 SDK 或第三方行为分析 SDK。",
-          "2.3 端侧音频分析在设备内完成，音频数据不会传输至我方。"
+          "2.2 本应用不含埋点统计、广告 SDK 或第三方行为分析 SDK。"
         ]
       },
       "en": {
         "title": "2. What we do not collect",
         "body": [
           "2.1 We do not receive your audio files, library metadata, server address or server credentials.",
-          "2.2 The App contains no analytics, advertising SDKs or third-party behavioural tracking.",
-          "2.3 On-device audio analysis runs locally; audio is never transmitted to us."
+          "2.2 The App contains no analytics, advertising SDKs or third-party behavioural tracking."
         ]
       }
     },
@@ -43,16 +41,14 @@
         "title": "3. 设备端处理的本地数据",
         "body": [
           "3.1 为提供服务，本应用在设备内处理并保存：服务器地址与账号、登录令牌、播放与最近播放记录、评分与收藏、下载与缓存文件、设置项。",
-          "3.2 音频分析结果包括：CLAP 音乐特征向量（1024 维）、音频标签与段落标签、情绪坐标（valence / arousal）、节拍与能量包络。上述数据默认仅写入本机数据库。",
-          "3.3 除你主动配置的同步或导出功能外，上述数据不会离开设备。"
+          "3.2 除你主动配置的同步或导出功能外，上述数据不会离开设备。"
         ]
       },
       "en": {
         "title": "3. Local data processed on your device",
         "body": [
           "3.1 To provide the Service the App processes and stores on your device: server address and account, authentication token, playback and recent-play records, ratings and favourites, downloads and cache, and preferences.",
-          "3.2 Analysis results include: CLAP music embeddings (1024-dim), audio and segment tags, valence/arousal coordinates, beat positions and energy envelope. By default these are written only to the local database.",
-          "3.3 Except for sync or export features you actively configure, this data does not leave the device."
+          "3.2 Except for sync or export features you actively configure, this data does not leave the device."
         ]
       }
     },
@@ -62,7 +58,7 @@
         "body": [
           "4.1 网络权限：连接你指定的服务器以播放、同步与下载。",
           "4.2 存储/文件访问：保存离线下载与缓存；仅在系统要求的范围内使用。",
-          "4.3 前台服务与电池优化豁免（如启用）：在后台继续播放或分析；你可随时在系统中关闭。",
+          "4.3 前台服务与电池优化豁免（如启用）：在后台继续播放；你可随时在系统中关闭。",
           "4.4 本应用不请求通讯录、短信、通话记录、精确位置、麦克风或摄像头权限。"
         ]
       },
@@ -71,7 +67,7 @@
         "body": [
           "4.1 Network: connect to your server for playback, sync and downloads.",
           "4.2 Storage/file access: save offline downloads and cache, limited to what the platform requires.",
-          "4.3 Foreground service and battery-optimisation exemption (if enabled): continue playback or analysis in the background; you can revoke this in system settings at any time.",
+          "4.3 Foreground service and battery-optimisation exemption (if enabled): continue playback in the background; you can revoke this in system settings at any time.",
           "4.4 The App does not request contacts, SMS, call logs, precise location, microphone or camera access."
         ]
       }
@@ -80,18 +76,18 @@
       "zh": {
         "title": "5. 处理的法律依据（如适用）",
         "body": [
-          "5.1 履行合同：为提供你请求的播放、下载与分析功能所必需的处理。",
+          "5.1 履行合同：为提供你请求的播放与下载功能所必需的处理。",
           "5.2 正当利益：保障应用安全、排错与改进所必需的最小处理（如崩溃信息由你选择是否提供）。",
-          "5.3 同意：在你主动开启端侧分析以外的可选功能（如联网获取封面）时。",
+          "5.3 同意：在你主动开启可选功能（如联网获取封面）时。",
           "5.4 法定义务：在适用法律要求时。"
         ]
       },
       "en": {
         "title": "5. Legal bases (where applicable)",
         "body": [
-          "5.1 Performance of a contract: processing necessary to provide the playback, download and analysis features you request.",
+          "5.1 Performance of a contract: processing necessary to provide the playback and download features you request.",
           "5.2 Legitimate interests: minimal processing for security, troubleshooting and improvement (e.g. crash information you choose to share).",
-          "5.3 Consent: for optional features beyond on-device analysis that you enable (e.g. fetching artwork online).",
+          "5.3 Consent: for optional features you enable (e.g. fetching artwork online).",
           "5.4 Legal obligation: where required by applicable law."
         ]
       }
@@ -102,7 +98,7 @@
         "body": [
           "6.1 本应用不向开发者回传数据，也不出售或出租个人信息。",
           "6.2 仅在你配置相应功能时，数据可能流向：你的自建服务器；系统提供的图片加载与字体服务；应用商店的崩溃与安装统计（由平台按其政策处理）。",
-          "6.3 开源组件（如 ONNX Runtime、Coil）在设备本地运行，不主动外传数据。"
+          "6.3 开源组件（如 Coil）在设备本地运行，不主动外传数据。"
         ]
       },
       "en": {
@@ -110,7 +106,7 @@
         "body": [
           "6.1 We do not receive your data and never sell or rent personal information.",
           "6.2 Data may reach: your self-hosted server; platform-provided image loading and font services; and store-level crash/install analytics, only where you enable such features and subject to the platform's policy.",
-          "6.3 Open-source components (e.g. ONNX Runtime, Coil) run locally and do not transmit data on their own."
+          "6.3 Open-source components (e.g. Coil) run locally and do not transmit data on their own."
         ]
       }
     },

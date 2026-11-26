@@ -81,7 +81,6 @@ fun AlbumScreen(
     onDownload: () -> Unit,
     downloadedIds: Set<String> = emptySet(),
     themeOpts: ThemeOptions = ThemeOptions(),
-    mood: app.lumen.player.data.MoodResult? = null,
     /** P1-1 / 扩展：每页独立取色；关闭时跟随全局主题 */
     selfColor: Boolean = false,
     coverModifier: Modifier = Modifier,
@@ -89,13 +88,13 @@ fun AlbumScreen(
     // 页面内返回按钮 / 系统返回统一走同一入口
     androidx.activity.compose.BackHandler { onBack() }
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    // P1-2：与播放页同一口径（封面 + 情绪 + 同一套选项）
+    // P1-2：与播放页同一口径（封面 + 同一套选项）
     // P0-F1：首帧就用内存里的配色，避免"先全局色再切专辑色"的一帧闪烁
     var albumScheme by remember(album.id) {
-        mutableStateOf(schemeFromCache(album.id, mood, themeOpts))
+        mutableStateOf(schemeFromCache(album.id, themeOpts))
     }
-    LaunchedEffect(album.id, themeOpts, mood) {
-        albumScheme = schemeFromCover(ctx, album.id, coverUrl, mood, themeOpts)
+    LaunchedEffect(album.id, themeOpts) {
+        albumScheme = schemeFromCover(ctx, album.id, coverUrl, themeOpts)
     }
     val s = if (selfColor) (albumScheme ?: MaterialTheme.colorScheme) else MaterialTheme.colorScheme
 

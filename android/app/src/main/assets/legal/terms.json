@@ -1,13 +1,13 @@
 {
-  "version": "2026-11-25",
-  "updated": "2026-11-25",
+  "version": "2026-11-26",
+  "updated": "2026-11-26",
   "sections": [
     {
       "zh": {
         "title": "1. 定义与协议范围",
         "body": [
           "1.1 “本应用”指 Lumen Android 客户端及其后续版本；“开发者”指本应用的开发者（以下称“我方”）。",
-          "1.2 “服务”指本应用提供的客户端功能，包括连接你自行部署的 Navidrome / OpenSubsonic 兼容服务器、播放、缓存、离线下载、歌词、评分、端侧音频分析与氛围电台。",
+          "1.2 “服务”指本应用提供的客户端功能，包括连接你自行部署的 Navidrome / OpenSubsonic 兼容服务器、播放、缓存、离线下载、歌词与评分。",
           "1.3 “你的服务器”指由你或第三方自行搭建、运营与维护的音乐服务端；我方不提供、不托管、不运营该服务器及其中的任何内容。",
           "1.4 本协议与《隐私条款》《开源信息》共同构成完整约定；冲突时以本协议为准。",
           "1.5 本协议不适用于你与你的服务器运营方之间的法律关系。"
@@ -17,7 +17,7 @@
         "title": "1. Definitions and scope",
         "body": [
           "1.1 “App” means the Lumen Android client and its later versions; “Developer” means the developer of the App (“we”, “us”).",
-          "1.2 “Service” means the client features: connecting to a Navidrome / OpenSubsonic-compatible server you operate, playback, caching, offline downloads, lyrics, ratings, on-device audio analysis and mood radio.",
+          "1.2 “Service” means the client features: connecting to a Navidrome / OpenSubsonic-compatible server you operate, playback, caching, offline downloads, lyrics and ratings.",
           "1.3 “Your server” means the music backend built, operated and maintained by you or a third party. We neither provide, host nor operate it or its content.",
           "1.4 This Agreement, the Privacy Policy and the Open-Source Notices form the entire agreement; this Agreement prevails on conflict.",
           "1.5 This Agreement does not govern your relationship with your server operator."
@@ -49,7 +49,7 @@
           "3.1 在我方拥有权利的范围内，授予你一项个人、非独占、不可转让、可撤销的有限许可，用于在你拥有或控制的设备上安装与使用本应用。",
           "3.2 你不得：(a) 以违反适用法律的方式使用本应用；(b) 绕过或破坏本应用的技术保护措施；(c) 未经授权访问他人服务器或数据；(d) 利用本应用传播恶意代码或实施干扰、拒绝服务等行为；(e) 删除或篡改版权、许可与归属标识。",
           "3.3 本应用以 MIT 许可开源；对源代码的使用、修改与再分发依该许可执行，不受本条限制。",
-          "3.4 你对自己在设备上生成的数据（缓存、下载、分析结果）负全部责任。"
+          "3.4 你对自己在设备上生成的数据（缓存、下载）负全部责任。"
         ]
       },
       "en": {
@@ -58,7 +58,7 @@
           "3.1 To the extent we hold the rights, we grant you a personal, non-exclusive, non-transferable, revocable, limited licence to install and use the App on devices you own or control.",
           "3.2 You must not: (a) use the App unlawfully; (b) circumvent technical protection measures; (c) access servers or data without authorisation; (d) distribute malware or interfere with, or deny service to, any system; (e) remove copyright, licence or attribution notices.",
           "3.3 The App is open source under the MIT licence; use, modification and redistribution of the source are governed by that licence and are not restricted by this clause.",
-          "3.4 You are solely responsible for data generated on your device (cache, downloads, analysis results)."
+          "3.4 You are solely responsible for data generated on your device (cache, downloads)."
         ]
       }
     },
@@ -85,7 +85,7 @@
         "title": "5. 隐私与数据处理",
         "body": [
           "5.1 我方处理数据的方式以《隐私条款》为准；该条款构成本协议不可分割的组成部分。",
-          "5.2 核心原则：音频与曲库数据默认仅在设备端与你的服务器之间流转；端侧音频分析在设备内完成，音频不上传至我方。",
+          "5.2 核心原则：音频与曲库数据默认仅在设备端与你的服务器之间流转；音频不上传至我方。",
           "5.3 本应用不设开发者后台账号体系；我方不因使用本应用而获得你的服务器凭据。",
           "5.4 在适用法律要求数据保护影响评估、数据处理协议或特定跨境机制时，你应自行确保满足相应义务。"
         ]
@@ -94,7 +94,7 @@
         "title": "5. Privacy and data",
         "body": [
           "5.1 Our data practices are governed by the Privacy Policy, which forms an integral part of this Agreement.",
-          "5.2 Core principle: audio and library data flow only between your device and your server by default; on-device analysis runs locally and audio is never uploaded to us.",
+          "5.2 Core principle: audio and library data flow only between your device and your server by default; audio is never uploaded to us.",
           "5.3 The App has no developer-operated account system; we do not obtain your server credentials through use of the App.",
           "5.4 Where applicable law requires impact assessments, data processing agreements or specific transfer mechanisms, you are responsible for compliance."
         ]
@@ -105,18 +105,18 @@
         "title": "6. 知识产权",
         "body": [
           "6.1 本应用的源代码、名称、标识与文档受著作权及商标法保护；除本协议与开源许可明确授予外，未授予任何权利。",
-          "6.2 第三方模型、字体、图标与库的权利归其各自权利人；相关许可与版权声明详见应用内《开源信息》。",
+          "6.2 第三方字体、图标与库的权利归其各自权利人；相关许可与版权声明详见应用内《开源信息》。",
           "6.3 你服务器中的音乐、封面与元数据权利归相应权利人；我方不主张任何权利，也不对其合法性作出保证。",
-          "6.4 你向本应用提供的内容（如评分、标签）仅存储于本机或你的服务器。"
+          "6.4 你向本应用提供的内容（如评分）仅存储于本机或你的服务器。"
         ]
       },
       "en": {
         "title": "6. Intellectual property",
         "body": [
           "6.1 The App's source code, name, marks and documentation are protected by copyright and trademark law. No rights are granted except as expressly stated here or in the open-source licence.",
-          "6.2 Rights in third-party models, fonts, icons and libraries remain with their owners; see the Open-Source Notices for licences and attributions.",
+          "6.2 Rights in third-party fonts, icons and libraries remain with their owners; see the Open-Source Notices for licences and attributions.",
           "6.3 Rights in music, artwork and metadata on your server belong to their respective owners. We claim no rights and make no warranty as to their legality.",
-          "6.4 Content you provide to the App (e.g. ratings, tags) is stored only on your device or your server."
+          "6.4 Content you provide to the App (e.g. ratings) is stored only on your device or your server."
         ]
       }
     },
@@ -145,20 +145,18 @@
         "title": "8. 免责声明",
         "body": [
           "8.1 本应用按“现状”与“可用”基础提供，不附带任何明示或默示保证，包括适销性、特定用途适用性与不侵权。",
-          "8.2 我方不保证：服务不中断、无错误、与所有服务器版本或设备兼容、分析结果符合你的主观预期。",
-          "8.3 端侧音频分析（情绪、节拍、标签、相似度）为统计性推测，仅供展示与排序参考，不构成对作品内容的权威判断。",
-          "8.4 因你的服务器配置、网络环境、设备故障、操作系统变更或第三方软件导致的问题，我方不承担责任。",
-          "8.5 本条不排除或限制依适用法律不得排除或限制的责任。"
+          "8.2 我方不保证：服务不中断、无错误、与所有服务器版本或设备兼容。",
+          "8.3 因你的服务器配置、网络环境、设备故障、操作系统变更或第三方软件导致的问题，我方不承担责任。",
+          "8.4 本条不排除或限制依适用法律不得排除或限制的责任。"
         ]
       },
       "en": {
         "title": "8. Disclaimers",
         "body": [
           "8.1 The App is provided “as is” and “as available”, without warranties of any kind, including merchantability, fitness for a particular purpose and non-infringement.",
-          "8.2 We do not warrant uninterrupted or error-free operation, compatibility with every server version or device, or that analysis results will match your subjective expectations.",
-          "8.3 On-device analysis (mood, tempo, tags, similarity) is statistical inference for display and ranking only, not an authoritative judgement about any work.",
-          "8.4 We are not liable for issues caused by your server configuration, network, device faults, OS changes or third-party software.",
-          "8.5 Nothing in this clause excludes liability that cannot be excluded under applicable law."
+          "8.2 We do not warrant uninterrupted or error-free operation, or compatibility with every server version or device.",
+          "8.3 We are not liable for issues caused by your server configuration, network, device faults, OS changes or third-party software.",
+          "8.4 Nothing in this clause excludes liability that cannot be excluded under applicable law."
         ]
       }
     },

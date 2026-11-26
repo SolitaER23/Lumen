@@ -164,13 +164,6 @@ import androidx.compose.foundation.combinedClickable
 fun HomeScreen(
     client: SubsonicClient,
     albums: List<Album>,
-    analyzing: Boolean = false,
-    analysisDone: Int = 0,
-    analysisTotal: Int = 0,
-    analysisPhase: String = "",
-    analysisTrack: String = "",
-    analysisMode: String = "",
-    analysisModeDetail: String = "",
     downloadedIds: Set<String> = emptySet(),
     loading: Boolean,
     error: String?,
@@ -179,7 +172,6 @@ fun HomeScreen(
     onOpenArtist: (Artist) -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
-    onOpenSelfCheck: () -> Unit = {},
     onRetry: () -> Unit,
     starred: List<Track> = emptyList(),
     onPlayStarred: (Int) -> Unit = {},
@@ -193,9 +185,6 @@ fun HomeScreen(
     positionMs: Long = 0,
     durationMs: Long = 0,
     onToggle: () -> Unit = {},
-    onOpenRadio: () -> Unit = {},
-    onPickVibe: (app.lumen.player.data.RadioVibe) -> Unit = {},
-    radioState: RadioRailState = RadioRailState(),
     onOpenStats: () -> Unit = {},
     cache: HomeCache = remember { HomeCache() },
     libraryVersion: Int = 0,
@@ -300,16 +289,8 @@ fun HomeScreen(
                 3 -> L10n.tf("${starred.size} 首单曲 · ${sortOptions.getOrElse(sortIndex) { L10n.t("收藏顺序") }}", "${starred.size} tracks · ${sortOptions.getOrElse(sortIndex) { L10n.t("收藏顺序") }}")
                 else -> L10n.tf("${albums.size} 张专辑 · ${sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }}", "${albums.size} albums · ${sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }}")
             },
-            analyzing = analyzing,
-            analysisDone = analysisDone,
-            analysisTotal = analysisTotal,
-            analysisPhase = analysisPhase,
-            analysisTrack = analysisTrack,
-            analysisMode = analysisMode,
-            analysisModeDetail = analysisModeDetail,
             onTab = onTabChange,
             onSettings = onSettings,
-            onOpenSelfCheck = onOpenSelfCheck,
             onSort = { showSort = true },
             onSearch = onSearch,
             onStats = onOpenStats,
@@ -389,11 +370,6 @@ fun HomeScreen(
                             loading = tabLoading && newest.isEmpty(),
                         )
                         else -> Column(Modifier.fillMaxSize()) {
-                            RadioRow(
-                                state = radioState,
-                                onOpenAll = onOpenRadio,
-                                onPick = onPickVibe,
-                            )
                             SectionRow(L10n.t("全部专辑"), L10n.tf("共 ${albums.size} 张", "${albums.size} total"))
                             Box(Modifier.weight(1f)) {
                                 AlbumGrid(
@@ -559,16 +535,8 @@ private fun HomeHeader(
     selected: Int,
     title: String,
     subtitle: String,
-    analyzing: Boolean = false,
-    analysisDone: Int = 0,
-    analysisTotal: Int = 0,
-    analysisPhase: String = "",
-    analysisTrack: String = "",
-    analysisMode: String = "",
-    analysisModeDetail: String = "",
     onTab: (Int) -> Unit,
     onSettings: () -> Unit,
-    onOpenSelfCheck: () -> Unit = {},
     onSort: () -> Unit,
     onSearch: () -> Unit,
     onStats: () -> Unit = {},
@@ -586,17 +554,6 @@ private fun HomeHeader(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    if (analyzing) {
-                        Spacer(Modifier.width(8.dp))
-                        AnalysisChip(
-                            done = analysisDone,
-                            total = analysisTotal,
-                            phase = analysisPhase,
-                            track = analysisTrack,
-                            mode = analysisMode,
-                            modeDetail = analysisModeDetail,
-                        )
-                    }
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
@@ -636,7 +593,7 @@ private fun HomeHeader(
                 }
             }
             Spacer(Modifier.width(10.dp))
-            HomeCircleButton(originKey = "settings", onClick = onSettings, onLongClick = onOpenSelfCheck) {
+            HomeCircleButton(originKey = "settings", onClick = onSettings) {
                 Icon(YoinSymbols.Settings, contentDescription = L10n.t("设置"), tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(21.dp))
             }
         }
@@ -1363,204 +1320,5 @@ private fun AlbumCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-    }
-}
-
-/**
- * 「正在分析」气泡（重建：原实现随文件截断丢失，功能与文案保持一致）：
- * 收起态是胶囊，点开后展开进度、阶段、取流方式与说明，点空白处关闭。
- */
-@Composable
-private fun AnalysisChip(
-    done: Int,
-    total: Int,
-    phase: String,
-    track: String,
-    mode: String,
-    modeDetail: String,
-) {
-    var open by remember { mutableStateOf(false) }
-    val progress = if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f
-    val pct = (progress * 100).toInt()
-
-    Box {
-        androidx.compose.material3.Surface(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 3.dp,
-            modifier = Modifier.clickable { open = true },
-        ) {
-            Row(
-                Modifier.padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                androidx.compose.material3.CircularProgressIndicator(
-                    progress = { if (progress > 0f) progress else 0.08f },
-                    modifier = Modifier.size(12.dp),
-                    strokeWidth = 1.6.dp,
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                )
-                Spacer(Modifier.width(7.dp))
-                Text(
-                    L10n.t("正在分析"),
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    softWrap = false,
-                )
-            }
-        }
-
-        if (open) {
-            androidx.compose.ui.window.Popup(
-                alignment = Alignment.TopStart,
-                offset = androidx.compose.ui.unit.IntOffset(0, 56),
-                onDismissRequest = { open = false },
-                properties = androidx.compose.ui.window.PopupProperties(
-                    focusable = true,
-                    dismissOnClickOutside = true,
-                    dismissOnBackPress = true,
-                ),
-            ) {
-                val pop = androidx.compose.runtime.remember {
-                    androidx.compose.animation.core.Animatable(0f)
-                }
-                androidx.compose.runtime.LaunchedEffect(Unit) {
-                    pop.animateTo(
-                        1f,
-                        androidx.compose.animation.core.tween(
-                            160,
-                            easing = androidx.compose.animation.core.FastOutSlowInEasing,
-                        ),
-                    )
-                }
-                Column(
-                    Modifier
-                        .width(320.dp)
-                        .graphicsLayer {
-                            alpha = pop.value
-                            scaleX = 0.94f + 0.06f * pop.value
-                            scaleY = 0.94f + 0.06f * pop.value
-                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
-                        }
-                        .shadow(18.dp, androidx.compose.foundation.shape.RoundedCornerShape(26.dp))
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(26.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                            androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
-                        )
-                        .padding(horizontal = 18.dp, vertical = 16.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            L10n.t("正在后台分析"),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            "$pct%",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val paused = app.lumen.player.playback.MoodAnalysisRunner.isPaused()
-                        androidx.compose.material3.TextButton(
-                            onClick = {
-                                app.lumen.player.playback.MoodAnalysisRunner.pause()
-                                open = false
-                            },
-                            enabled = !paused,
-                        ) { Text(L10n.t("暂停")) }
-                        androidx.compose.material3.TextButton(
-                            onClick = {
-                                app.lumen.player.playback.MoodAnalysisRunner.resume()
-                                open = false
-                            },
-                            enabled = paused,
-                        ) { Text(L10n.t("开始")) }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            "$done",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 30.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            L10n.tf(" / $total 首", " / $total tracks"),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(bottom = 5.dp),
-                        )
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(5.dp)
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(percent = 50))
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)),
-                    ) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth(progress.coerceAtLeast(0.01f))
-                                .fillMaxHeight()
-                                .background(MaterialTheme.colorScheme.primary),
-                        )
-                    }
-                    if (phase.isNotBlank()) {
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            L10n.t("当前阶段：") + phase + if (track.isNotBlank()) " · " + track else "",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp,
-                            maxLines = 2,
-                        )
-                    }
-                    if (mode.isNotBlank()) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            if (modeDetail.isBlank()) mode else mode + " · " + modeDetail,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            fontSize = 10.sp,
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        L10n.t(
-                            "每首读取 5 段 30 秒音频（约 5~7 秒/首），覆盖开头到结尾，用于封面配色、氛围电台与节拍动效；" +
-                                "不会保存整首歌，也不占用离线下载空间。全部在本机完成，不上传音频。" +
-                                "分析期间可能有短暂卡顿或发热，结束后自动恢复。",
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        L10n.t("轻点空白处关闭"),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        fontSize = 10.sp,
-                    )
-                }
-            }
-        }
     }
 }

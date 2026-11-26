@@ -4,6 +4,8 @@
 形态：Android 自托管音乐播放器（Navidrome / OpenSubsonic）  
 交付物：`Lumen-Interactive-Demo.pptx`、`Lumen-Demo-Combined.mp4`、本文说明
 
+> **2026-11-26 备注**：端侧模型、心情分析与氛围电台已移除；讲稿中的相关页面仅作历史记录。
+
 ---
 
 ## 一、这份 PPT 怎么用

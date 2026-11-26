@@ -74,8 +74,8 @@ fun ConsentScreen(
             )
             Text(
                 L10n.tf(
-                    "使用 Lumen 前，请阅读并同意用户协议与隐私条款。条款说明应用如何处理账号、曲库与端侧分析数据。",
-                    "Before using Lumen, please read and accept the Terms of Service and Privacy Policy. They explain how accounts, library data and on-device analysis are handled.",
+                    "使用 Lumen 前，请阅读并同意用户协议与隐私条款。条款说明应用如何处理账号与曲库数据。",
+                    "Before using Lumen, please read and accept the Terms of Service and Privacy Policy. They explain how accounts and library data are handled.",
                 ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
@@ -90,7 +90,7 @@ fun ConsentScreen(
             ) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ConsentPoint(L10n.tf("账号与曲库", "Account and library"), L10n.tf("服务器地址、用户名与密码用于连接你自建的 Navidrome；密码使用 Android Keystore 加密。", "Server address, username and password connect to your own Navidrome; the password is encrypted with the Android Keystore."))
-                    ConsentPoint(L10n.tf("端侧分析", "On-device analysis"), L10n.tf("播放历史、评分与声音分析只保存在本机；音频不会上传。", "History, ratings and audio analysis stay on device; audio is never uploaded."))
+                    ConsentPoint(L10n.tf("本机数据", "On-device data"), L10n.tf("播放历史与评分只保存在本机；音频不会上传。", "History and ratings stay on device; audio is never uploaded."))
                     ConsentPoint(L10n.tf("你的选择", "Your choices"), L10n.tf("你可以随时在设置中清除本机数据，或卸载应用。", "You can clear local data in Settings or uninstall the app at any time."))
                 }
             }

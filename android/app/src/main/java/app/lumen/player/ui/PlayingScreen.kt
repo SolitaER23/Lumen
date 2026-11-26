@@ -110,7 +110,6 @@ fun PlayingScreen(
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onSeek: (Long) -> Unit,
-    onReanalyze: () -> Unit = {},
     albumName: String = "",
     starred: Boolean = false,
     trackDownloaded: Boolean = false,
@@ -124,7 +123,6 @@ fun PlayingScreen(
     onCyclePlayMode: () -> Unit = {},
     coverDirection: Int = 1,
     onSeekPlay: (Long) -> Unit = {},
-    mood: app.lumen.player.data.MoodResult? = null,
     rating: Float = 0f,
     onRating: (Float) -> Unit = {},
     coverModifier: Modifier = Modifier,
@@ -169,7 +167,7 @@ fun PlayingScreen(
                     contentDescription = track?.title,
                     modifier = coverModifier.size(232.dp),
                     albumId = track?.albumId,
-                    // 与迷你条 / 电台正在播放栏共用同一个 key：从哪个封面点进来，就从那个封面长出来
+                    // 与迷你条共用同一个 key：从哪个封面点进来，就从那个封面长出来
                     sharedKey = track?.albumId?.let { "np-$it" },
                     lowResUrl = coverUrl.replace("size=600", "size=200").takeIf { it != coverUrl },
                 )
@@ -230,10 +228,7 @@ fun PlayingScreen(
                 fontWeight = FontWeight.Light,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .padding(horizontal = 28.dp)
-                    // 长按曲名：重新分析当前曲目（删除旧结果后由分析器重跑）
-                    .combinedClickable(onClick = {}, onLongClick = onReanalyze),
+                modifier = Modifier.padding(horizontal = 28.dp),
             )
             Spacer(Modifier.height(3.dp))
             Row(
@@ -281,12 +276,6 @@ fun PlayingScreen(
                         modifier = Modifier.weight(1f).height(48.dp),
                         activeColor = MaterialTheme.colorScheme.primary,
                         inactiveColor = MaterialTheme.colorScheme.outlineVariant,
-                        env = mood?.env ?: FloatArray(0),
-                        envStepMs = mood?.envStepMs ?: 100,
-                        windowsStartMs = mood?.windowsStartMs ?: IntArray(0),
-                        beatsMs = mood?.beatsMs ?: IntArray(0),
-                        windowValence = mood?.windowsValence ?: FloatArray(0),
-                        durationMs = durationMs,
                         onSeek = { f -> if (known) onSeek((f * durationMs).toLong()) },
                     )
                     Spacer(Modifier.width(8.dp))
@@ -392,108 +381,16 @@ private fun WavyProgress(
     modifier: Modifier,
     activeColor: Color,
     inactiveColor: Color,
-    env: FloatArray = FloatArray(0),
-    envStepMs: Int = 100,
-    windowsStartMs: IntArray = IntArray(0),
-    beatsMs: IntArray = IntArray(0),
-    windowValence: FloatArray = FloatArray(0),
-    durationMs: Long = 0L,
     onSeek: (Float) -> Unit,
 ) {
-    // env 缺失时用拍点密度合成轮廓：保证任何已分析曲目都有可读的节奏形状
-    val synthEnv = remember(env, beatsMs, durationMs) {
-        if (env.isNotEmpty() || beatsMs.isEmpty() || durationMs <= 0L) FloatArray(0)
-        else {
-            val n = 240
-            val acc = FloatArray(n)
-            beatsMs.forEach { b ->
-                val i = (b.toLong() * n / durationMs).toInt().coerceIn(0, n - 1)
-                acc[i] += 1f
-            }
-            // 简单平滑（3 点滑动平均），避免锯齿
-            val sm = FloatArray(n)
-            for (i in 0 until n) {
-                val a = acc.getOrElse(i - 1) { 0f }
-                val b2 = acc[i]
-                val c = acc.getOrElse(i + 1) { 0f }
-                sm[i] = (a + b2 + c) / 3f
-            }
-            val mx = sm.maxOrNull() ?: 0f
-            if (mx <= 0f) FloatArray(0) else FloatArray(n) { (sm[it] / mx).coerceIn(0f, 1f) }
-        }
-    }
-
-    // 把拼接后的能量包络映射回真实时间轴：每个窗 30 s，窗与窗之间留空（淡出）
-    val effEnv = if (env.isNotEmpty()) env else synthEnv
-    // 分位数拉伸：把 env 的 10%–90% 区间映射到 0–1，避免"全程波幅相近"
-    val envNorm = remember(effEnv) {
-        if (effEnv.isEmpty()) effEnv
-        else {
-            val sorted = effEnv.sorted()
-            val lo = sorted[(sorted.size * 0.10f).toInt().coerceIn(0, sorted.size - 1)]
-            val hi = sorted[(sorted.size * 0.90f).toInt().coerceIn(0, sorted.size - 1)]
-            val span = (hi - lo).coerceAtLeast(1e-4f)
-            val raw = FloatArray(effEnv.size) { ((effEnv[it] - lo) / span).coerceIn(0f, 1f) }
-            val r = 4
-            FloatArray(raw.size) { i ->
-                var sum = 0f
-                var cnt = 0
-                for (k in -r..r) {
-                    val j = i + k
-                    if (j in raw.indices) { sum += raw[j]; cnt++ }
-                }
-                sum / cnt.coerceAtLeast(1)
-            }
-        }
-    }
-    val amp = if (envNorm.isNotEmpty()) envNorm else effEnv
-    val envAmplitudeAt: (Float) -> Float = remember(amp, windowsStartMs, durationMs) {
-        val winCount = windowsStartMs.size
-        val perWin = if (winCount > 0) amp.size / winCount else 0
-        val winDurMs = if (perWin > 0) perWin.toLong() * envStepMs else 0L
-        { fraction ->
-            if (durationMs <= 0L || effEnv.isEmpty()) 0.35f
-            else if (winCount == 0 || perWin == 0) {
-                // 无窗边界：把能量包络均匀铺满整曲（仍是真实能量，只是时间映射粗糙）
-                val last = env.size - 1
-                val idx = (fraction.coerceIn(0f, 1f) * last).toInt().coerceIn(0, last)
-                effEnv[idx].coerceIn(0f, 1f)
-            }
-            else {
-                val tMs = (fraction.coerceIn(0f, 1f) * durationMs).toLong()
-                var idx = -1
-                for (i in windowsStartMs.indices) {
-                    val start = windowsStartMs[i].toLong()
-                    if (tMs >= start && tMs < start + winDurMs) { idx = i; break }
-                }
-                if (idx < 0) 0.16f   // 采样空档：压得很低，形成"淡出"观感
-                else {
-                    val local = ((tMs - windowsStartMs[idx]) / envStepMs).toInt().coerceIn(0, perWin - 1)
-                    amp[(idx * perWin + local).coerceIn(0, amp.size - 1)].coerceIn(0f, 1f)
-                }
-            }
-        }
-    }
-    androidx.compose.runtime.LaunchedEffect(effEnv.size, windowsStartMs.size, durationMs) {
-        app.lumen.player.util.Logx.i(
-            "LumenWave",
-            "env=" + env.size + " synth=" + synthEnv.size +
-                " starts=" + windowsStartMs.size + " dur=" + durationMs,
-        )
-    }
     var widthPx by remember { mutableFloatStateOf(1f) }
     var dragging by remember { mutableStateOf(false) }
     var dragProgress by remember { mutableFloatStateOf(progress) }
     val shown = if (dragging) dragProgress else progress
 
-    // C：脉动周期跟随当前窗 BPM（半拍）；置信度低或未知时保持 460 ms
-    val segBpm = app.lumen.player.playback.SegmentMood.tempoBpm
-    val segConf = app.lumen.player.playback.SegmentMood.tempoConfidence
-    val pulseMs = if (segBpm > 0f && segConf > 0.5f)
-        ((60_000f / segBpm) * 0.5f).toInt().coerceIn(200, 900) else 460
-    // B：分段色相——用当前窗的 valence 偏移主色
-    val segHue = app.lumen.player.playback.SegmentMood.hueShift
-    val barColor = app.lumen.player.util.HctTint.rotate(activeColor, segHue * 1.8f, 1.0f)
+    // 约 460 ms 的脉动周期，播放时幅度更大
+    val pulseMs = 460
+    val barColor = activeColor
 
     val transition = rememberInfiniteTransition(label = "wave")
     val phase by transition.animateFloat(
@@ -550,7 +447,6 @@ private fun WavyProgress(
         val amp = (if (active) 7.dp.toPx() else 5.dp.toPx()) * (if (active) pulse else 0.8f)
         val phaseNow = if (active) phase else 0f
         val midY = size.height / 2f
-        val envMode = effEnv.isNotEmpty() && durationMs > 0L
 
         val steps = 320
         val inactive = Path()
@@ -558,11 +454,8 @@ private fun WavyProgress(
         for (i in 0..steps) {
             val t = i / steps.toFloat()
             val x = size.width * t
-            // 波幅来自真实能量包络（映射回时间轴）；无数据时退回"越靠右越大"的装饰效果
-            val energy = envAmplitudeAt(t)
-            // 能量对比拉大：安静段几乎贴平，高能段明显鼓起
-            val shape = if (envMode) (0.55f + 0.85f * energy) else (0.45f + 0.55f * t)
-            // 正弦放疏（3 周期）让能量轮廓更容易被读出来
+            // 波形从左侧的平缓逐步展开到右侧，纯装饰
+            val shape = 0.45f + 0.55f * t
             val y = midY + sin(t * 2f * PI.toFloat() + phaseNow) * amp * shape
             if (i == 0) {
                 inactive.moveTo(x, y)
@@ -573,19 +466,7 @@ private fun WavyProgress(
             }
         }
         drawPath(inactive, inactiveColor, style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round))
-        // 沿长度渐变：按位置所在窗的 valence 取色，避免"全程一色"
-        val barBrush: androidx.compose.ui.graphics.Brush = if (windowValence.size >= 2) {
-            val stops = windowValence.mapIndexed { i, v ->
-                val pos = if (windowValence.size == 1) 0f else i.toFloat() / (windowValence.size - 1)
-                pos to app.lumen.player.util.HctTint.rotate(activeColor, (v - 0.5f) * 150f, 1f)
-            }.sortedBy { it.first }
-            Brush.linearGradient(
-                colorStops = stops.toTypedArray(),
-                start = Offset(0f, 0f),
-                end = Offset(size.width, 0f),
-            )
-        } else androidx.compose.ui.graphics.SolidColor(activeColor)
-        drawPath(activePath, barBrush, style = Stroke(width = 4.5.dp.toPx(), cap = StrokeCap.Round))
+        drawPath(activePath, barColor, style = Stroke(width = 4.5.dp.toPx(), cap = StrokeCap.Round))
     }
 }
 

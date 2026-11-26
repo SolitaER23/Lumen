@@ -7,7 +7,7 @@ New-Item -ItemType Directory -Force -Path $dir | Out-Null
 $ff = (Get-Command ffmpeg -ErrorAction SilentlyContinue)
 if (-not $ff) { throw "找不到 ffmpeg，请先安装（winget install Gyan.FFmpeg）" }
 
-# 六首 30 秒素材：不同基频的正弦 + 粉噪，频谱足够稠密（纯音会让模型输出过于敏感）
+# 六首 30 秒素材：不同基频的正弦 + 粉噪，用于本地播放/解码联调
 $specs = @(
     @{ n = "mock-1.wav"; f = 220 },
     @{ n = "mock-2.wav"; f = 174 },

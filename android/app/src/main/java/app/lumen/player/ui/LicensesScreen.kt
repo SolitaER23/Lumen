@@ -82,15 +82,7 @@ private val OSS_GROUPS = listOf(
             OssItem("OkHttp", "5.5.1", L10n.t("网络传输与连接池"), "Apache-2.0", "© Square, Inc."),
             OssItem("Gson", "2.15.0", L10n.t("JSON 解析"), "Apache-2.0", "© Google LLC"),
             OssItem("kotlinx.serialization", "1.13.0", L10n.t("设置与播放状态的序列化"), "Apache-2.0", "© JetBrains s.r.o."),
-            OssItem(L10n.t("SQLite（Android 内置）"), L10n.t("系统版本"), L10n.t("心情结果、评分与统计缓存"), "Public Domain", "© SQLite Authors"),
-        ),
-    ),
-    OssGroup(
-        L10n.t("端侧音乐理解"),
-        listOf(
-            OssItem("ONNX Runtime", "1.22.0", L10n.t("音频模型推理运行时（CPU EP 优先，XNNPACK 回退）"), "MIT", "© Microsoft Corporation"),
-            OssItem("LAION-CLAP", L10n.t("HTSAT-base（音乐版）"), L10n.t("音乐情绪与风格嵌入模型"), "MIT", "© LAION e.V."),
-            OssItem("AudioSet Ontology", L10n.t("527 类标签"), L10n.t("音频事件标签定义（仅标签名）"), "CC BY 4.0", "© Google Research"),
+            OssItem(L10n.t("SQLite（Android 内置）"), L10n.t("系统版本"), L10n.t("评分与统计缓存"), "Public Domain", "© SQLite Authors"),
         ),
     ),
     OssGroup(
@@ -107,7 +99,7 @@ private val OSS_GROUPS = listOf(
 private data class LicenseDoc(val title: String, val file: String, val note: String)
 
 private val LICENSE_DOCS = listOf(
-    LicenseDoc("Apache License 2.0", "Apache-2.0.txt", L10n.t("Kotlin、Compose、Media3、OkHttp、Retrofit、Gson、Coil、ONNX Runtime、Material Color Utilities 等")),
+    LicenseDoc("Apache License 2.0", "Apache-2.0.txt", L10n.t("Kotlin、Compose、Media3、OkHttp、Retrofit、Gson、Coil、Material Color Utilities 等")),
     LicenseDoc("MIT License", "MIT.txt", L10n.t("Yoin Symbols、Navidrome Stat，以及 Lumen 自身")),
     LicenseDoc("SIL Open Font License 1.1", "OFL-1.1.txt", L10n.t("Google Sans Flex 字体")),
 )
@@ -215,13 +207,6 @@ fun LicensesScreen(onBack: () -> Unit) {
                         ),
                     )
                     LicenseNote(
-                        L10n.tf("端侧音频理解", "On-device audio understanding"),
-                        L10n.tf(
-                            "心情分析由 LAION-CLAP（音乐版）与本地 DSP 完成，推理通过 ONNX Runtime 1.22.0（CPU EP 优先，XNNPACK 回退）在设备端执行；模型权重未修改，音频不会上传。分析结果仅用于动态背景、配色、节拍与氛围电台排序，不改变音频文件。",
-                            "Mood analysis runs LAION-CLAP (music) with local DSP, executed on device by ONNX Runtime 1.22.0 (CPU EP preferred, XNNPACK fallback). Model weights are unmodified and audio is never uploaded. Results only drive the animated backdrop, palette, beat response and radio ranking; audio files are never modified.",
-                        ),
-                    )
-                    LicenseNote(
                         L10n.tf("服务端与协议", "Server and protocol"),
                         L10n.tf(
                             "Navidrome、Subsonic / OpenSubsonic 与 Navidrome Stat 通过公开 HTTP 接口对接，其服务端代码不随本应用分发；Navidrome 的 GPL-3.0 与 Navidrome Stat 的 MIT 义务不涉及本客户端。",
@@ -231,8 +216,8 @@ fun LicensesScreen(onBack: () -> Unit) {
                     LicenseNote(
                         L10n.tf("本地数据", "Local data"),
                         L10n.tf(
-                            "服务器凭据使用 Android Keystore 加密保存；播放历史、评分与心情结果仅存储在本机，应用不包含统计或分析 SDK，也不会上传曲库与使用数据。",
-                            "Server credentials are encrypted with the Android Keystore. Play history, ratings and mood results stay on device. The app contains no analytics SDK and never uploads library or usage data.",
+                            "服务器凭据使用 Android Keystore 加密保存；播放历史与评分仅存储在本机，应用不包含统计或分析 SDK，也不会上传曲库与使用数据。",
+                            "Server credentials are encrypted with the Android Keystore. Play history and ratings stay on device. The app contains no analytics SDK and never uploads library or usage data.",
                         ),
                     )
                     LicenseNote(
