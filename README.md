@@ -26,8 +26,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 ## 已移除的端侧模型功能
 
 2026-11-26 起，端侧 CLAP 音频模型、心情分析、氛围电台、情绪配色与音色搜索已从应用移除，应用只保留听歌相关功能。
-被移除的代码、模型权重、测试与文档已**移动**（未删除）到 [removed-ai-model-features/](removed-ai-model-features/)，原始路径、用途与移除原因见
-[MANIFEST.md](removed-ai-model-features/MANIFEST.md)。
+被移除的代码、模型权重、测试与文档已从 Git 仓库移出，保存在项目目录之外的本地归档中（未纳入版本控制）。
 
 ## 技术栈
 
