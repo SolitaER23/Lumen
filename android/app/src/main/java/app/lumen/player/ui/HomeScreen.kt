@@ -1,170 +1,94 @@
 package app.lumen.player.ui
 
 import app.lumen.player.util.L10n
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.pager.HorizontalPager
-import kotlinx.coroutines.flow.drop
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.pager.HorizontalPager
-import kotlinx.coroutines.flow.drop
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.shadow
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import app.lumen.player.data.Album
-import app.lumen.player.data.AlbumCache
-import app.lumen.player.data.LyricLine
-import app.lumen.player.data.Ratings
 import app.lumen.player.data.Artist
-import app.lumen.player.data.ServerConfig
-import app.lumen.player.data.SettingsStore
+import app.lumen.player.data.HomeSort
 import app.lumen.player.data.SubsonicClient
-import app.lumen.player.data.Track
-import app.lumen.player.playback.Playback
-import app.lumen.player.playback.AlbumDownload
-import app.lumen.player.playback.Downloads
-import app.lumen.player.playback.MediaCache
-import app.lumen.player.playback.PlaybackEngine
-import app.lumen.player.playback.PlaybackService
-import app.lumen.player.ui.AlbumScreen
-import app.lumen.player.ui.ArtistScreen
-import app.lumen.player.ui.SearchScreen
-import app.lumen.player.ui.FallbackScheme
-import app.lumen.player.ui.LicensesScreen
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import app.lumen.player.ui.YoinBar
-import app.lumen.player.ui.HomeCache
-import app.lumen.player.ui.LoginScreen
-import app.lumen.player.ui.lumenTypography
-import app.lumen.player.ui.PlayingScreen
-import app.lumen.player.ui.DownloadsScreen
-import app.lumen.player.ui.SettingsScreen
-import app.lumen.player.ui.schemeFromCover
 import com.gpo.yoin.symbols.YoinSymbols
-import com.gpo.yoin.symbols.rememberPlayPauseSymbolPainter
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.withContext
-import androidx.compose.foundation.combinedClickable
 
-
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+/**
+ * 首页（M3 Expressive）：
+ * - `LargeFlexibleTopAppBar`：大标题 + 副标题（数量/排序），滚动收成小标题；
+ * - `SegmentedButton` 切换「专辑 / 艺人」，左右滑动由 Pager 承担；
+ * - 专辑两列网格，封面用共享元素 key 与专辑页、播放页串成一条连续动画。
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
     client: SubsonicClient,
     albums: List<Album>,
-    downloadedIds: Set<String> = emptySet(),
     loading: Boolean,
     error: String?,
     coverUrl: (String) -> String,
@@ -173,62 +97,50 @@ fun HomeScreen(
     onSearch: () -> Unit,
     onSettings: () -> Unit,
     onRetry: () -> Unit,
-    starred: List<Track> = emptyList(),
-    onPlayStarred: (Int) -> Unit = {},
     tab: Int = 0,
     onTabChange: (Int) -> Unit = {},
-    ratingOf: (String) -> Float = { 0f },
-    downloads: List<AlbumDownload> = emptyList(),
-    onPlayTrack: (Track) -> Unit = {},
-    current: Track? = null,
-    playing: Boolean = false,
-    positionMs: Long = 0,
-    durationMs: Long = 0,
-    onToggle: () -> Unit = {},
+    // 排序方式由调用方（App）持有并落盘：页面切换/进程重启后仍能恢复，
+    // 不放在本组件的 remember 里（那样离开首页就会退回默认）
+    albumSort: Int = HomeSort.DEFAULT,
+    artistSort: Int = HomeSort.DEFAULT,
+    onSortChange: (tab: Int, mode: Int) -> Unit = { _, _ -> },
+    /**
+     * 当前正在播放的专辑 id（而不是曲目对象）。
+     * 只传 id：它一换歌才变，不像 positionMs 每 250ms 变一次，首页不会因此整页重组。
+     */
+    playingAlbumId: String? = null,
+    /**
+     * 播放进度（0f–1f）。必须是 lambda：它被 LinearProgressIndicator 在**绘制阶段**读取，
+     * 因此调用方每 250ms 推进的 positionMs 不再让首页（含网格、顶栏、Pager）每秒重组 4 次。
+     */
+    progressProvider: () -> Float? = { null },
     onOpenStats: () -> Unit = {},
     cache: HomeCache = remember { HomeCache() },
-    libraryVersion: Int = 0,
-    coverShared: @Composable (String) -> Modifier = { Modifier },
 ) {
-    val ctx = LocalContext.current
-    // 排序偏好按标签分别记住：切走再切回不会被重置
-    val sortByTab = remember { androidx.compose.runtime.mutableStateMapOf<Int, Int>() }
-    val sortIndex = sortByTab[tab] ?: 0
-    val setSortIndex: (Int) -> Unit = { sortByTab[tab] = it }
+    // 每页用自己的排序方式：专辑页按 albumSort、艺人页按 artistSort，
+    // 切 tab 不会把另一页的选择覆盖掉（与旧版「按 tab 记忆排序」一致）
+    val tabSort = if (tab == HomeSort.TAB_ARTISTS) artistSort else albumSort
+    val sortIndex = HomeSort.sanitize(tab, tabSort)
     var showSort by remember { mutableStateOf(false) }
-    // tab 由上层持有，返回首页时能保持原来的标签
     val artists = cache.artists
-    val newest = cache.newest
-    val recentTracks = cache.recentTracks
 
     var tabLoading by remember { mutableStateOf(false) }
     var tabError by remember { mutableStateOf<String?>(null) }
 
-    // 启动就拉一次艺人，让标签上的数量一开始就是对的
-    LaunchedEffect(Unit) {
-        if (artists.isEmpty()) {
-            runCatching { cache.artists = withContext(Dispatchers.IO) { client.artists() } }
-        }
-    }
-
-
+    // 原来这里是三个 LaunchedEffect（Unit 预取 + tab 加载 + tab 关闭排序面板）：
+    // 同一个 key 上挂多个 effect 会多分配 effect 节点与协程启动器，合并成一个即可。
     LaunchedEffect(tab) {
-        if (tab == 0) return@LaunchedEffect
-        val firstLoad = (tab == 1 && artists.isEmpty()) ||
-            (tab == 2 && (newest.isEmpty() || recentTracks.isEmpty()))
-        if (firstLoad) tabLoading = true
+        showSort = false
+        if (artists.isNotEmpty()) return@LaunchedEffect
+        if (tab == 0) {
+            // 停在专辑页时顺手预取艺人列表，切过去就不用等
+            runCatching { cache.artists = withContext(Dispatchers.IO) { client.artists() } }
+            return@LaunchedEffect
+        }
+        tabLoading = true
         tabError = null
         try {
-            when (tab) {
-                1 -> if (artists.isEmpty()) cache.artists = withContext(Dispatchers.IO) { client.artists() }
-                2 -> {
-                    // 每次进入/有新播放都刷新；最近播放用本机单曲历史
-                    cache.newest = withContext(Dispatchers.IO) { client.newestAlbums() }
-                    cache.recentTracks = withContext(Dispatchers.IO) {
-                        app.lumen.player.data.PlayHistory.load(ctx)
-                    }
-                }
-            }
+            cache.artists = withContext(Dispatchers.IO) { client.artists() }
         } catch (e: Exception) {
             tabError = e.message ?: L10n.t("加载失败")
         } finally {
@@ -236,564 +148,341 @@ fun HomeScreen(
         }
     }
 
-
-    // 停留在「最近」时定时静默刷新，外部新增/播放后不需要重进页面
-    LaunchedEffect(tab) {
-        if (tab != 2) return@LaunchedEffect
-        while (true) {
-            delay(30_000L)
-            runCatching {
-                val n = withContext(Dispatchers.IO) { client.newestAlbums() }
-                cache.newest = n
-                cache.recentTracks = withContext(Dispatchers.IO) {
-                    app.lumen.player.data.PlayHistory.load(ctx)
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(tab) { showSort = false }
     val sortOptions = when (tab) {
         1 -> listOf(L10n.t("名称"), L10n.t("专辑数量"))
-        2 -> listOf(L10n.t("最近添加"), L10n.t("名称"), L10n.t("发行年份"))
-        3 -> listOf(L10n.t("收藏顺序"), L10n.t("名称"), L10n.t("艺人"), L10n.t("我的评分"))
-        else -> listOf(
-            L10n.t("字母顺序"), L10n.t("发行年份"), L10n.t("歌曲数量"), L10n.t("艺人"), L10n.t("最近播放"),
-        )
+        else -> listOf(L10n.t("字母顺序"), L10n.t("发行年份"), L10n.t("歌曲数量"), L10n.t("艺人"))
     }
-    // 最近播放排序：用本机播放历史的先后给专辑排位
-    val recentAlbumRank = remember(recentTracks) {
-        recentTracks.mapIndexedNotNull { index, t ->
-            t.album.takeIf { it.isNotBlank() }?.let { it to index }
-        }.toMap()
+    // 排序只在「列表或排序方式变化」时算一次：positionMs 每 250ms 推进一次，本页每秒会重组 4 次，
+    // 之前每次重组都对整个曲库重做一遍 O(N log N) 排序（比较器里还带 lowercase() 分配）。
+    val sortedAlbums = remember(albums, albumSort) { HomeSort.albums(albums, albumSort) }
+    val sortedArtists = remember(artists, artistSort) { HomeSort.artists(artists, artistSort) }
+
+    val scheme = MaterialTheme.colorScheme
+    val sortLabel = sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }
+    val sectionTitle = if (tab == 1) L10n.t("全部艺人") else L10n.t("全部专辑")
+    val sectionTrailing = if (tab == 1) {
+        L10n.tf("共 ${artists.size} 位 · $sortLabel", "${artists.size} total · $sortLabel")
+    } else {
+        L10n.tf("共 ${albums.size} 张 · $sortLabel", "${albums.size} total · $sortLabel")
     }
-    val sortedAlbums = sortAlbums(albums, sortIndex, recentAlbumRank)
-    val sortedArtists = sortArtists(artists, sortIndex)
-    val sortedNewest = sortAlbums(newest, sortIndex)
 
-    val sortedStarred = sortStarred(starred, sortIndex, ratingOf)
+    // 顶栏浮在内容之上：状态栏 + 56dp。内容用同样的顶部内边距起排，
+    // 滚动时从顶栏的渐变遮罩下穿过，不会在某一行被"切一刀"。
+    val topInset = androidx.compose.foundation.layout.WindowInsets.statusBars
+        .asPaddingValues()
+        .calculateTopPadding()
+    val barHeight = topInset + LumenSizes.homeTopBar
 
-    Box(Modifier.fillMaxSize().statusBarsPadding()) {
+    Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-        HomeHeader(
-            selected = tab,
-            title = when (tab) {
-                1 -> L10n.t("艺人")
-                2 -> L10n.t("最近")
-                3 -> L10n.t("收藏")
-                else -> L10n.t("专辑")
-            },
-            subtitle = when (tab) {
-                1 -> "${artists.size} 位艺人 · ${sortOptions.getOrElse(sortIndex) { L10n.t("名称") }}"
-                2 -> L10n.tf("最近添加 ${newest.size} · 最近播放 ${recentTracks.size}", "Recently added ${newest.size} · recently played ${recentTracks.size}")
-                3 -> L10n.tf("${starred.size} 首单曲 · ${sortOptions.getOrElse(sortIndex) { L10n.t("收藏顺序") }}", "${starred.size} tracks · ${sortOptions.getOrElse(sortIndex) { L10n.t("收藏顺序") }}")
-                else -> L10n.tf("${albums.size} 张专辑 · ${sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }}", "${albums.size} albums · ${sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }}")
-            },
-            onTab = onTabChange,
-            onSettings = onSettings,
-            onSort = { showSort = true },
-            onSearch = onSearch,
-            onStats = onOpenStats,
-        )
-
-        val activeError = if (tab == 0) error else tabError
-        when {
-            tab == 0 && loading && albums.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-            activeError != null -> Column(
-                Modifier.fillMaxSize().padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(activeError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
-                Spacer(Modifier.height(16.dp))
-                Button(
-                    onClick = onRetry,
-                    shape = RoundedCornerShape(percent = 50),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                ) { Text(L10n.t("重试")) }
-            }
-            else -> {
-                val pagerState = rememberPagerState(pageCount = { 4 })
-                // 点击标签：走 pager 的横向滑动（shared axis X），连点会被新动画接管。
-                // 程序化滚动期间必须屏蔽标签回写：从第 0 页跳到第 3 页会依次经过 1、2 页，
-                // 若把这些中间页写回 tab，LaunchedEffect(tab) 会被重启，pager 又被拽回中间页
-                // （表现为"点收藏落到最近"、"点专辑落到艺人"）。
-                val programmaticScroll = remember { androidx.compose.runtime.mutableStateOf(false) }
-                LaunchedEffect(tab) {
-                    if (pagerState.currentPage != tab) {
-                        programmaticScroll.value = true
-                        try {
-                            pagerState.animateScrollToPage(
-                                tab,
-                                animationSpec = androidx.compose.animation.core.tween(
-                                    260,
-                                    easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f),
-                                ),
+            val activeError = if (tab == 0) error else tabError
+            when {
+                tab == 0 && loading && albums.isEmpty() -> Box(
+                    Modifier.fillMaxSize().padding(top = barHeight),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LumenLoading()
+                }
+                activeError != null -> LumenErrorState(
+                    message = activeError,
+                    retryLabel = L10n.t("重试"),
+                    onRetry = onRetry,
+                    modifier = Modifier.padding(top = barHeight + LumenSizes.xl),
+                )
+                else -> {
+                    val pagerState = rememberPagerState(pageCount = { 2 })
+                    val programmaticScroll = remember { mutableStateOf(false) }
+                    val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+                    LaunchedEffect(tab) {
+                        if (pagerState.currentPage != tab) {
+                            programmaticScroll.value = true
+                            try {
+                                pagerState.animateScrollToPage(tab, animationSpec = spatial)
+                            } finally {
+                                programmaticScroll.value = false
+                            }
+                        }
+                    }
+                    val latestTab = rememberUpdatedState(tab)
+                    LaunchedEffect(pagerState) {
+                        snapshotFlow { pagerState.currentPage }
+                            .drop(1)
+                            .collect { page ->
+                                if (!programmaticScroll.value && page != latestTab.value) onTabChange(page)
+                            }
+                    }
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        beyondViewportPageCount = 1,
+                        key = { it },
+                    ) { page ->
+                        when (page) {
+                            1 -> ArtistList(
+                                artists = sortedArtists,
+                                loading = tabLoading,
+                                sectionTitle = sectionTitle,
+                                sectionTrailing = sectionTrailing,
+                                topPadding = barHeight,
+                                onOpen = onOpenArtist,
                             )
-                        } finally {
-                            // 动画完成或被新点击取消都要复位，否则之后的手势回写会失效
-                            programmaticScroll.value = false
-                        }
-                    }
-                }
-                // 手势滑动时跟随 currentPage 回写标签；程序化滚动不参与，
-                // 这样"点哪个就落到哪个"，而不是按经过顺序逐个落位。
-                val latestTab = rememberUpdatedState(tab)
-                LaunchedEffect(pagerState) {
-                    snapshotFlow { pagerState.currentPage }
-                        .drop(1)
-                        .collect { page ->
-                            if (!programmaticScroll.value && page != latestTab.value) onTabChange(page)
-                        }
-                }
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount = 1,
-                    key = { it },
-                ) { page ->
-                    when (page) {
-                        3 -> StarredList(sortedStarred, downloadedIds, onPlayStarred)
-                        1 -> ArtistGrid(sortedArtists, onOpenArtist)
-                        2 -> RecentList(
-                            newest = sortedNewest,
-                            recentTracks = recentTracks,
-                            client = client,
-                            downloads = downloads,
-                            albums = albums,
-                            coverUrl = coverUrl,
-                            onOpen = onOpen,
-                            onPlayTrack = onPlayTrack,
-                            downloadedIds = downloadedIds,
-                            loading = tabLoading && newest.isEmpty(),
-                        )
-                        else -> Column(Modifier.fillMaxSize()) {
-                            SectionRow(L10n.t("全部专辑"), L10n.tf("共 ${albums.size} 张", "${albums.size} total"))
-                            Box(Modifier.weight(1f)) {
-                                AlbumGrid(
-                                    albums = sortedAlbums,
-                                    coverUrl = coverUrl,
-                                    onOpen = onOpen,
-                                    coverShared = coverShared,
-                                    progressOf = { al ->
-                                        if (current?.albumId == al.id && durationMs > 0L) {
-                                            (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-                                        } else null
-                                    },
-                                )
-                            }
+                            else -> AlbumGrid(
+                                albums = sortedAlbums,
+                                coverUrl = coverUrl,
+                                sectionTitle = sectionTitle,
+                                sectionTrailing = sectionTrailing,
+                                topPadding = barHeight,
+                                onOpen = onOpen,
+                                playingAlbumId = playingAlbumId,
+                                progressProvider = progressProvider,
+                            )
                         }
                     }
                 }
             }
         }
-        }
 
-        if (showSort) {
-            ModalBottomSheet(
-                onDismissRequest = { showSort = false },
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            ) {
-                Text(
-                    when (tab) {
-                        1 -> L10n.t("艺人排序")
-                        2 -> L10n.t("最近排序")
-                        3 -> L10n.t("收藏排序")
-                        else -> L10n.t("专辑排序")
+        HomeTopBar(
+            modifier = Modifier.align(Alignment.TopCenter),
+            tab = tab,
+            onTab = onTabChange,
+            onSort = { showSort = true },
+            onStats = onOpenStats,
+            onSearch = onSearch,
+            onSettings = onSettings,
+        )
+    }
+
+    if (showSort) {
+        ModalBottomSheet(
+            onDismissRequest = { showSort = false },
+            containerColor = scheme.surfaceContainer,
+        ) {
+            Text(
+                if (tab == 1) L10n.t("艺人排序") else L10n.t("专辑排序"),
+                style = MaterialTheme.typography.titleLargeEmphasized,
+                color = scheme.onSurface,
+                modifier = Modifier.padding(horizontal = LumenSizes.l, vertical = LumenSizes.xs),
+            )
+            Spacer(Modifier.height(LumenSizes.xs))
+            sortOptions.forEachIndexed { i, label ->
+                ListItem(
+                    headlineContent = {
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
                     },
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                )
-                Spacer(Modifier.height(4.dp))
-                sortOptions.forEachIndexed { i, label ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                setSortIndex(i)
-                                showSort = false
-                            }
-                            .padding(horizontal = 24.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            Modifier
-                                .size(20.dp)
-                                .clip(CircleShape)
-                                .border(
-                                    if (i == sortIndex) 6.dp else 2.dp,
-                                    if (i == sortIndex) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.outline,
-                                    CircleShape,
-                                ),
-                        )
-                        Spacer(Modifier.width(14.dp))
-                        Text(
-                            label,
-                            color = if (i == sortIndex) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface,
-                            fontSize = 15.sp,
-                            fontWeight = if (i == sortIndex) FontWeight.Medium else FontWeight.Normal,
-                        )
-                    }
-                }
-                Spacer(Modifier.height(24.dp))
-            }
-        }
-
-    }
-}
-
-private fun sortAlbums(
-    list: List<Album>,
-    mode: Int,
-    recentRank: Map<String, Int> = emptyMap(),
-): List<Album> = when (mode) {
-    1 -> list.sortedWith(compareByDescending<Album> { it.year }.thenBy { it.name.lowercase() })
-    2 -> list.sortedByDescending { it.songCount }
-    3 -> list.sortedBy { it.artist.lowercase() + "|" + it.name.lowercase() }
-    4 -> list.sortedBy { recentRank[it.name] ?: Int.MAX_VALUE }
-    else -> list.sortedBy { it.name.lowercase() }
-}
-
-private fun sortArtists(list: List<Artist>, mode: Int): List<Artist> =
-    if (mode == 1) list.sortedByDescending { it.albumCount } else list.sortedBy { it.name.lowercase() }
-
-private fun sortStarred(list: List<Track>, mode: Int, ratingOf: (String) -> Float): List<Track> = when (mode) {
-    1 -> list.sortedBy { it.title.lowercase() }
-    2 -> list.sortedBy { it.artist.lowercase() + "|" + it.title.lowercase() }
-    3 -> list.sortedByDescending { ratingOf(it.id) }
-    else -> list
-}
-
-@Composable
-private fun StarredList(tracks: List<Track>, downloadedIds: Set<String> = emptySet(), onPlay: (Int) -> Unit) {
-    if (tracks.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(L10n.t("还没有收藏的单曲"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
-        }
-        return
-    }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 120.dp),
-    ) {
-        items(tracks, key = { it.id }) { track ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .height(62.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .clickable { onPlay(tracks.indexOf(track)) }
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        track.title,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.sp,
-                        maxLines = 1,
-                        modifier = Modifier.basicMarquee(),
-                    )
-                    Text(
-                        listOfNotNull(track.artist.takeIf { it.isNotBlank() }, track.album.takeIf { it.isNotBlank() })
-                            .joinToString(" · "),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (track.id in downloadedIds) {
-                    Icon(
-                        YoinSymbols.DownloadDone,
-                        contentDescription = L10n.t("已下载"),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                }
-                Icon(
-                    YoinSymbols.StarFilled,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
+                    leadingContent = {
+                        RadioButton(selected = i == sortIndex, onClick = null)
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier
+                        .padding(horizontal = LumenSizes.xs)
+                        .clickable {
+                            onSortChange(tab, i)
+                            showSort = false
+                        },
                 )
             }
+            Spacer(Modifier.height(LumenSizes.xxl).navigationBarsPadding())
         }
     }
 }
 
+/**
+ * 首页顶栏：所有入口收进同一行，不再有独立的大标题行。
+ *
+ * 左：专辑 / 艺人（文字入口）+ 排序；右：统计 / 搜索 / 设置（图标入口）。
+ * 所有元素都是 44dp 高的同一种竖直中心线，间距统一 4dp，左右两组用剩余空间顶开，
+ * 所以中文标签和图标在同一基线上，不会出现"标题行比右上角入口低半行"的错位。
+ */
 @Composable
-private fun HomeHeader(
-    selected: Int,
-    title: String,
-    subtitle: String,
+private fun HomeTopBar(
+    modifier: Modifier = Modifier,
+    tab: Int,
     onTab: (Int) -> Unit,
-    onSettings: () -> Unit,
     onSort: () -> Unit,
+    onStats: () -> Unit,
     onSearch: () -> Unit,
-    onStats: () -> Unit = {},
+    onSettings: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        title,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        fontSize = 34.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-            }
-            HomeCircleButton(originKey = "stats", label = L10n.t("聆听统计"), onClick = onStats) {
-                val c = MaterialTheme.colorScheme.onBackground
-                Canvas(Modifier.size(20.dp)) {
-                    val barW = size.width / 5f
-                    val heights = floatArrayOf(0.45f, 0.75f, 1f)
-                    heights.forEachIndexed { i, h ->
-                        val left = i * barW * 1.6f
-                        val barH = size.height * h
-                        drawRoundRect(
-                            color = c,
-                            topLeft = androidx.compose.ui.geometry.Offset(left, size.height - barH),
-                            size = androidx.compose.ui.geometry.Size(barW, barH),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(barW / 2f),
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.width(10.dp))
-            HomeCircleButton(originKey = "search", onClick = onSearch) {
-                Icon(YoinSymbols.Search, contentDescription = L10n.t("搜索"), tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(10.dp))
-            HomeCircleButton(label = L10n.t("排序"), onClick = onSort) {
-                val sortColor = MaterialTheme.colorScheme.onBackground
-                Canvas(Modifier.size(20.dp)) {
-                    val stroke = 2.dp.toPx()
-                    val w = size.width
-                    val third = size.height / 4f
-                    val cap = androidx.compose.ui.graphics.StrokeCap.Round
-                    drawLine(start = androidx.compose.ui.geometry.Offset(0f, third), end = androidx.compose.ui.geometry.Offset(w, third), color = sortColor, strokeWidth = stroke, cap = cap)
-                    drawLine(start = androidx.compose.ui.geometry.Offset(0f, third * 2), end = androidx.compose.ui.geometry.Offset(w * 0.7f, third * 2), color = sortColor, strokeWidth = stroke, cap = cap)
-                    drawLine(start = androidx.compose.ui.geometry.Offset(0f, third * 3), end = androidx.compose.ui.geometry.Offset(w * 0.42f, third * 3), color = sortColor, strokeWidth = stroke, cap = cap)
-                }
-            }
-            Spacer(Modifier.width(10.dp))
-            HomeCircleButton(originKey = "settings", onClick = onSettings) {
-                Icon(YoinSymbols.Settings, contentDescription = L10n.t("设置"), tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(21.dp))
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        // 胶囊分段标签：选中项白底黑字，其余灰字
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        modifier
+            .fillMaxWidth()
+            .background(scheme.surface),
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(42.dp)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .padding(4.dp),
+                .statusBarsPadding()
+                .height(LumenSizes.homeTopBar)
+                .padding(horizontal = LumenSizes.xs),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            listOf(L10n.t("专辑"), L10n.t("艺人"), L10n.t("最近"), L10n.t("收藏")).forEachIndexed { i, label ->
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(
-                            if (i == selected) MaterialTheme.colorScheme.primaryContainer
-                            else androidx.compose.ui.graphics.Color.Transparent,
-                        )
-                        .clickable { onTab(i) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        label,
-                        color = if (i == selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontWeight = if (i == selected) FontWeight.Medium else FontWeight.Normal,
-                    )
-                }
+            HomeBarText(L10n.t("专辑"), selected = tab == 0) { onTab(0) }
+            Spacer(Modifier.width(LumenSizes.xxs))
+            HomeBarText(L10n.t("艺人"), selected = tab == 1) { onTab(1) }
+            Spacer(Modifier.width(LumenSizes.xxs))
+            HomeBarIcon(onClick = onSort) {
+                Icon(
+                    YoinSymbols.Sort,
+                    contentDescription = L10n.t("排序"),
+                    tint = scheme.onSurface,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            HomeBarIcon("stats", onStats) {
+                Icon(YoinSymbols.Insights, contentDescription = L10n.t("聆听统计"), tint = scheme.onSurface, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(LumenSizes.xxs))
+            HomeBarIcon("search", onSearch) {
+                Icon(YoinSymbols.Search, contentDescription = L10n.t("搜索"), tint = scheme.onSurface, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(LumenSizes.xxs))
+            HomeBarIcon("settings", onSettings) {
+                Icon(YoinSymbols.Settings, contentDescription = L10n.t("设置"), tint = scheme.onSurface, modifier = Modifier.size(22.dp))
             }
         }
     }
 }
 
+/** 顶栏文字入口：与图标入口同为 44dp 的方形容器，文字居中，选中用主色 + Emphasized。 */
 @Composable
-private fun HomeCircleButton(
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
-    originKey: String? = null,
-    /** TalkBack 名称：纯 Canvas 图标没有语义，必须显式给出 */
-    label: String? = null,
-    content: @Composable () -> Unit,
-) {
-    // P2：按下时轻微缩放，反馈更"实"，不再只有 ripple
-    val interaction = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val pressScale by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (pressed) 0.94f else 1f,
-        animationSpec = androidx.compose.animation.core.tween(120),
-        label = "circle-press",
-    )
-    // 页面缩回入口后的回弹：1.00 → 1.04 → 1.00
-    val bounceKey = 0
-    val hits = if (originKey != null) EntryBounce.count(originKey) else 0
-    // 必须 remember：否则每次重组都新建 Animatable，回弹动画会被反复重置
-    val bounce = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(1f) }
-    androidx.compose.runtime.LaunchedEffect(hits) {
-        if (hits > 0) {
-            bounce.animateTo(1.04f, androidx.compose.animation.core.tween(60))
-            bounce.animateTo(1f, androidx.compose.animation.core.tween(60))
-        }
-    }
-    val scale = pressScale * bounce.value
+private fun HomeBarText(label: String, selected: Boolean, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
     Box(
         Modifier
-            .size(40.dp)
-            .onGloballyPositioned { c ->
-                if (originKey != null) NavOriginStore.put(originKey, c.boundsInRoot())
-            }
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
+            .size(44.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = if (selected) scheme.primary else scheme.onSurfaceVariant,
+            style = if (selected) MaterialTheme.typography.titleSmallEmphasized
+            else MaterialTheme.typography.titleSmall,
+            maxLines = 1,
+        )
+    }
+}
+
+/** 顶栏图标入口：44dp 容器、22dp 图标；给了 originKey 时记录坐标供返回转场收缩。 */
+@Composable
+private fun HomeBarIcon(
+    originKey: String? = null,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .size(44.dp)
             .then(
-                if (onLongClick != null) {
-                    Modifier.combinedClickable(
-                        interactionSource = interaction,
-                        indication = androidx.compose.foundation.LocalIndication.current,
-                        onClickLabel = label,
-                        onClick = onClick,
-                        onLongClick = onLongClick,
-                    )
-                } else {
-                    Modifier.clickable(
-                        interactionSource = interaction,
-                        indication = androidx.compose.foundation.LocalIndication.current,
-                        onClickLabel = label,
-                        onClick = onClick,
-                    )
-                },
-            )
-            .then(
-                if (label != null) {
-                    Modifier.semantics { contentDescription = label }
+                if (originKey != null) {
+                    Modifier.onGloballyPositioned { c ->
+                        runCatching { NavOriginStore.put(originKey, c.boundsInRoot()) }
+                    }
                 } else {
                     Modifier
                 },
             ),
-        contentAlignment = Alignment.Center,
     ) { content() }
 }
-
-@Composable
-private fun SectionRow(title: String, trailing: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        Spacer(Modifier.weight(1f))
-        Text(trailing, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-    }
-}
-
-
-
-
-// 首页中性色板（设计稿）：颜色交给封面，界面只用灰阶 + 一种强调色
-internal val HomeBg = androidx.compose.ui.graphics.Color(0xFF202126)
-
-// 注：首页实际使用的是 ThemeEngine.mutedForHome（在 MainActivity 套 MaterialTheme），
-// 这里曾有一份未接线的 HomeScheme 副本，已删除，避免两套色板漂移。
 
 @Composable
 private fun AlbumGrid(
     albums: List<Album>,
     coverUrl: (String) -> String,
+    sectionTitle: String,
+    sectionTrailing: String,
+    topPadding: androidx.compose.ui.unit.Dp,
     onOpen: (Album) -> Unit,
-    coverShared: @Composable (String) -> Modifier,
-    progressOf: (Album) -> Float? = { null },
+    /** 只有正在播放的那张专辑显示进度条 */
+    playingAlbumId: String? = null,
+    progressProvider: () -> Float? = { null },
 ) {
-    // 返回首页 / 冷启动时续接滚动位置
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(
+    val ctx = LocalContext.current
+    val gridState = rememberLazyGridState(
         initialFirstVisibleItemIndex = HomeScrollStore.albumIndex,
         initialFirstVisibleItemScrollOffset = HomeScrollStore.albumOffset,
     )
-    androidx.compose.runtime.LaunchedEffect(gridState) {
+    LaunchedEffect(gridState) {
         snapshotFlow { gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
             .collect { (index, offset) ->
                 HomeScrollStore.albumIndex = index
                 HomeScrollStore.albumOffset = offset
-                HomeScrollStore.persist(ctx, force = true)
+                // 不要在每一帧滚动都落盘：firstVisibleItemIndex/Offset 每移动 1px 就触发一次，
+                // 之前 force=true 绕过了 HomeScrollStore 里 400ms 的节流，等于滚动时每帧写一次 SharedPreferences。
+                HomeScrollStore.persist(ctx)
             }
     }
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
-    // 解码尺寸对齐：两列、左右各 20dp、列间距 24dp
-    val cellPx = with(density) { (((screenW - 64) / 2f).coerceAtLeast(120f).dp).roundToPx() }
+    val density = LocalDensity.current
+    val screenW = LocalConfiguration.current.screenWidthDp
+    val cellPx = with(density) { (((screenW - 48) / 2f).coerceAtLeast(120f).dp).roundToPx() }
 
-    // 分页渲染：首屏只组合 24 张，滚动接近底部再追加，冷启动更快
-    // F4：分页数量必须可恢复，否则返回首页会退回 24 张并跳回顶部
-    var shown by androidx.compose.runtime.saveable.rememberSaveable(albums.size) {
-        androidx.compose.runtime.mutableIntStateOf(minOf(albums.size, 24))
-    }
-    androidx.compose.runtime.LaunchedEffect(gridState.layoutInfo.visibleItemsInfo.size, shown) {
-        val last = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-        if (last >= shown - 4 && shown < albums.size) {
-            shown = minOf(albums.size, shown + 24)
-        }
+    // 初始只渲染 24 张，滚动到底部附近再放行下一批（长曲库首帧不全量组合）。
+    // 不要用 albums.size 当 key：曲库一旦变化就会把 shown 打回 24，用户会被弹回列表开头。
+    var shown by rememberSaveable { mutableIntStateOf(24) }
+    // 关键：不要把 gridState.layoutInfo 写进 composition（包括 LaunchedEffect 的 key）。
+    // 它是快照状态，组合期读它 = 每翻过一行就整页重组一次；改成在协程里 snapshotFlow。
+    LaunchedEffect(gridState, albums, cellPx) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
+            .distinctUntilChanged()
+            .collect { last ->
+                if (last < 0) return@collect
+                if (shown < albums.size && last >= shown - 4) {
+                    shown = minOf(albums.size, shown + 24)
+                }
+                val until = (last + 8).coerceAtMost(albums.lastIndex)
+                if (until <= last) return@collect
+                val loader = coil3.SingletonImageLoader.get(ctx)
+                for (i in last + 1..until) {
+                    val a = albums.getOrNull(i) ?: continue
+                    loader.enqueue(
+                        coil3.request.ImageRequest.Builder(ctx)
+                            .data(coverUrl(a.coverId))
+                            .size(cellPx)
+                            .build(),
+                    )
+                }
+            }
     }
 
-    // 预取下一屏：可见范围之后 8 个格子的封面先解码进内存
-    androidx.compose.runtime.LaunchedEffect(gridState.layoutInfo.visibleItemsInfo.size, albums.size) {
-        val info = gridState.layoutInfo
-        val last = info.visibleItemsInfo.lastOrNull()?.index ?: return@LaunchedEffect
-        val until = (last + 8).coerceAtMost(albums.lastIndex)
-        if (until <= last) return@LaunchedEffect
-        val loader = coil3.SingletonImageLoader.get(ctx)
-        for (i in last + 1..until) {
-            val a = albums.getOrNull(i) ?: continue
-            loader.enqueue(
-                coil3.request.ImageRequest.Builder(ctx)
-                    .data(coverUrl(a.coverId))
-                    .size(cellPx)
-                    .build(),
-            )
-        }
-    }
+    // take() 每次调用都会复制一个新 List；本页每秒重组 4 次，等于每秒多分配 4 个列表。
+    val visible = remember(albums, shown) { albums.take(shown) }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         state = gridState,
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 130.dp),
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp),
+        contentPadding = PaddingValues(
+            start = LumenSizes.screenH,
+            end = LumenSizes.screenH,
+            top = topPadding,
+            bottom = LumenSizes.contentBottom,
+        ),
+        horizontalArrangement = Arrangement.spacedBy(LumenSizes.m),
+        verticalArrangement = Arrangement.spacedBy(LumenSizes.l),
         modifier = Modifier.fillMaxSize(),
     ) {
-        items(albums.take(shown), key = { it.id }) { album ->
+        // 分区标题跟着列表一起滚走：滚动时不会被固定在一条直线上把封面"切一刀"
+        item(
+            key = "album-section",
+            contentType = "section",
+            span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) },
+        ) {
+            LumenSectionHeader(
+                title = sectionTitle,
+                trailing = sectionTrailing,
+                horizontalPadding = 0.dp,
+            )
+        }
+        items(visible, key = { it.id }, contentType = { "album" }) { album ->
             AlbumCard(
                 album = album,
                 url = coverUrl(album.coverId),
-                coverModifier = coverShared(album.id),
-                progress = progressOf(album),
+                showProgress = playingAlbumId != null && playingAlbumId == album.id,
+                progressProvider = progressProvider,
                 coverSizePx = cellPx,
                 onClick = { onOpen(album) },
             )
@@ -802,517 +491,176 @@ private fun AlbumGrid(
 }
 
 @Composable
-/** 艺人：只显示名字，不显示头像。 */
-private fun ArtistGrid(
-    artists: List<Artist>,
-    onOpen: (Artist) -> Unit,
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
-    ) {
-        items(artists, key = { it.id }) { artist ->
-            Text(
-                artist.name,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Light,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onGloballyPositioned { c ->
-                        runCatching { NavOriginStore.put(artist.id, c.boundsInRoot()) }
-                    }
-                    .clickable { onOpen(artist) }
-                    .padding(vertical = 14.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun RecentTrackRow(
-    track: Track,
-    coverUrl: (String) -> String,
-    downloaded: Boolean = false,
-    onPlay: (Track) -> Unit,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable { onPlay(track) }
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = coverUrl(track.albumId),
-            contentDescription = track.album,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)),
-        )
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(
-                track.title,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 14.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                listOf(track.artist, track.album).filter { it.isNotBlank() }.joinToString(" · "),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (downloaded) {
-            Icon(
-                YoinSymbols.DownloadDone,
-                contentDescription = L10n.t("已下载"),
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-        }
-        Icon(
-            YoinSymbols.PlayFilled,
-            contentDescription = L10n.t("播放"),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
-        )
-    }
-}
-
-@Composable
-private fun RecentEmpty(text: String) {
-    Text(
-        text,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontSize = 13.sp,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun RecentList(
-    client: SubsonicClient,
-    newest: List<Album>,
-    recentTracks: List<Track>,
-    downloads: List<AlbumDownload>,
-    albums: List<Album>,
-    coverUrl: (String) -> String,
-    onOpen: (Album) -> Unit,
-    onPlayTrack: (Track) -> Unit,
-    downloadedIds: Set<String> = emptySet(),
-    loading: Boolean,
-) {
-    // 单曲下载：按 trackId 拉一次元数据（封面/标题/艺人），供卡片显示与播放
-    val singleTracks = remember { mutableStateMapOf<String, Track>() }
-    val singles = downloads.filter { it.isSingle }
-    LaunchedEffect(downloads) {
-        singles.forEach { d ->
-            val id = d.key.removePrefix("track:")
-            if (id.isNotBlank() && id !in singleTracks) {
-                val remote = runCatching { withContext(Dispatchers.IO) { client.song(id) } }.getOrNull()
-                singleTracks[id] = remote ?: Track(
-                    id = id,
-                    title = d.name.substringBefore(" · "),
-                    artist = d.artist,
-                    albumId = d.albumId,
-                    album = d.albumName,
-                )
-            }
-        }
-    }
-    if (loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        return
-    }
-    val ctx = LocalContext.current
-    // 固定顺序：最近播放、最近添加、已下载
-    val order = remember { listOf(1, 0, 2) }
-    var selected by rememberSaveable { mutableIntStateOf(order.firstOrNull() ?: 0) }
-
-    LaunchedEffect(order) {
-        if (selected !in order) selected = order.firstOrNull() ?: 0
-    }
-
-    val sections = mapOf(
-        0 to L10n.t("最近添加"),
-        1 to L10n.t("最近播放"),
-        2 to L10n.t("已下载"),
-    )
-
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 120.dp),
-        ) {
-            item {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        L10n.t("最近"),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                                    }
-            }
-
-            // 三个分区横向并排，点选后下方展示该分区原有内容
-            item(key = "switch") {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    order.forEach { section ->
-                        val count = when (section) {
-                            0 -> newest.size
-                            1 -> recentTracks.size
-                            else -> downloads.size
-                        }
-                        val active = section == selected
-                        val container = if (active) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceContainer
-                        val titleColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                        val countColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurface
-                        Column(
-                            Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(container)
-                                .clickable { selected = section }
-                                .padding(horizontal = 12.dp, vertical = 12.dp),
-                        ) {
-                            Text(
-                                sections[section] ?: "",
-                                color = titleColor,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Row(verticalAlignment = Alignment.Bottom) {
-                                Text(
-                                    count.toString(),
-                                    color = countColor,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Light,
-                                )
-                                Text(
-                                    when (section) {
-                                        2 -> L10n.t(" 项")
-                                        1 -> L10n.t(" 首")
-                                        else -> L10n.t(" 张")
-                                    },
-                                    color = titleColor,
-                                    fontSize = 10.sp,
-                                    modifier = Modifier.padding(bottom = 4.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            item { Spacer(Modifier.height(8.dp)) }
-
-            when (selected) {
-                0 -> if (newest.isEmpty()) {
-                    item(key = "nempty") { RecentEmpty(L10n.t("暂无最近添加的专辑")) }
-                } else {
-                    items(rowsOf(newest), key = { "n${it.firstOrNull()?.id}" }) { row ->
-                        HorizontalAlbumRow(row, coverUrl, onOpen)
-                    }
-                }
-                1 -> if (recentTracks.isEmpty()) {
-                    item(key = "rempty") { RecentEmpty(L10n.t("暂无最近播放的歌曲")) }
-                } else {
-                    items(recentTracks, key = { "r${it.id}" }) { track ->
-                        RecentTrackRow(track, coverUrl, track.id in downloadedIds, onPlayTrack)
-                    }
-                }
-                else -> if (downloads.isEmpty()) {
-                    item(key = "dempty") { RecentEmpty(L10n.t("还没有下载内容")) }
-                } else {
-                    items(rowsOfDownloads(downloads), key = { "d${it.firstOrNull()?.key}" }) { row ->
-                        HorizontalDownloadRow(row, albums, singleTracks, coverUrl, onOpen, onPlayTrack)
-                    }
-                }
-            }
-        }
-
-
-    }
-}
-
-private fun rowsOfDownloads(downloads: List<AlbumDownload>): List<List<AlbumDownload>> {
-    if (downloads.isEmpty()) return emptyList()
-    if (downloads.size == 1) return listOf(downloads)
-    val half = (downloads.size + 1) / 2
-    return listOf(downloads.take(half), downloads.drop(half)).filter { it.isNotEmpty() }
-}
-
-
-
-@Composable
-private fun HorizontalDownloadRow(
-    row: List<AlbumDownload>,
-    albums: List<Album>,
-    tracks: Map<String, Track>,
-    coverUrl: (String) -> String,
-    onOpen: (Album) -> Unit,
-    onPlayTrack: (Track) -> Unit,
-) {
-    androidx.compose.foundation.lazy.LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
-    ) {
-        items(row, key = { it.key }) { item ->
-            val album = albums.firstOrNull { "album:${it.id}" == item.key }
-            if (album != null) {
-                AlbumCard(album, coverUrl(album.coverId), Modifier.width(148.dp)) { onOpen(album) }
-            } else {
-                val track = tracks[item.key.removePrefix("track:")]
-                val title = track?.title?.takeIf { it.isNotBlank() } ?: item.name.substringBefore(" · ")
-                val subtitle = listOfNotNull(
-                    track?.artist?.takeIf { it.isNotBlank() },
-                    track?.album?.takeIf { it.isNotBlank() },
-                ).joinToString(" · ").ifBlank { L10n.t("单曲") }
-                Column(
-                    Modifier
-                        .width(148.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .clickable(enabled = track != null) { track?.let(onPlayTrack) },
-                ) {
-                    Box(
-                        Modifier
-                            .width(148.dp)
-                            .height(148.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (track != null && track.albumId.isNotBlank()) {
-                            AsyncImage(
-                                model = coverUrl(track.albumId),
-                                contentDescription = title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        } else {
-                            Icon(
-                                YoinSymbols.DownloadDone,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(34.dp),
-                            )
-                        }
-                        // 右下角小徽标：单曲下载
-                        Box(
-                            Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(8.dp)
-                                .size(22.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                YoinSymbols.DownloadDone,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(14.dp),
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        title,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 13.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.basicMarquee(),
-                    )
-                    Text(
-                        subtitle,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** 把列表切成两行（每行左右滑动），第一行拿前半、第二行拿后半 */
-private fun rowsOf(albums: List<Album>): List<List<Album>> {
-    if (albums.isEmpty()) return emptyList()
-    if (albums.size == 1) return listOf(albums)
-    val half = (albums.size + 1) / 2
-    return listOf(albums.take(half), albums.drop(half)).filter { it.isNotEmpty() }
-}
-
-@Composable
-private fun HorizontalAlbumRow(row: List<Album>, coverUrl: (String) -> String, onOpen: (Album) -> Unit) {
-    androidx.compose.foundation.lazy.LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
-    ) {
-        items(row, key = { it.id }) { album ->
-            AlbumCard(album, coverUrl(album.coverId), Modifier.width(148.dp)) { onOpen(album) }
-        }
-    }
-}
-
-@Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text,
-        color = MaterialTheme.colorScheme.onSurface,
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Light,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-    )
-}
-
-/** 竖排艺人名：内容比卡片高时自动上下往复滚动。 */
-@Composable
-private fun VerticalArtistName(text: String, modifier: Modifier = Modifier) {
-    val chars = text.take(12).toCharArray().joinToString("\n")
-    var boxHeight by remember { mutableIntStateOf(0) }
-    var textHeight by remember { mutableIntStateOf(0) }
-    val overflow = (textHeight - boxHeight).coerceAtLeast(0)
-
-    // 只有真的溢出才启动无限动画，否则静止（否则每张卡都在跑一个时钟，明显耗帧）
-    // 用户关闭氛围动效时不做无限动画（省电）
-    val offset = if (overflow > 0 && AmbientFx.enabled) {
-        val transition = rememberInfiniteTransition(label = "artist")
-        val v by transition.animateFloat(
-            initialValue = 0f,
-            targetValue = -overflow.toFloat(),
-            animationSpec = infiniteRepeatable(
-                animation = tween(
-                    durationMillis = (overflow * 45).coerceAtLeast(1200),
-                    easing = androidx.compose.animation.core.LinearEasing,
-                ),
-                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
-            ),
-            label = "artistScroll",
-        )
-        v
-    } else {
-        0f
-    }
-
-    Box(
-        modifier.onSizeChanged { boxHeight = it.height }.clipToBounds(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            chars,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            lineHeight = 13.sp,
-            textAlign = TextAlign.Center,
-            // 不受父级高度限制地测量，才能算出真实溢出量
-            modifier = Modifier
-                .wrapContentHeight(align = Alignment.Top, unbounded = true)
-                .onSizeChanged { textHeight = it.height }
-                .graphicsLayer { translationY = offset },
-        )
-    }
-}
-
-@Composable
 private fun AlbumCard(
     album: Album,
     url: String,
-    modifier: Modifier = Modifier,
-    coverModifier: Modifier = Modifier,
-    progress: Float? = null,
-    /** 解码尺寸（px）：与格子实际像素对齐，避免超采样解码 */
-    coverSizePx: Int? = null,
+    showProgress: Boolean,
+    progressProvider: () -> Float?,
+    coverSizePx: Int?,
     onClick: () -> Unit,
 ) {
-    Column(modifier.clickable(onClick = onClick)) {
-        LumooCover(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .albumSharedElement("cover-${album.id}")
-                .onGloballyPositioned { c ->
-                    runCatching {
-                        app.lumen.player.ui.NavOriginStore.put(album.id, c.boundsInRoot())
-                    }
-                },
-            albumId = album.id,
-            cornerRadius = 20.dp,
-            elevation = 14.dp,
-        ) {
-            val imgCtx = androidx.compose.ui.platform.LocalContext.current
-            val model = remember(url, coverSizePx) {
-                if (coverSizePx == null) {
-                    url
-                } else {
-                    coil3.request.ImageRequest.Builder(imgCtx)
-                        .data(url)
-                        .size(coverSizePx)
-                        .build()
-                }
-            }
-            AsyncImage(
-                model = model,
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = Color.Transparent,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(bottom = LumenSizes.xxs)) {
+            AlbumArt(
+                url = url,
                 contentDescription = album.name,
-                contentScale = ContentScale.Crop,
-                modifier = coverModifier.fillMaxSize(),
+                // 专辑封面转场靠共享元素 key，不再需要每张卡片记录根坐标（滚动时省掉逐项布局回调）
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                shape = MaterialTheme.shapes.extraLarge,
+                sharedKey = albumCoverKey(album.id),
             )
-            // 播放中：底部细进度线，贴合卡片圆角
-            if (progress != null) {
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
-                        .fillMaxWidth(progress.coerceIn(0f, 1f))
+            Spacer(Modifier.height(LumenSizes.xs))
+            Text(
+                album.name,
+                style = MaterialTheme.typography.titleSmallEmphasized,
+                color = scheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = LumenSizes.xxs),
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                album.artist,
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = LumenSizes.xxs),
+            )
+            if (showProgress) {
+                Spacer(Modifier.height(LumenSizes.xs))
+                LinearProgressIndicator(
+                    // lambda 形式：M3 在绘制阶段求值，进度推进不会重组这张卡片
+                    progress = { (progressProvider() ?: 0f).coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
                         .height(3.dp)
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(MaterialTheme.colorScheme.primary),
+                        .padding(horizontal = LumenSizes.xxs),
+                    color = scheme.primary,
+                    trackColor = scheme.surfaceContainerHighest,
+                    gapSize = 0.dp,
+                    drawStopIndicator = {},
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            album.name,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(Modifier.height(3.dp))
-        Text(
-            album.artist,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+    }
+}
+
+@Composable
+private fun ArtistList(
+    artists: List<Artist>,
+    loading: Boolean,
+    sectionTitle: String,
+    sectionTrailing: String,
+    topPadding: androidx.compose.ui.unit.Dp,
+    onOpen: (Artist) -> Unit,
+) {
+    if (loading && artists.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LumenLoading() }
+        return
+    }
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    // 列表自身的根坐标只在它真的移动时更新（页面转场、insets 变化），滚动时不变。
+    val listOrigin = remember { FloatArray(2) }
+    /**
+     * 转场起点改成「点击那一刻按需算」：
+     * 旧实现给每一行挂 onGloballyPositioned，每次布局/滚动回调都会分配一个 Rect 并写全局表，
+     * 滚动时等于每帧 N 次分配 + N 次写入。现在只用一个列表级回调 + layoutInfo 推算，
+     * 和 Compose 文档推荐的「在事件里按需取坐标」一致。
+     */
+    fun originOf(artist: Artist): Rect? {
+        val info = listState.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.key == artist.id } ?: return null
+        val padPx = with(density) { LumenSizes.xs.toPx() }
+        val vPadPx = with(density) { 2.dp.toPx() }
+        val left = listOrigin[0] + padPx
+        val right = listOrigin[0] + info.viewportSize.width - padPx
+        if (right <= left) return null
+        val top = listOrigin[1] + item.offset + vPadPx
+        return Rect(left, top, right, top + item.size)
+    }
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { c ->
+                val p = c.positionInRoot()
+                listOrigin[0] = p.x
+                listOrigin[1] = p.y
+            },
+        contentPadding = PaddingValues(
+            start = LumenSizes.xs,
+            end = LumenSizes.xs,
+            top = topPadding,
+            bottom = LumenSizes.contentBottom,
+        ),
+    ) {
+        item(key = "artist-section", contentType = "section") {
+            LumenSectionHeader(
+                title = sectionTitle,
+                trailing = sectionTrailing,
+                horizontalPadding = LumenSizes.xs,
+            )
+        }
+        items(artists, key = { it.id }, contentType = { "artist" }) { artist ->
+            Surface(
+                onClick = {
+                    originOf(artist)?.let { NavOriginStore.put(artist.id, it) }
+                    onOpen(artist)
+                },
+                shape = MaterialTheme.shapes.large,
+                color = Color.Transparent,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = LumenSizes.xs, vertical = 2.dp),
+            ) {
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            artist.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            L10n.tf("${artist.albumCount} 张专辑", "${artist.albumCount} albums"),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    },
+                    leadingContent = {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    artist.name.take(1).uppercase(),
+                                    style = MaterialTheme.typography.titleMediumEmphasized,
+                                )
+                            }
+                        }
+                    },
+                    trailingContent = {
+                        Icon(
+                            YoinSymbols.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                )
+            }
+        }
     }
 }

@@ -34,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -79,11 +80,6 @@ fun SettingsScreen(
     cfg: ServerConfig,
     onBack: () -> Unit,
     onLogout: () -> Unit,
-    downloadCount: Int,
-    downloadBytes: Long,
-    wifiOnlyDownloads: Boolean = false,
-    onWifiOnlyDownloads: (Boolean) -> Unit = {},
-    onManageDownloads: () -> Unit,
     onClearSongCache: suspend () -> Unit = {},
     onClearImageCache: suspend () -> Unit = {},
     onClearLyricsCache: suspend () -> Unit = {},
@@ -99,8 +95,6 @@ fun SettingsScreen(
     onGradientTheme: (Boolean) -> Unit = {},
     materialYou: Boolean = false,
     onMaterialYou: (Boolean) -> Unit = {},
-    perPageColor: Boolean = false,
-    onPerPageColor: (Boolean) -> Unit = {},
     pinned: Boolean = false,
     paletteStatus: String = "",
     onPinColor: () -> Unit = {},
@@ -143,39 +137,29 @@ fun SettingsScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
-        ) {
-            item {
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) {
-                        Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
-                    }
-                    Spacer(Modifier.weight(1f))
+    Scaffold(
+        containerColor = Color.Transparent,
+        topBar = {
+            LumenTopBar(
+                title = L10n.t("设置"),
+                onBack = onBack,
+                actions = {
                     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                         Text(
                             "v${versionName.ifBlank { "—" }}",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 10.sp,
+                            style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                         )
                     }
-                }
-                Text(
-                    L10n.t("设置"),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 40.sp,
-                    fontWeight = FontWeight.Light,
-                )
-                Text(
-                    L10n.t("账号、外观与数据"),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
+                },
+            )
+        },
+    ) { inner ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(inner),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 148.dp),
+        ) {
 
             // 01 账号
             item {
@@ -304,7 +288,6 @@ fun SettingsScreen(
                                 paletteStyle = paletteStyle,
                                 contrast = contrast,
                                 gradientTheme = gradientTheme,
-                                perPageColor = perPageColor,
                                 materialYou = materialYou,
                                 amoled = amoled,
                                 pinned = pinned,
@@ -316,7 +299,6 @@ fun SettingsScreen(
                             onPaletteStyle = onPaletteStyle,
                             onContrast = onContrast,
                             onGradientTheme = onGradientTheme,
-                            onPerPageColor = onPerPageColor,
                             onMaterialYou = onMaterialYou,
                             onAmoled = onAmoled,
                             onPinColor = onPinColor,
@@ -341,19 +323,19 @@ fun SettingsScreen(
             }
 
 
-            // 04 存储：四类缓存分开管理，主按钮只清歌曲缓存
+            // 04 存储：三类缓存分开管理，主按钮只清歌曲缓存
             item {
                 ExpressiveSection("04", L10n.t("存储")) {
                     CacheRow(
                         title = L10n.t("歌曲缓存"),
                         size = cacheSongs,
-                        hint = L10n.t("边下边播的流缓存，清理后下次播放重新缓冲"),
+                        hint = L10n.t("在线播放的流缓存，清理后下次播放重新缓冲"),
                         onClear = { scope.launch { onClearSongCache(); freed = !freed } },
                     )
                     CacheRow(
                         title = L10n.t("封面缓存"),
                         size = cacheImages,
-                        hint = L10n.t("清理后封面需重新下载，不影响已下载歌曲"),
+                        hint = L10n.t("清理后封面需重新获取"),
                         onClear = { scope.launch { onClearImageCache(); freed = !freed } },
                     )
                     CacheRow(
@@ -361,21 +343,6 @@ fun SettingsScreen(
                         size = cacheLyrics,
                         hint = L10n.t("已保存的歌词文本，清理后需重新获取"),
                         onClear = { scope.launch { onClearLyricsCache(); freed = !freed } },
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    StorageRow(
-                        title = L10n.t("离线下载"),
-                        value = L10n.tf("$downloadCount 首", "$downloadCount tracks"),
-                        hint = "${"%.1f".format(downloadBytes / 1024f / 1024f)} MB",
-                        action = {
-                            PillButton(L10n.t("管理")) { onManageDownloads() }
-                        },
-                    )
-                    ToggleRow(
-                        title = L10n.t("仅 Wi-Fi 下载"),
-                        hint = L10n.t("移动网络下下载会等待，连上 Wi-Fi 后自动继续"),
-                        checked = wifiOnlyDownloads,
-                        onChange = onWifiOnlyDownloads,
                     )
                 }
             }
@@ -416,7 +383,7 @@ fun SettingsScreen(
                             )
                             android.widget.Toast.makeText(
                                 ctx,
-                                L10n.t("下载地址已复制"),
+                                L10n.t("更新地址已复制"),
                                 android.widget.Toast.LENGTH_SHORT,
                             ).show()
                         },
@@ -437,7 +404,7 @@ fun SettingsScreen(
             onDismissRequest = { confirmWipe = false },
             title = { Text(L10n.t("清除本机数据？")) },
             text = {
-                Text(L10n.t("将删除本机保存的账号、播放历史、评分、统计配置、离线下载与缓存，并回到登录页。该操作不可撤销。"))
+                Text(L10n.t("将删除本机保存的账号、播放历史、统计配置与缓存，并回到登录页。该操作不可撤销。"))
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -463,14 +430,18 @@ fun SettingsScreen(
 @Composable
 private fun ExpressiveSection(index: String, title: String, content: @Composable ColumnScope.() -> Unit) {
     var expanded by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(true) }
+    // 全部绑定 M3 动效规格：箭头/展开/收起共用同一套 spring 与 effects，不再写私有 damping/stiffness
+    val spatialFloat = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    val spatialSize = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntSize>()
+    val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val fastEffects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
     val arrow by androidx.compose.animation.core.animateFloatAsState(
         if (expanded) 0f else -90f,
-        androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 500f),
+        spatialFloat,
         label = "sec-arrow",
     )
     Column(
-        Modifier.fillMaxWidth().padding(top = 26.dp)
-            .animateContentSize(androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 380f)),
+        Modifier.fillMaxWidth().padding(top = 26.dp).animateContentSize(spatialSize),
     ) {
         Row(
             Modifier.padding(start = 4.dp, bottom = 10.dp)
@@ -486,31 +457,36 @@ private fun ExpressiveSection(index: String, title: String, content: @Composable
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(index, color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    index,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.labelSmallEmphasized,
+                )
             }
             Text(
                 title,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMediumEmphasized,
                 modifier = Modifier.padding(start = 8.dp),
             )
             Spacer(Modifier.weight(1f))
-            Text(
-                "\u25BE",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
-                modifier = Modifier.graphicsLayer { rotationZ = arrow },
+            Icon(
+                YoinSymbols.ChevronDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = arrow },
             )
         }
         androidx.compose.animation.AnimatedVisibility(
             visible = expanded,
-            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+            enter = androidx.compose.animation.fadeIn(effects) +
+                androidx.compose.animation.expandVertically(spatialSize),
+            exit = androidx.compose.animation.fadeOut(fastEffects) +
+                androidx.compose.animation.shrinkVertically(spatialSize),
         ) {
             Surface(
-                shape = RoundedCornerShape(30.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp), content = content)
@@ -549,69 +525,15 @@ private fun SettingLabel(title: String, hint: String, modifier: Modifier = Modif
     }
 }
 
-/** 开关行：左侧标题 + 说明，右侧 Switch。 */
-@Composable
-private fun ToggleRow(
-    title: String,
-    hint: String,
-    checked: Boolean,
-    enabled: Boolean = true,
-    onChange: (Boolean) -> Unit,
-    disabledReason: String? = null,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp)
-            .alpha(if (enabled) 1f else 0.38f),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Text(
-                if (!enabled && disabledReason != null) disabledReason else hint,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 10.sp,
-                lineHeight = 14.sp,
-            )
-        }
-        androidx.compose.material3.Switch(
-            checked = checked,
-            onCheckedChange = if (enabled) onChange else null,
-            enabled = enabled,
-        )
-    }
-}
-
 @Composable
 private fun SegmentedControl(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        labels.forEachIndexed { index, label ->
-            val active = index == selected
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(
-                        if (active) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    )
-                    .clickable { onSelect(index) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    label,
-                    color = if (active) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
+    // 统一走 LumenUi 的 M3 Expressive 分段按钮（与首页「专辑 / 艺人」同一套组件与动效）
+    LumenSegmentedTabs(
+        labels = labels,
+        selected = selected,
+        onSelect = onSelect,
+        modifier = Modifier.padding(top = 8.dp),
+    )
 }
 
 @Composable
@@ -961,28 +883,4 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onConfirm: (String, String, 
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(L10n.t("取消")) } },
     )
-}
-
-@Composable
-private fun PillButton(label: String, primary: Boolean = false, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .height(38.dp)
-            .clip(RoundedCornerShape(percent = 50))
-            .background(
-                if (primary) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceContainerHigh,
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label,
-            color = if (primary) MaterialTheme.colorScheme.onPrimary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 12.sp,
-            fontWeight = if (primary) FontWeight.SemiBold else FontWeight.Normal,
-        )
-    }
 }

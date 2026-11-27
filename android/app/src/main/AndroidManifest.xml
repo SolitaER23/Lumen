@@ -10,9 +10,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <!-- 下载任务由 JobScheduler 持久化调度：重启后由系统重新拉起（PlatformScheduler 需要） -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".LumenApp"
@@ -38,16 +35,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <service
-            android:name=".playback.DownloadService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-        <!-- media3 的 PlatformScheduler 需要一个 BIND_JOB_SERVICE 的调度服务 -->
-        <service
-            android:name="androidx.media3.exoplayer.scheduler.PlatformScheduler$PlatformSchedulerService"
-            android:exported="true"
-            android:permission="android.permission.BIND_JOB_SERVICE"
-            tools:ignore="ExportedService" />
         <service
             android:name=".playback.PlaybackService"
             android:exported="true"

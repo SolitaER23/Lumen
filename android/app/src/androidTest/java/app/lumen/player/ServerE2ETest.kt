@@ -28,8 +28,7 @@ import org.junit.runner.RunWith
  *     -Pandroid.testInstrumentationRunnerArguments.serverUser=USER
  *     -Pandroid.testInstrumentationRunnerArguments.serverPass=PASS
  *
- * 默认指向 mock（test/testpass）。只有 writeActions=true 时才调用 star/unstar ——
- * 对真实曲库跑时必须保持 false，避免改动用户数据。
+ * 默认指向 mock（test/testpass）。联调只读，不修改曲库数据。
  */
 @RunWith(AndroidJUnit4::class)
 class ServerE2ETest {
@@ -40,7 +39,6 @@ class ServerE2ETest {
     private val base: String get() = args.getString("serverBase") ?: "http://192.168.1.92:8899"
     private val user: String get() = args.getString("serverUser") ?: "test"
     private val pass: String get() = args.getString("serverPass") ?: "testpass"
-    private val writeActions: Boolean get() = args.getString("writeActions") == "true"
 
     @Test
     fun libraryAndStreamWork() = runBlocking {
@@ -55,20 +53,13 @@ class ServerE2ETest {
         val reachable = runCatching { client.ping() }.getOrDefault(false)
         org.junit.Assume.assumeTrue("服务器不可达，跳过联调测试: " + base, reachable)
 
-        val albums = client.newestAlbums(size = 12)
+        val albums = client.albums()
         assertTrue("曲库为空或接口异常", albums.isNotEmpty())
 
         val album = albums.first()
         val tracks = client.tracks(album.id)
         assertTrue("专辑没有曲目: " + album.name, tracks.isNotEmpty())
         assertTrue("曲目标题不应为空", tracks.all { it.title.isNotBlank() })
-
-        if (writeActions) {
-            // 仅 mock 环境：验证写接口的签名与响应解析
-            client.star(tracks[0].id)
-            client.unstar(tracks[0].id)
-            client.scrobble(tracks[0].id, submission = false)
-        }
 
         // 取流地址必须能构造出来（真实播放链路由 playbackBecomesReady 覆盖）
         val streamUrl = client.streamUrl(tracks[0].id)
@@ -87,7 +78,7 @@ class ServerE2ETest {
             "服务器不可达，跳过联调测试: " + base,
             runCatching { client.ping() }.getOrDefault(false),
         )
-        val album = client.newestAlbums(size = 6).firstOrNull() ?: error("曲库为空")
+        val album = client.albums().firstOrNull() ?: error("曲库为空")
         val track = client.tracks(album.id).firstOrNull() ?: error("专辑无曲目")
         val url = client.streamUrl(track.id)
 

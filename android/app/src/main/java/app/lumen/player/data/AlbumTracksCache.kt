@@ -40,7 +40,6 @@ object AlbumTracksCache {
                     track = o.optInt("track"),
                     seconds = o.optInt("seconds"),
                     suffix = o.optString("suffix"),
-                    starred = o.optBoolean("starred"),
                 ),
             )
         }
@@ -62,8 +61,7 @@ object AlbumTracksCache {
                         .put("disc", t.disc)
                         .put("track", t.track)
                         .put("seconds", t.seconds)
-                        .put("suffix", t.suffix)
-                        .put("starred", t.starred),
+                        .put("suffix", t.suffix),
                 )
             }
             val f = file(ctx, albumId)

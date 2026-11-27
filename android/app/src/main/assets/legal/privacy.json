@@ -1,6 +1,6 @@
 {
-  "version": "2026-11-26",
-  "updated": "2026-11-26",
+  "version": "2026-11-27",
+  "updated": "2026-11-27",
   "sections": [
     {
       "zh": {
@@ -40,14 +40,14 @@
       "zh": {
         "title": "3. 设备端处理的本地数据",
         "body": [
-          "3.1 为提供服务，本应用在设备内处理并保存：服务器地址与账号、登录令牌、播放与最近播放记录、评分与收藏、下载与缓存文件、设置项。",
+          "3.1 为提供服务，本应用在设备内处理并保存：服务器地址与账号、登录令牌、播放记录、缓存文件与设置项。",
           "3.2 除你主动配置的同步或导出功能外，上述数据不会离开设备。"
         ]
       },
       "en": {
         "title": "3. Local data processed on your device",
         "body": [
-          "3.1 To provide the Service the App processes and stores on your device: server address and account, authentication token, playback and recent-play records, ratings and favourites, downloads and cache, and preferences.",
+          "3.1 To provide the Service the App processes and stores on your device: server address and account, authentication token, playback records, cache files, and preferences.",
           "3.2 Except for sync or export features you actively configure, this data does not leave the device."
         ]
       }
@@ -56,8 +56,8 @@
       "zh": {
         "title": "4. 权限与用途",
         "body": [
-          "4.1 网络权限：连接你指定的服务器以播放、同步与下载。",
-          "4.2 存储/文件访问：保存离线下载与缓存；仅在系统要求的范围内使用。",
+          "4.1 网络权限：连接你指定的服务器以播放、同步曲库与获取封面。",
+          "4.2 存储/文件访问：仅在应用私有目录保存播放缓存与封面缓存；不请求外部存储权限。",
           "4.3 前台服务与电池优化豁免（如启用）：在后台继续播放；你可随时在系统中关闭。",
           "4.4 本应用不请求通讯录、短信、通话记录、精确位置、麦克风或摄像头权限。"
         ]
@@ -65,8 +65,8 @@
       "en": {
         "title": "4. Permissions and purposes",
         "body": [
-          "4.1 Network: connect to your server for playback, sync and downloads.",
-          "4.2 Storage/file access: save offline downloads and cache, limited to what the platform requires.",
+          "4.1 Network: connect to your server for playback, library sync and artwork.",
+          "4.2 Storage/file access: keep playback and artwork cache inside the app's private directory; no external storage permission is requested.",
           "4.3 Foreground service and battery-optimisation exemption (if enabled): continue playback in the background; you can revoke this in system settings at any time.",
           "4.4 The App does not request contacts, SMS, call logs, precise location, microphone or camera access."
         ]
@@ -76,7 +76,7 @@
       "zh": {
         "title": "5. 处理的法律依据（如适用）",
         "body": [
-          "5.1 履行合同：为提供你请求的播放与下载功能所必需的处理。",
+          "5.1 履行合同：为提供你请求的在线播放、搜索与浏览功能所必需的处理。",
           "5.2 正当利益：保障应用安全、排错与改进所必需的最小处理（如崩溃信息由你选择是否提供）。",
           "5.3 同意：在你主动开启可选功能（如联网获取封面）时。",
           "5.4 法定义务：在适用法律要求时。"
@@ -85,7 +85,7 @@
       "en": {
         "title": "5. Legal bases (where applicable)",
         "body": [
-          "5.1 Performance of a contract: processing necessary to provide the playback and download features you request.",
+          "5.1 Performance of a contract: processing necessary to provide the online playback, search and browsing features you request.",
           "5.2 Legitimate interests: minimal processing for security, troubleshooting and improvement (e.g. crash information you choose to share).",
           "5.3 Consent: for optional features you enable (e.g. fetching artwork online).",
           "5.4 Legal obligation: where required by applicable law."

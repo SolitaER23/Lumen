@@ -4,7 +4,6 @@ import android.app.Application
 import app.lumen.player.data.Appearance
 import app.lumen.player.data.NetworkGate
 import app.lumen.player.local.LegacyCleanup
-import app.lumen.player.playback.Downloads
 import app.lumen.player.util.L10n
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +28,7 @@ class LumenApp : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
-        // 进程可能被 PlaybackService / DownloadService 单独拉起（蓝牙按键、断点续传），
+        // 进程可能被 PlaybackService 单独拉起（蓝牙按键、通知栏控制），
         // 此时 MainActivity 还没跑过：语言与外观迁移必须在 Application 就绪。
         L10n.init(this)
         Appearance.migrate(this)
@@ -37,9 +36,6 @@ class LumenApp : Application(), SingletonImageLoader.Factory {
         NetworkGate.refresh(this)
         // 下线功能的一次性清理（释放 ~148 MB + 旧的听歌画像），幂等
         appScope.launch { runCatching { LegacyCleanup.run(this@LumenApp) } }
-        // 下载索引预热：快照与「已完成下载」判定必须早于任何播放/管理页，
-        // 否则进程被服务单独拉起时离线播放会回落网络（审计 A2/A4）
-        runCatching { Downloads.warmUp(this) }
     }
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

@@ -54,6 +54,7 @@ class LocalDataWipeTest {
         prefs("lumen_network").edit().putBoolean("allow_public_cleartext", true).commit()
         prefs("lumen_recent").edit().putString("recent", "[]").commit()
         prefs("lumen_home_scroll").edit().putInt("pos", 120).commit()
+        prefs("lumen_home_sort").edit().putInt("album", 2).putInt("artist", 1).commit()
 
         // 已下线功能的历史残留（A1：升级用户可能还有）
         File(ctx.filesDir, "clap_music_fp16.onnx").writeBytes(ByteArray(4096))
@@ -93,6 +94,7 @@ class LocalDataWipeTest {
         assertTrue("网络偏好未清", prefs("lumen_network").all.isEmpty())
         assertTrue("最近浏览未清", prefs("lumen_recent").all.isEmpty())
         assertTrue("首页滚动位置未清", prefs("lumen_home_scroll").all.isEmpty())
+        assertTrue("首页排序方式未清", prefs("lumen_home_sort").all.isEmpty())
 
         // 已下线功能的残留（A1）
         assertFalse("旧模型未清", File(ctx.filesDir, "clap_music_fp16.onnx").exists())

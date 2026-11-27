@@ -13,6 +13,9 @@ import java.io.File
  * `moods.db`、电台曲库写进 `radio_tracks.json`。功能删除后这些数据**没有归属**，
  * 但升级时不会自动消失（用户还在为已下线的能力付磁盘，且旧的听歌画像仍留在设备上）。
  *
+ * 现在也顺带清理旧版本「最近 / 收藏 / 下载」功能留下的本地记录，避免升级后
+ * 无效数据继续占用空间。
+ *
  * 约束：
  *  - 幂等：完成后写 [KEY_DONE]，之后每次启动只是一次 prefs 读取；
  *  - 白名单式删除：只删本文件列出的路径/前缀，绝不按目录整体清理；
@@ -39,8 +42,14 @@ object LegacyCleanup {
     /** cacheDir 下以该前缀开头的文件（mood_tracklist.json / mood_*.mp3 / *.part）。 */
     private const val CACHE_PREFIX = "mood_"
 
-    /** 已下线功能独占的 prefs 文件。 */
-    private val PREFS_NAMES = listOf("lumen_mood", "lumen_radio", "lumen_stream_caps")
+    /** 已下线功能独占的 prefs 文件（含旧版本的最近播放与下载记录）。 */
+    private val PREFS_NAMES = listOf(
+        "lumen_mood",
+        "lumen_radio",
+        "lumen_stream_caps",
+        "lumen_history",
+        "lumen_downloads",
+    )
 
     private const val DB = "moods.db"
 

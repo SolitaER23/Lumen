@@ -77,8 +77,8 @@ android {
         applicationId = "app.lumen.player"
         minSdk = 26
         targetSdk = 37
-        versionCode = 229
-        versionName = "0.92.1"
+        versionCode = 232
+        versionName = "0.92.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }
         buildConfigField("String", "LEGAL_VERSION", "\"" + legalVersion + "\"")
@@ -178,7 +178,7 @@ dependencies {
 
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
-    // UI 点击流（登录→播放→下载→清除数据）用 Compose 测试规则驱动
+    // UI 点击流（登录→播放→清除数据）用 Compose 测试规则驱动
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.11.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

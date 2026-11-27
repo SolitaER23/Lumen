@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.lumen.player.util.L10n
+import com.gpo.yoin.symbols.YoinSymbols
 
 @Composable
 fun ConsentScreen(
@@ -68,8 +70,7 @@ fun ConsentScreen(
             Text(
                 L10n.tf("开始之前", "Before we start"),
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 38.sp,
-                fontWeight = FontWeight.Light,
+                style = MaterialTheme.typography.displaySmallEmphasized,
                 modifier = Modifier.padding(top = 10.dp),
             )
             Text(
@@ -78,19 +79,18 @@ fun ConsentScreen(
                     "Before using Lumen, please read and accept the Terms of Service and Privacy Policy. They explain how accounts and library data are handled.",
                 ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-                lineHeight = 20.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 10.dp),
             )
 
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 modifier = Modifier.fillMaxWidth().padding(top = 22.dp),
             ) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ConsentPoint(L10n.tf("账号与曲库", "Account and library"), L10n.tf("服务器地址、用户名与密码用于连接你自建的 Navidrome；密码使用 Android Keystore 加密。", "Server address, username and password connect to your own Navidrome; the password is encrypted with the Android Keystore."))
-                    ConsentPoint(L10n.tf("本机数据", "On-device data"), L10n.tf("播放历史与评分只保存在本机；音频不会上传。", "History and ratings stay on device; audio is never uploaded."))
+                    ConsentPoint(L10n.tf("本机数据", "On-device data"), L10n.tf("播放历史只保存在本机；音频不会上传。", "Play history stays on device; audio is never uploaded."))
                     ConsentPoint(L10n.tf("你的选择", "Your choices"), L10n.tf("你可以随时在设置中清除本机数据，或卸载应用。", "You can clear local data in Settings or uninstall the app at any time."))
                 }
             }
@@ -100,7 +100,7 @@ fun ConsentScreen(
                 L10n.tf("隐私条款", "Privacy Policy").takeUnless { privacyRead },
             )
             Surface(
-                shape = RoundedCornerShape(20.dp),
+                shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f),
                 modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
             ) {
@@ -193,12 +193,20 @@ private fun ConsentStep(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                if (read) "✓" else number,
-                color = if (read) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            if (read) {
+                Icon(
+                    YoinSymbols.Check,
+                    contentDescription = L10n.t("已完成"),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(16.dp),
+                )
+            } else {
+                Text(
+                    number,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmallEmphasized,
+                )
+            }
         }
         Column(Modifier.weight(1f).padding(start = 10.dp)) {
             Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium)

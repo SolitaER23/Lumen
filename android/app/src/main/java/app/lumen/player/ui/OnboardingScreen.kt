@@ -1,18 +1,9 @@
 package app.lumen.player.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -21,21 +12,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,34 +33,22 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.lumen.player.util.L10n
 import kotlinx.coroutines.launch
-import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.sin
 
+/**
+ * 首次使用引导（简约版）。
+ *
+ * 设计取向：**去掉一切装饰**——没有异形 hero、没有每页插画、没有圆角卡片与错位叠层，
+ * 只有「编号 / 标题 / 一句正文 / 两条要点」的排版，翻页用 Pager 原生滑动，
+ * 底部一条细进度线 + 两个按钮。信息更短、层次更少，一屏能读完一页。
+ *
+ * 性能：不再有逐帧动画背景与 per-page 变换，也就不需要把 pager 状态读进
+ * graphicsLayer 的延迟读取技巧——整页只在翻页时重组一次。
+ */
 private data class GuidePage(
     val tag: String,
     val title: String,
@@ -80,102 +56,54 @@ private data class GuidePage(
     val bullets: List<String>,
 )
 
-/** 有机圆弧形，避免卡片太规整。 */
-private class HeroBlob : Shape {
-    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
-        val w = size.width
-        val h = size.height
-        val path = Path().apply {
-            moveTo(w * 0.12f, h * 0.02f)
-            cubicTo(w * 0.44f, -h * 0.05f, w * 0.90f, h * 0.02f, w * 0.97f, h * 0.32f)
-            cubicTo(w * 1.03f, h * 0.60f, w * 0.86f, h * 0.94f, w * 0.55f, h * 0.99f)
-            cubicTo(w * 0.24f, h * 1.04f, w * 0.02f, h * 0.80f, w * 0.02f, h * 0.50f)
-            cubicTo(w * 0.02f, h * 0.28f, w * 0.00f, h * 0.08f, w * 0.12f, h * 0.02f)
-            close()
-        }
-        return Outline.Generic(path)
-    }
-}
-
 @Composable
 fun OnboardingScreen(onDone: () -> Unit) {
     val pages = listOf(
         GuidePage(
             tag = L10n.tf("连接", "CONNECT"),
-            title = L10n.tf("连接你的\n私有曲库", "Your library,\nyour rules"),
+            title = L10n.tf("把曲库接进来", "Connect your library"),
             body = L10n.tf(
-                "Lumen 通过 Subsonic / OpenSubsonic 连接你自建的 Navidrome。音乐、账号与播放记录都只留在你的服务器和设备上。",
-                "Lumen connects to your own Navidrome over Subsonic / OpenSubsonic. Music, accounts and history stay on your server and device.",
+                "通过 Subsonic / OpenSubsonic 连接你自建的 Navidrome。音乐、账号与播放记录都只留在你的服务器和设备上。",
+                "Lumen talks to your own Navidrome over Subsonic / OpenSubsonic. Music, accounts and history stay on your server and device.",
             ),
             bullets = listOf(
-                L10n.tf("填写服务器地址", "Enter the server address"),
-                L10n.t("输入用户名与密码"),
-                L10n.tf("连接并同步曲库", "Connect and sync the library"),
+                L10n.tf("填写服务器地址与账号", "Enter the server address and account"),
+                L10n.tf("连接成功后自动同步曲库", "The library syncs after connecting"),
             ),
         ),
         GuidePage(
-            tag = L10n.tf("发现", "EXPLORE"),
-            title = L10n.tf("把音乐\n找出来", "Find your\nnext track"),
+            tag = L10n.tf("浏览", "BROWSE"),
+            title = L10n.tf("专辑、艺人、搜索", "Albums, artists, search"),
             body = L10n.tf(
-                "专辑、艺人、最近、收藏四个分区；搜索直接定位专辑和艺人。整张播放或单曲播放都由你决定。",
-                "Albums, artists, recent and favorites are one swipe away. Search jumps straight to an album or artist, then play the whole thing or a single track.",
+                "首页分专辑与艺人两栏，排序方式会记住。搜索直达专辑、艺人或单曲。",
+                "Two tabs on the home screen, with a remembered sort order. Search jumps straight to an album, artist or track.",
             ),
             bullets = listOf(
-                L10n.tf("四栏切换，快速浏览", "Four tabs, one glance"),
-                L10n.tf("点击专辑播放整张或单曲", "Play a whole album or one track"),
-                L10n.tf("搜索专辑与艺人", "Search albums and artists"),
+                L10n.tf("左右滑动或点顶栏切换", "Swipe or tap the top bar to switch"),
+                L10n.tf("排序与滚动位置下次还原", "Sort order and scroll position are restored"),
             ),
         ),
         GuidePage(
             tag = L10n.tf("播放", "PLAY"),
-            title = L10n.tf("播放，\n不止播放", "More than\njust play"),
+            title = L10n.tf("进度、歌词、遥控", "Seek, lyrics, controls"),
             body = L10n.tf(
-                "波浪进度条可以拖动跳转，歌词逐行跟随；评分、收藏、下载与通知栏控制都在手边。",
-                "Drag the wave to seek, follow synced lyrics line by line, and reach rating, favorites, downloads and notification controls without leaving the player.",
+                "拖动进度条跳转，歌词逐行跟随、点按定位；切歌淡入淡出可调，通知栏与锁屏都能遥控。",
+                "Drag to seek; lyrics follow line by line and can be tapped. Crossfade is adjustable, and notification / lock-screen controls are always there.",
             ),
             bullets = listOf(
-                L10n.tf("拖动进度条，点击歌词跳转", "Drag to seek, tap lyrics to jump"),
-                L10n.tf("收藏、评分或下载当前曲目", "Favorite, rate or download a track"),
-                L10n.tf("通知栏 / 锁屏遥控", "Notification and lock-screen controls"),
-                L10n.tf("迷你条显示当前声音类型", "The mini bar shows the current sound type"),
-            ),
-        ),
-        GuidePage(
-            tag = L10n.tf("个性化", "MAKE IT YOURS"),
-            title = L10n.tf("让界面\n跟着音乐", "Let the UI\nmove with it"),
-            body = L10n.tf(
-                "封面决定主色与动态背景。切歌淡入淡出、多账号和语言都能在设置里调整。",
-                "Cover art sets the primary color and animated background. Crossfade, accounts and language live in Settings.",
-            ),
-            bullets = listOf(
-                L10n.tf("封面取色与动态背景", "Cover colors and animated background"),
-                L10n.tf("切歌淡入淡出可调", "Adjustable crossfade"),
-                L10n.tf("账号、语言与数据管理", "Accounts, language and data"),
-            ),
-        ),
-        GuidePage(
-            tag = L10n.tf("统计", "STATS"),
-            title = L10n.tf("看见你的\n聆听轨迹", "See how you\nreally listen"),
-            body = L10n.tf(
-                "如果你自建了 navidrome-stat，可在「统计」里填入地址与令牌：总播放、时长、每日趋势、星期与时段分布、常听艺人与专辑一目了然；统计请求直达你的服务器，不经过任何第三方。",
-                "If you self-host navidrome-stat, add its URL and token under Stats: total plays, listening time, daily trend, weekday and time-of-day breakdown, top artists and albums. Requests go straight to your server, never to a third party.",
-            ),
-            bullets = listOf(
-                L10n.tf("关键指标与短期趋势", "Key metrics and short-term trend"),
-                L10n.tf("星期 / 时段分类汇总", "Weekday and time-of-day breakdown"),
-                L10n.tf("常听艺人与专辑排行", "Top artists and albums"),
+                L10n.tf("点歌词跳到对应时间", "Tap a lyric line to jump"),
+                L10n.tf("切歌淡入淡出在设置里调", "Crossfade lives in Settings"),
             ),
         ),
         GuidePage(
             tag = L10n.tf("隐私", "PRIVACY"),
-            title = L10n.tf("所有声音，\n留在本机", "Your sounds\nstay on device"),
+            title = L10n.tf("数据留在本机", "Data stays on device"),
             body = L10n.tf(
-                "账号密码使用 Android Keystore 加密；播放历史与评分只保存在本机；音频不会上传，也不含统计 SDK。",
-                "Credentials are encrypted with the Android Keystore. History and ratings stay local; audio is never uploaded and there is no analytics SDK.",
+                "账号密码用 Android Keystore 加密，播放历史只保存在本机；不包含任何埋点、广告或行为分析 SDK。若你自建了 navidrome-stat，可在「统计」里接入聆听数据。",
+                "Credentials are encrypted with the Android Keystore and play history stays local. No analytics, ads or tracking SDKs. If you self-host navidrome-stat, connect it under Stats.",
             ),
             bullets = listOf(
-                L10n.tf("凭据加密存储", "Encrypted credentials"),
-                L10n.tf("数据保存在本机", "Data stays on device"),
+                L10n.tf("凭据加密，历史仅本机", "Encrypted credentials, local history"),
                 L10n.tf("设置里可清除全部本机数据", "Clear all local data in Settings"),
             ),
         ),
@@ -184,14 +112,6 @@ fun OnboardingScreen(onDone: () -> Unit) {
     val pager = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
     val page = pager.currentPage
-
-    val accents = listOf(
-        MaterialTheme.colorScheme.primary,
-        MaterialTheme.colorScheme.tertiary,
-        MaterialTheme.colorScheme.secondary,
-        MaterialTheme.colorScheme.primary,
-    )
-    val accent by animateColorAsState(accents[page % accents.size], tween(420), label = "accent")
 
     fun goPrevious() {
         if (page > 0) scope.launch { pager.animateScrollToPage(page - 1) }
@@ -207,499 +127,147 @@ fun OnboardingScreen(onDone: () -> Unit) {
     }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-        Box(Modifier.fillMaxSize()) {
-            ExpressiveBackground(accent)
+        Column(Modifier.fillMaxSize().systemBarsPadding()) {
 
-            Column(Modifier.fillMaxSize().systemBarsPadding()) {
-                OnboardingHeader(accent = accent, onSkip = onDone)
+            // 顶栏：产品名 + 跳过（一行，不做标题区）
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "LUMEN",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 12.sp,
+                    letterSpacing = 3.2.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onDone, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                    Text(
+                        L10n.tf("跳过", "Skip"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
 
-                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                    val heroHeight = (maxHeight * 0.44f).coerceIn(170.dp, 280.dp)
-                    HorizontalPager(
-                        state = pager,
-                        modifier = Modifier.fillMaxSize(),
-                        pageSpacing = 12.dp,
-                    ) { index ->
-                        val offset = ((pager.currentPage - index) + pager.currentPageOffsetFraction)
-                            .coerceIn(-2f, 2f)
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    val a = abs(offset).coerceIn(0f, 1f)
-                                    alpha = 1f - 0.35f * a
-                                    scaleX = 0.90f + 0.10f * (1f - a)
-                                    scaleY = 0.90f + 0.10f * (1f - a)
-                                    translationY = 26.dp.toPx() * a
-                                },
-                        ) {
-                            GuidePageContent(
-                                page = pages[index],
-                                index = index,
-                                total = pages.size,
-                                accent = accents[index % accents.size],
-                                heroHeight = heroHeight,
+            HorizontalPager(
+                state = pager,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            ) { index ->
+                GuidePageContent(page = pages[index])
+            }
+
+            // 底部：细进度线 + 两个按钮
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 16.dp)
+                    .navigationBarsPadding(),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth((page + 1) / pages.size.toFloat())
+                            .height(2.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (page > 0) {
+                        TextButton(onClick = { goPrevious() }) {
+                            Text(
+                                L10n.tf("上一步", "Back"),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 14.sp,
                             )
                         }
                     }
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "0" + (page + 1) + " / 0" + pages.size,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        letterSpacing = 1.sp,
+                    )
+                    Spacer(Modifier.width(20.dp))
+                    Button(
+                        onClick = { goNext() },
+                        shape = ButtonDefaults.shape,
+                        contentPadding = PaddingValues(horizontal = 26.dp, vertical = 14.dp),
+                    ) {
+                        Text(
+                            if (page == pages.lastIndex) L10n.tf("开始使用", "Get started")
+                            else L10n.tf("下一步", "Next"),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
                 }
-
-                OnboardingFooter(
-                    page = page,
-                    count = pages.size,
-                    accent = accent,
-                    onBack = { goPrevious() },
-                    onNext = { goNext() },
-                )
             }
         }
     }
 }
 
 @Composable
-private fun OnboardingHeader(accent: Color, onSkip: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column {
-            Text(
-                "LUMEN",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 13.sp,
-                letterSpacing = 4.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                L10n.tf("首次使用指南", "GETTING STARTED"),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 10.sp,
-                letterSpacing = 1.2.sp,
-            )
-        }
-        Spacer(Modifier.weight(1f))
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        ) {
-            TextButton(onClick = onSkip, contentPadding = PaddingValues(horizontal = 16.dp)) {
-                Text(
-                    L10n.tf("跳过", "Skip"),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun GuidePageContent(
-    page: GuidePage,
-    index: Int,
-    total: Int,
-    accent: Color,
-    heroHeight: Dp,
-) {
+private fun GuidePageContent(page: GuidePage) {
     Column(
         Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp),
     ) {
-        Box(Modifier.padding(horizontal = 16.dp)) {
-            HeroPanel(
-                index = index,
-                total = total,
-                accent = accent,
-                height = heroHeight,
-            )
-        }
-
-        Surface(
-            Modifier
-                .offset(y = (-20).dp)
-                .fillMaxWidth(),
-            shape = RoundedCornerShape(topStart = 34.dp, topEnd = 34.dp),
-            color = MaterialTheme.colorScheme.surface,
-        ) {
-            Column(Modifier.padding(start = 28.dp, end = 28.dp, top = 14.dp, bottom = 6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = CircleShape,
-                        color = accent.copy(alpha = 0.18f),
-                    ) {
-                        Text(
-                            "0${index + 1}",
-                            color = accent,
-                            fontSize = 11.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        page.tag,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                        letterSpacing = 1.4.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-
+        Spacer(Modifier.height(40.dp))
+        Text(
+            page.tag,
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 11.sp,
+            letterSpacing = 1.4.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            page.title,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 36.sp,
+        )
+        Spacer(Modifier.height(14.dp))
+        Text(
+            page.body,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 14.sp,
+            lineHeight = 23.sp,
+        )
+        Spacer(Modifier.height(28.dp))
+        page.bullets.forEach { bullet ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
                 Text(
-                    page.title,
+                    "—",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                    fontSize = 13.sp,
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    bullet,
                     color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 32.sp,
-                    lineHeight = 36.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-                Text(
-                    page.body,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.5.sp,
+                    fontSize = 13.sp,
                     lineHeight = 20.sp,
-                    modifier = Modifier.padding(top = 9.dp),
-                )
-
-                Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    page.bullets.forEachIndexed { i, bullet ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f))
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(
-                                Modifier
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(accent),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    "${i + 1}",
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                            }
-                            Text(
-                                bullet,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 13.sp,
-                                lineHeight = 19.sp,
-                                modifier = Modifier.padding(start = 10.dp),
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun HeroPanel(index: Int, total: Int, accent: Color, height: Dp) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(height)
-            .shadow(28.dp, HeroBlob(), clip = false)
-            .clip(HeroBlob())
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        accent,
-                        accent.copy(alpha = 0.72f),
-                        MaterialTheme.colorScheme.surfaceVariant,
-                    ),
-                    start = Offset(0f, 0f),
-                    end = Offset(1000f, 1600f),
-                ),
-            ),
-    ) {
-        HeroArt(index = index, accent = accent)
-
-        Row(
-            Modifier.fillMaxWidth().padding(22.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            Text(
-                "%02d / %02d".format(index + 1, total),
-                color = Color.White.copy(alpha = 0.72f),
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 1.2.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun HeroArt(index: Int, accent: Color) {
-    val secondary = MaterialTheme.colorScheme.secondary
-    val tertiary = MaterialTheme.colorScheme.tertiary
-    Canvas(Modifier.fillMaxSize()) {
-        val w = size.width
-        val h = size.height
-        val white = Color.White
-        when (index) {
-            0 -> {
-                val cx = w * 0.68f
-                val cy = h * 0.54f
-                drawCircle(white.copy(alpha = 0.12f), radius = w * 0.30f, center = Offset(cx, cy))
-                drawCircle(white.copy(alpha = 0.18f), radius = w * 0.20f, center = Offset(cx, cy))
-                drawCircle(white.copy(alpha = 0.28f), radius = w * 0.11f, center = Offset(cx, cy))
-                drawCircle(white, radius = 9.dp.toPx(), center = Offset(cx, cy))
-                for (i in 0 until 8) {
-                    val a = (i / 8f) * 2f * PI.toFloat()
-                    val rr = w * 0.23f
-                    drawCircle(
-                        white.copy(alpha = if (i % 2 == 0) 0.75f else 0.42f),
-                        radius = if (i % 2 == 0) 5.dp.toPx() else 3.dp.toPx(),
-                        center = Offset(cx + cos(a) * rr, cy + sin(a) * rr),
-                    )
-                }
-                drawLine(
-                    white.copy(alpha = 0.35f),
-                    Offset(w * 0.12f, h * 0.80f),
-                    Offset(cx, cy),
-                    strokeWidth = 2.dp.toPx(),
-                )
-                drawRoundRect(
-                    white.copy(alpha = 0.55f),
-                    topLeft = Offset(w * 0.10f, h * 0.70f),
-                    size = Size(w * 0.16f, h * 0.10f),
-                    cornerRadius = CornerRadius(12.dp.toPx()),
-                )
-            }
-
-            1 -> {
-                for (i in 0 until 3) {
-                    rotate(degrees = (i - 1) * 10f, pivot = Offset(w * 0.50f, h * 0.52f)) {
-                        drawRoundRect(
-                            white.copy(alpha = 0.16f + i * 0.08f),
-                            topLeft = Offset(w * (0.20f + i * 0.14f), h * 0.24f + i * 8.dp.toPx()),
-                            size = Size(w * 0.30f, h * 0.48f),
-                            cornerRadius = CornerRadius(20.dp.toPx()),
-                        )
-                    }
-                }
-                drawCircle(tertiary.copy(alpha = 0.95f), radius = w * 0.13f, center = Offset(w * 0.72f, h * 0.33f))
-                drawCircle(
-                    white.copy(alpha = 0.9f),
-                    radius = w * 0.13f,
-                    center = Offset(w * 0.72f, h * 0.33f),
-                    style = Stroke(width = 4.dp.toPx()),
-                )
-                drawLine(
-                    white.copy(alpha = 0.9f),
-                    Offset(w * 0.81f, h * 0.42f),
-                    Offset(w * 0.88f, h * 0.51f),
-                    strokeWidth = 6.dp.toPx(),
-                )
-            }
-
-            2 -> {
-                drawCircle(
-                    white.copy(alpha = 0.16f),
-                    radius = w * 0.26f,
-                    center = Offset(w * 0.50f, h * 0.48f),
-                )
-                drawCircle(
-                    white.copy(alpha = 0.9f),
-                    radius = w * 0.20f,
-                    center = Offset(w * 0.50f, h * 0.48f),
-                )
-                val tri = Path().apply {
-                    moveTo(w * 0.46f, h * 0.38f)
-                    lineTo(w * 0.46f, h * 0.58f)
-                    lineTo(w * 0.62f, h * 0.48f)
-                    close()
-                }
-                drawPath(tri, accent)
-                for (i in 0 until 22) {
-                    val x = w * 0.06f + i * (w * 0.88f / 21f)
-                    val amp = 10.dp.toPx() + (i % 5) * 5.dp.toPx()
-                    val top = h * 0.80f - amp
-                    drawLine(
-                        white.copy(alpha = 0.55f),
-                        Offset(x, h * 0.80f),
-                        Offset(x, top),
-                        strokeWidth = 3.dp.toPx(),
-                    )
-                }
-            }
-
-            else -> {
-                drawCircle(white.copy(alpha = 0.16f), radius = w * 0.31f, center = Offset(w * 0.38f, h * 0.46f))
-                drawCircle(
-                    white.copy(alpha = 0.55f),
-                    radius = w * 0.31f,
-                    center = Offset(w * 0.38f, h * 0.46f),
-                    style = Stroke(width = 2.dp.toPx()),
-                )
-                drawCircle(tertiary.copy(alpha = 0.72f), radius = w * 0.23f, center = Offset(w * 0.63f, h * 0.57f))
-                drawCircle(
-                    white.copy(alpha = 0.7f),
-                    radius = w * 0.23f,
-                    center = Offset(w * 0.63f, h * 0.57f),
-                    style = Stroke(width = 2.dp.toPx()),
-                )
-                drawCircle(white.copy(alpha = 0.30f), radius = w * 0.17f, center = Offset(w * 0.53f, h * 0.41f))
-                sparkle(Offset(w * 0.24f, h * 0.24f), w * 0.07f, white)
-                sparkle(Offset(w * 0.78f, h * 0.28f), w * 0.05f, white.copy(alpha = 0.8f))
-                sparkle(Offset(w * 0.70f, h * 0.76f), w * 0.04f, white.copy(alpha = 0.6f))
-            }
-        }
-    }
-}
-
-private fun DrawScope.sparkle(center: Offset, radius: Float, color: Color) {
-    val path = Path().apply {
-        moveTo(center.x, center.y - radius)
-        quadraticBezierTo(
-            center.x + radius * 0.18f,
-            center.y - radius * 0.18f,
-            center.x + radius,
-            center.y,
-        )
-        quadraticBezierTo(
-            center.x + radius * 0.18f,
-            center.y + radius * 0.18f,
-            center.x,
-            center.y + radius,
-        )
-        quadraticBezierTo(
-            center.x - radius * 0.18f,
-            center.y + radius * 0.18f,
-            center.x - radius,
-            center.y,
-        )
-        quadraticBezierTo(
-            center.x - radius * 0.18f,
-            center.y - radius * 0.18f,
-            center.x,
-            center.y - radius,
-        )
-        close()
-    }
-    drawPath(path, color)
-}
-
-@Composable
-private fun ExpressiveBackground(accent: Color) {
-    val surface = MaterialTheme.colorScheme.surface
-    val tertiary = MaterialTheme.colorScheme.tertiary
-    // 用户关闭氛围动效时用静态相位
-    val t = if (!AmbientFx.enabled) {
-        0.35f
-    } else {
-        val transition = rememberInfiniteTransition(label = "guide-bg")
-        val animated by transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(14000, easing = LinearEasing), RepeatMode.Reverse),
-            label = "drift",
-        )
-        animated
-    }
-    Canvas(Modifier.fillMaxSize()) {
-        val w = size.width
-        val h = size.height
-        drawRect(surface)
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(accent.copy(alpha = 0.22f), Color.Transparent),
-                center = Offset(w * (0.15f + 0.12f * t), h * (0.18f + 0.05f * t)),
-                radius = w * 0.85f,
-            ),
-            radius = w * 0.85f,
-            center = Offset(w * (0.15f + 0.12f * t), h * (0.18f + 0.05f * t)),
-        )
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(tertiary.copy(alpha = 0.16f), Color.Transparent),
-                center = Offset(w * (0.90f - 0.10f * t), h * (0.75f - 0.08f * t)),
-                radius = w * 0.70f,
-            ),
-            radius = w * 0.70f,
-            center = Offset(w * (0.90f - 0.10f * t), h * (0.75f - 0.08f * t)),
-        )
-    }
-}
-
-@Composable
-private fun OnboardingFooter(
-    page: Int,
-    count: Int,
-    accent: Color,
-    onBack: () -> Unit,
-    onNext: () -> Unit,
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color.Transparent, MaterialTheme.colorScheme.surface),
-                ),
-            )
-            .padding(horizontal = 20.dp, vertical = 10.dp)
-            .navigationBarsPadding(),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            repeat(count) { i ->
-                val active = i == page
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(5.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (active) accent
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f),
-                        ),
                 )
             }
         }
-        Row(
-            Modifier.fillMaxWidth().padding(top = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (page > 0) {
-                OutlinedButton(
-                    onClick = onBack,
-                    shape = CircleShape,
-                    contentPadding = PaddingValues(0.dp),
-                    modifier = Modifier.size(54.dp),
-                ) {
-                    Text("←", fontSize = 20.sp)
-                }
-            }
-            Button(
-                onClick = onNext,
-                modifier = Modifier.weight(1f).height(56.dp),
-                shape = RoundedCornerShape(28.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = accent,
-                    contentColor = Color.White,
-                ),
-            ) {
-                Text(
-                    if (page == count - 1) L10n.tf("立即体验", "Get started") else L10n.tf("下一步", "Next"),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("→", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+        Spacer(Modifier.height(24.dp))
     }
 }

@@ -50,7 +50,7 @@ class Playback(private val ctx: Context) {
 
 
     val player: ExoPlayer = run {
-        // 与离线下载共用同一个 SimpleCache（MediaCache），下载完的内容播放直接命中
+        // 在线播放共用同一个 SimpleCache（MediaCache），听过的段落再次播放直接命中
         ExoPlayer.Builder(ctx)
             .setMediaSourceFactory(DefaultMediaSourceFactory(MediaCache.cacheDataSourceFactory(ctx)))
             .build()
@@ -68,13 +68,26 @@ class Playback(private val ctx: Context) {
             }
     }
 
-    var queue: List<Track> = emptyList()
+    // 队列也做成 Compose 状态：UI 的「当前曲目」由 queue + index 推导，
+    // 只让 index 可观察时，换队列但下标不变（如从专辑 A 第 1 首切到专辑 B 第 1 首）
+    // 不会触发重组，专辑页的按钮状态就会停在上一张专辑。队列只在开始播放时整体替换，开销可忽略。
+    var queue by mutableStateOf<List<Track>>(emptyList())
         private set
     var albumId: String? = null
         private set
     var index by mutableIntStateOf(-1)
         private set
     var playing by mutableStateOf(false)
+        private set
+    /**
+     * 播放意图：从「点了播放」到「真正出声」之间的缓冲窗口也算在播。
+     *
+     * [playing] 只在 ExoPlayer 真正出声时为 true，缓冲期间是 false；如果 UI 只看它，
+     * 刚点完播放到开声前的一小段时间按钮会退回「播放/继续」，此时再点也无法暂停
+     * （toggle 会把它当成"还没播"又 play 一次）。按钮图标、迷你条与专辑页主按钮
+     * 用这个状态，scrobble / 背景律动等"确实在出声"的逻辑仍用 [playing]。
+     */
+    var playIntent by mutableStateOf(false)
         private set
     var positionMs by mutableStateOf(0L)
         private set
@@ -102,7 +115,16 @@ class Playback(private val ctx: Context) {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
+                refreshPlayIntent()
                 app.lumen.player.util.Logx.i("LumenPlay", "isPlaying=$isPlaying state=${player.playbackState} pwr=${player.playWhenReady}")
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                refreshPlayIntent()
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                refreshPlayIntent()
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -151,6 +173,15 @@ class Playback(private val ctx: Context) {
                     .build(),
             )
             .build()
+    }
+
+    /** 是否处于「请求播放且尚未结束」的状态（含缓冲）。 */
+    private fun hasPlayIntent(): Boolean =
+        player.playWhenReady &&
+            (player.playbackState == Player.STATE_BUFFERING || player.playbackState == Player.STATE_READY)
+
+    private fun refreshPlayIntent() {
+        playIntent = hasPlayIntent()
     }
 
     private fun cancelFade(restore: Boolean = true) {
@@ -244,6 +275,7 @@ class Playback(private val ctx: Context) {
         player.play()
         startFadeIn()
         index = startIndex
+        refreshPlayIntent()
     }
 
     /** 随机播放整张专辑：洗牌后从头播，队列顺序即随机顺序 */
@@ -253,7 +285,9 @@ class Playback(private val ctx: Context) {
     }
 
     fun toggle() {
-        if (player.isPlaying) {
+        // 用 hasPlayIntent 而不是 player.isPlaying：缓冲中再点也要暂停，
+        // 否则会重复调用 play()，用户看到的是「暂停键点不动」。
+        if (hasPlayIntent()) {
             cancelFade(true)
             player.pause()
             // 暂停时 tick 不再跑，必须显式落一次进度，否则冷启动会回到 0:00
@@ -314,6 +348,7 @@ class Playback(private val ctx: Context) {
         positionMs = 0L
         durationMs = 0L
         playing = false
+        playIntent = false
         savedQueueSignature = null
         runCatching { PlaybackStateStore.clear(ctx) }
     }

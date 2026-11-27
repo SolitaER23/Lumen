@@ -44,9 +44,12 @@ fun ChangelogScreen(onBack: () -> Unit) {
             }.getOrDefault("")
         }
     }
-    val allLines = text.lines()
-    val firstVersion = allLines.indexOfFirst { it.startsWith("## [") }
-    val lines = if (firstVersion > 0) allLines.drop(firstVersion) else allLines
+    // CHANGELOG 有 ~150KB：split / indexOfFirst / drop 每次重组都跑一遍很浪费，按文本缓存
+    val lines = androidx.compose.runtime.remember(text) {
+        val all = text.lines()
+        val firstVersion = all.indexOfFirst { it.startsWith("## [") }
+        if (firstVersion > 0) all.drop(firstVersion) else all
+    }
     fun clean(value: String): String = value.replace("**", "").replace("`", "")
 
     LazyColumn(
@@ -75,7 +78,7 @@ fun ChangelogScreen(onBack: () -> Unit) {
             }
         }
 
-        items(lines.size) { index ->
+        items(count = lines.size, contentType = { "line" }) { index ->
             val line = lines[index]
             when {
                 line.startsWith("# ") -> Text(

@@ -2,9 +2,8 @@ package app.lumen.player.ui
 
 import android.util.LruCache
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,20 +24,18 @@ private val lerpCache = object : LruCache<String, ColorScheme>(48) {}
 fun rememberAnimatedColorScheme(target: ColorScheme): ColorScheme {
     val from = remember { mutableStateOf(target) }
     val progress = remember { Animatable(1f) }
+    // 配色属于"效果"类动效：用 M3 effects spring，不要自造 420ms 曲线
+    val effectsSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
 
-    LaunchedEffect(target) {
+    LaunchedEffect(target, effectsSpec) {
         if (from.value != target) {
-            from.value = from.value
             progress.snapTo(0f)
-            progress.animateTo(
-                1f,
-                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
-            )
+            progress.animateTo(1f, animationSpec = effectsSpec)
             from.value = target
         }
     }
 
-    val p = progress.value
+    val p = progress.value.coerceIn(0f, 1f)
     if (p >= 1f || from.value == target) return target
     val step = (p * STEPS).toInt().coerceIn(0, STEPS)
     return interpolate(from.value, target, step)

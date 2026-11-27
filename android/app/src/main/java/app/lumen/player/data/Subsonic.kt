@@ -43,9 +43,6 @@ data class Track(
     val track: Int = 0,
     val seconds: Int = 0,
     val suffix: String = "",
-    val starred: Boolean = false,
-    /** 服务端给出的原始文件字节数（Subsonic 的 song.size）；0 表示未知。 */
-    val sizeBytes: Long = 0L,
 )
 
 // ---------------------------------------------------------------------------
@@ -109,8 +106,6 @@ internal fun parseAlbumDetail(root: JSONObject, albumId: String): List<Track> {
             track = s.optInt("track", i + 1),
             seconds = s.optInt("duration"),
             suffix = s.optString("suffix"),
-            starred = s.optString("starred").isNotBlank(),
-            sizeBytes = s.optLong("size"),
         )
     }.sortedWith(compareBy({ it.disc }, { it.track }))
 }
@@ -218,26 +213,6 @@ internal fun parseSearchFull(root: JSONObject): Triple<List<Artist>, List<Album>
 }
 
 
-/** `getStarred2` → 收藏的单曲 */
-internal fun parseStarred(root: JSONObject): List<Track> {
-    val arr = root.optJSONObject("starred2")?.optJSONArray("song") ?: return emptyList()
-    return (0 until arr.length()).map { i ->
-        val s = arr.getJSONObject(i)
-        Track(
-            id = s.optString("id"),
-            title = s.optString("title"),
-            artist = s.optString("artist"),
-            albumId = s.optString("albumId"),
-            album = s.optString("album"),
-            disc = s.optInt("discNumber", 1).coerceAtLeast(1),
-            track = s.optInt("track"),
-            seconds = s.optInt("duration"),
-            suffix = s.optString("suffix"),
-            starred = true,
-        )
-    }
-}
-
 /** 服务端返回 `status=ok` 才算成功，否则抛出带服务端消息的异常 */
 internal fun checkStatus(root: JSONObject) {
     if (root.optString("status") != "ok") {
@@ -331,51 +306,12 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
         return out
     }
 
-    /** 单曲元数据（下载记录补封面/播放用） */
-    fun song(trackId: String): Track? {
-        val root = runCatching { get("getSong.view", mapOf("id" to trackId)) }.getOrNull() ?: return null
-        val s = root.optJSONObject("song") ?: return null
-        return Track(
-            id = s.optString("id"),
-            title = s.optString("title"),
-            artist = s.optString("artist"),
-            albumId = s.optString("albumId"),
-            album = s.optString("album"),
-            disc = s.optInt("discNumber", 1).coerceAtLeast(1),
-            track = s.optInt("track"),
-            seconds = s.optInt("duration"),
-            suffix = s.optString("suffix"),
-            starred = s.optString("starred").isNotBlank(),
-            sizeBytes = s.optLong("size"),
-        )
-    }
-
-    /** 单张专辑元数据（播放新歌时补进「最近播放」用）。 */
-    fun album(albumId: String): Album? {
-        val a = runCatching { get("getAlbum.view", mapOf("id" to albumId)) }.getOrNull()
-            ?.optJSONObject("album") ?: return null
-        return Album(
-            id = a.optString("id"),
-            name = a.optString("name"),
-            artist = a.optString("artist"),
-            coverId = a.optString("coverArt"),
-            songCount = a.optInt("songCount"),
-            year = a.optInt("year"),
-        )
-    }
-
     fun tracks(albumId: String): List<Track> =
         parseAlbumDetail(get("getAlbum.view", mapOf("id" to albumId)), albumId)
 
     fun streamUrl(id: String): String = restUrl(base, "stream.view", user, token, salt, extra = mapOf("id" to id)).toString()
 
     fun artists(): List<Artist> = parseArtists(get("getArtists.view"))
-
-    fun newestAlbums(size: Int = 40): List<Album> =
-        parseAlbumList(get("getAlbumList2.view", mapOf("type" to "newest", "size" to "$size")))
-
-    fun recentAlbums(size: Int = 40): List<Album> =
-        parseAlbumList(get("getAlbumList2.view", mapOf("type" to "recent", "size" to "$size")))
 
     fun artistDetail(id: String): Pair<Artist, List<Album>>? =
         parseArtistDetail(get("getArtist.view", mapOf("id" to id)))
@@ -388,8 +324,6 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
             ),
         )
 
-    fun starredTracks(): List<Track> = parseStarred(get("getStarred2.view"))
-
     /** 播放上报：submission=false 为 Now Playing，true 才计入播放次数（Navidrome 统计依赖它）。 */
     fun scrobble(trackId: String, submission: Boolean) {
         get(
@@ -400,14 +334,6 @@ class SubsonicClient(cfg: ServerConfig, saltOverride: String? = null) {
                 "time" to System.currentTimeMillis().toString(),
             ),
         )
-    }
-
-    fun star(trackId: String) {
-        get("star.view", mapOf("id" to trackId))
-    }
-
-    fun unstar(trackId: String) {
-        get("unstar.view", mapOf("id" to trackId))
     }
 
     /** 歌词：优先 OpenSubsonic 的 getLyricsBySongId（带时间轴），退回旧的 getLyrics 纯文本 */

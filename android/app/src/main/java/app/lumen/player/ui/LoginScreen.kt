@@ -57,12 +57,17 @@ fun LoginScreen(
         Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Lumen", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-        Text(L10n.t("连接曲库"), color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Light)
+        Text("LUMEN", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium, letterSpacing = 3.sp)
+        Text(
+            L10n.t("连接曲库"),
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.displaySmallEmphasized,
+        )
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = base, onValueChange = { base = it }, label = { Text(L10n.t("服务器地址")) },
             singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            shape = MaterialTheme.shapes.large,
             modifier = Modifier.fillMaxWidth(),
         )
         when (verdict) {
@@ -106,11 +111,12 @@ fun LoginScreen(
         }
         OutlinedTextField(
             value = user, onValueChange = { user = it }, label = { Text(L10n.t("用户名")) },
-            singleLine = true, modifier = Modifier.fillMaxWidth(),
+            singleLine = true, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             value = pass, onValueChange = { pass = it }, label = { Text(L10n.t("密码")) },
             singleLine = true, visualTransformation = PasswordVisualTransformation(),
+            shape = MaterialTheme.shapes.large,
             modifier = Modifier.fillMaxWidth(),
         )
         if (initial.passwordUnreadable && pass.isBlank()) {

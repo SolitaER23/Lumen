@@ -82,7 +82,7 @@ private val OSS_GROUPS = listOf(
             OssItem("OkHttp", "5.5.1", L10n.t("网络传输与连接池"), "Apache-2.0", "© Square, Inc."),
             OssItem("Gson", "2.15.0", L10n.t("JSON 解析"), "Apache-2.0", "© Google LLC"),
             OssItem("kotlinx.serialization", "1.13.0", L10n.t("设置与播放状态的序列化"), "Apache-2.0", "© JetBrains s.r.o."),
-            OssItem(L10n.t("SQLite（Android 内置）"), L10n.t("系统版本"), L10n.t("评分与统计缓存"), "Public Domain", "© SQLite Authors"),
+            OssItem(L10n.t("SQLite（Android 内置）"), L10n.t("系统版本"), L10n.t("统计缓存"), "Public Domain", "© SQLite Authors"),
         ),
     ),
     OssGroup(
@@ -216,8 +216,8 @@ fun LicensesScreen(onBack: () -> Unit) {
                     LicenseNote(
                         L10n.tf("本地数据", "Local data"),
                         L10n.tf(
-                            "服务器凭据使用 Android Keystore 加密保存；播放历史与评分仅存储在本机，应用不包含统计或分析 SDK，也不会上传曲库与使用数据。",
-                            "Server credentials are encrypted with the Android Keystore. Play history and ratings stay on device. The app contains no analytics SDK and never uploads library or usage data.",
+                            "服务器凭据使用 Android Keystore 加密保存；播放历史仅存储在本机，应用不包含统计或分析 SDK，也不会上传曲库与使用数据。",
+                            "Server credentials are encrypted with the Android Keystore. Play history stays on device. The app contains no analytics SDK and never uploads library or usage data.",
                         ),
                     )
                     LicenseNote(
@@ -292,10 +292,14 @@ private fun LicenseDocCard(doc: LicenseDoc) {
                         fontSize = 11.sp,
                     )
                 }
+                // 展开/收起与设置页同规格：高度走 spatial spring，透明度走 effects
+                val expandSpec = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntSize>()
+                val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+                val fadeOutSpec = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
                 AnimatedVisibility(
                     visible = open,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut(),
+                    enter = expandVertically(expandSpec) + fadeIn(fadeSpec),
+                    exit = shrinkVertically(expandSpec) + fadeOut(fadeOutSpec),
                 ) {
                     Text(
                         text,

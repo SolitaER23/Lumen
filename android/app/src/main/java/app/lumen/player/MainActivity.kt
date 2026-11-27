@@ -18,19 +18,15 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.pager.HorizontalPager
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.firstOrNull
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.pager.rememberPagerState
@@ -74,19 +70,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.pager.HorizontalPager
-import kotlinx.coroutines.flow.drop
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -123,15 +112,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.lumen.player.data.Album
 import app.lumen.player.data.AlbumCache
+import app.lumen.player.data.HomeSort
+import app.lumen.player.data.HomeSortStore
 import app.lumen.player.data.LyricLine
-import app.lumen.player.data.Ratings
 import app.lumen.player.data.Artist
 import app.lumen.player.data.ServerConfig
 import app.lumen.player.data.SettingsStore
 import app.lumen.player.data.SubsonicClient
 import app.lumen.player.data.Track
 import app.lumen.player.playback.Playback
-import app.lumen.player.playback.Downloads
 import app.lumen.player.playback.MediaCache
 import app.lumen.player.playback.PlaybackEngine
 import app.lumen.player.playback.PlaybackService
@@ -153,7 +142,6 @@ import app.lumen.player.ui.HomeCache
 import app.lumen.player.ui.LoginScreen
 import app.lumen.player.ui.lumenTypography
 import app.lumen.player.ui.PlayingScreen
-import app.lumen.player.ui.DownloadsScreen
 import app.lumen.player.ui.SettingsScreen
 import app.lumen.player.ui.schemeFromCover
 import com.gpo.yoin.symbols.YoinSymbols
@@ -271,7 +259,6 @@ private fun App() {
     var offline by remember { mutableStateOf(false) }
     var loginNonce by remember { mutableStateOf(0) }
     var openAlbum by remember { mutableStateOf<Album?>(null) }
-    var tracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     // 0 = 首页, 1 = 专辑页, 2 = 播放页
     var screen by remember { mutableStateOf(0) }
     var scheme by remember { mutableStateOf(FallbackScheme) }
@@ -282,16 +269,27 @@ private fun App() {
     var amoledOn by remember { mutableStateOf(app.lumen.player.data.Appearance.amoled(ctx)) }
     var gradientOn by remember { mutableStateOf(app.lumen.player.data.Appearance.gradientTheme(ctx)) }
     var materialYouOn by remember { mutableStateOf(app.lumen.player.data.Appearance.materialYou(ctx)) }
-    var perPageColorOn by remember { mutableStateOf(app.lumen.player.data.Appearance.perPageColor(ctx)) }
     var pinnedAlbumId by remember { mutableStateOf(app.lumen.player.data.Appearance.pinnedAlbum(ctx)) }
     var paletteStatus by remember { mutableStateOf("") }
+    // 省电模式：用系统广播取代「每 5 秒轮询」。轮询会永久占一个协程，且在系统最省电的时候
+    // 仍然定时唤醒主线程；广播只在真的切换时回调。
     val powerSave = remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    androidx.compose.runtime.DisposableEffect(Unit) {
         val pm = ctx.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
-        while (true) {
-            powerSave.value = pm.isPowerSaveMode
-            kotlinx.coroutines.delay(5_000)
+        powerSave.value = pm.isPowerSaveMode
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context?, intent: android.content.Intent?) {
+                val p = (c ?: ctx).getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+                powerSave.value = p?.isPowerSaveMode ?: false
+            }
         }
+        androidx.core.content.ContextCompat.registerReceiver(
+            ctx,
+            receiver,
+            android.content.IntentFilter(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        onDispose { runCatching { ctx.unregisterReceiver(receiver) } }
     }
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val isDarkTheme = when (themeMode) {
@@ -324,17 +322,15 @@ private fun App() {
     var legalDoc by remember { mutableStateOf<String?>(null) }
     var termsRead by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var privacyRead by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    var libraryVersion by remember { mutableIntStateOf(0) }
-    // 下载状态来自进程级快照（事件驱动，离开页面也继续更新）
-    val downloads by Downloads.snapshot.collectAsState()
-    val waitingForNetworkDownload by Downloads.waitingForNetwork.collectAsState()
-    var wifiOnlyDownloads by remember { mutableStateOf(Downloads.wifiOnly(ctx)) }
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
-    var starred by remember { mutableStateOf<List<Track>>(emptyList()) }
-    var starredIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    // 由快照直接推导（纯内存），不再每次去查下载索引
-    val downloadedTrackIds = remember(downloads) { Downloads.completedTrackIds() }
+    // 每次从艺人列表/搜索前向进入艺人页时 +1：入场动画按"这一次进入"重放，
+    // 但从专辑页/播放页返回时序号不变，因而不会重播（T-017）。
+    val artistEntryNonce = rememberSaveable { mutableIntStateOf(0) }
     var homeTab by remember { mutableIntStateOf(0) }
+    // 首页排序：状态放在这里（而不是 HomeScreen 内部），页面切换时组件被移出组合也不会丢；
+    // 初值从磁盘读回，冷启动 / 进程被杀后仍是上次的选择。真正的写入在 onSortChange。
+    var albumSort by remember { mutableIntStateOf(HomeSortStore.album(ctx)) }
+    var artistSort by remember { mutableIntStateOf(HomeSortStore.artist(ctx)) }
     val homeCache = remember { HomeCache() }
     val albumTracksCache = remember { mutableStateMapOf<String, List<Track>>() }
     val saveableStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
@@ -344,7 +340,6 @@ private fun App() {
         1 -> "album:${k.album?.id ?: ""}"
         2 -> "player"
         3 -> "settings"
-        4 -> "downloads"
         5 -> "artist:${selectedArtist?.id ?: ""}"
         6 -> "search"
         7 -> "stats"
@@ -359,28 +354,14 @@ private fun App() {
     // 歌词 LRU：最多缓存 40 首，避免来回切歌重复请求
     val lyricsCache = remember { LinkedHashMap<String, List<LyricLine>?>() }
     var showLyrics by remember { mutableStateOf(true) }
-    var rating by remember { mutableFloatStateOf(0f) }
     var scrobbledId by remember { mutableStateOf<String?>(null) }
     var nowPlayingId by remember { mutableStateOf<String?>(null) }
     val navStack = remember { androidx.compose.runtime.mutableStateListOf<NavKey>() }
     // 转场方向：true = 返回（performBack）。页面转场用它区分"从入口展开"与"收缩回入口"
     var navBack by remember { mutableStateOf(false) }
-
-    // 返回首页后让入口按钮回弹一下（仅视觉，不影响导航）
-    var lastScreenForBounce by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    androidx.compose.runtime.LaunchedEffect(screen) {
-        if (screen == 0 && lastScreenForBounce != 0) {
-            val key = when (lastScreenForBounce) {
-                3 -> "settings"
-                4 -> "downloads"
-                6 -> "search"
-                7 -> "stats"
-                else -> null
-            }
-            if (key != null) app.lumen.player.ui.EntryBounce.trigger(key)
-        }
-        lastScreenForBounce = screen
-    }
+    // 播放页封面的共享元素 key：从专辑页进入时用专辑 hero 的 key，页面之间是同一个封面在飞；
+    // 从迷你条进入时用迷你条 key。null = 没有可配对元素，播放页只做淡入。
+    var playerCoverKey by remember { mutableStateOf<String?>(null) }
 
     /** 原路返回：回到压栈时的位置（页面 + 专辑上下文），转场按"返回"方向播放 */
     fun performBack() {
@@ -404,7 +385,6 @@ private fun App() {
             try {
                 albums = withContext(Dispatchers.IO) { SubsonicClient(c).albums() }
                 error = null
-                libraryVersion += 1
                 withContext(Dispatchers.IO) { AlbumCache.save(ctx, albums) }
                 break
             } catch (e: Exception) {
@@ -431,7 +411,6 @@ private fun App() {
                     val cached = withContext(Dispatchers.IO) { AlbumCache.load(ctx) }
                     if (cached.isNotEmpty()) {
                         albums = cached
-                        libraryVersion += 1
                         offline = true
                         error = null
                         loggedIn = true
@@ -444,7 +423,6 @@ private fun App() {
                     }
                 } else {
                     albums = list
-                    libraryVersion += 1
                     withContext(Dispatchers.IO) { AlbumCache.save(ctx, list) }
                     // 认证已成功，此时才把凭据写盘；写不进去要明确告知（否则下次启动会「丢密码」）
                     if (!SettingsStore.save(ctx, cfg)) {
@@ -469,7 +447,6 @@ private fun App() {
                 val cached = withContext(Dispatchers.IO) { AlbumCache.load(ctx) }
                 if (cached.isNotEmpty()) {
                     albums = cached
-                    libraryVersion += 1
                     offline = true
                     error = null
                     loggedIn = true
@@ -506,7 +483,6 @@ private fun App() {
             }
             if (ok != null) {
                 albums = ok
-                libraryVersion += 1
                 offline = false
                 withContext(Dispatchers.IO) { AlbumCache.save(ctx, ok) }
                 // 恢复联网只刷新曲库（分析功能已移除）
@@ -516,7 +492,7 @@ private fun App() {
     }
 
     if (!legalAccepted) {
-        MaterialTheme(colorScheme = FallbackScheme) {
+        app.lumen.player.ui.LumenTheme(colorScheme = FallbackScheme) {
             when (legalDoc) {
                 "terms" -> app.lumen.player.ui.TermsScreen(
                     onBack = { legalDoc = null },
@@ -545,7 +521,7 @@ private fun App() {
     }
 
     if (showOnboarding) {
-        MaterialTheme(colorScheme = FallbackScheme) {
+        app.lumen.player.ui.LumenTheme(colorScheme = FallbackScheme) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
                 app.lumen.player.ui.OnboardingScreen(
                     onDone = {
@@ -580,7 +556,10 @@ private fun App() {
 
     // 登录页含密码输入框：禁止截屏与最近任务缩略图，避免锁屏通知/分享截图泄露。
     // Context 可能是 ContextThemeWrapper 链，必须往上解包才能拿到 Activity 的 window。
-    androidx.compose.runtime.DisposableEffect(loggedIn) {
+    // 纯同步、无清理动作 → 用带 key 的 SideEffect（Compose 1.12+ 支持 key），
+    // 不要用「空 onDispose 的 DisposableEffect」来当带 key 的同步副作用：
+    // DisposableEffect 每次 key 变化都要注册/注销一个 effect 节点，开销比 SideEffect 高一个量级。
+    androidx.compose.runtime.SideEffect(loggedIn) {
         // LocalView.current 只能在组合中读取，这里用外层已取好的 rootView
         val window = generateSequence(rootView.context) { (it as? android.content.ContextWrapper)?.baseContext }
             .filterIsInstance<android.app.Activity>()
@@ -595,12 +574,11 @@ private fun App() {
         } else {
             app.lumen.player.util.Logx.w("LumenUi", "未找到 Activity window，无法设置 FLAG_SECURE")
         }
-        onDispose { }
     }
 
     if (!loggedIn) {
         // 登录页也要套主题，否则用的是 M3 默认浅色 → 深色字压在黑底上看不清
-        MaterialTheme(colorScheme = FallbackScheme) {
+        app.lumen.player.ui.LumenTheme(colorScheme = FallbackScheme) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
                 LoginScreen(
                     initial = cfg,
@@ -658,26 +636,6 @@ private fun App() {
     }
 
     val client = remember(cfg) { SubsonicClient(cfg) }
-    // 下载库里只有合成 URI（不含 u/t/s）；这里提供「请求 id + 格式 → 真实地址」的实时签名。
-    // 界面不在前台（服务被系统拉起）时由 Downloads 用持久化配置兜底。
-    LaunchedEffect(client, loggedIn) {
-        if (loggedIn) {
-            Downloads.setUrlResolver { requestId, format, rate ->
-                val base = client.streamUrl(Downloads.trackIdOf(requestId))
-                if (format == null && rate == null) {
-                    base
-                } else {
-                    buildString {
-                        append(base)
-                        format?.let { append("&format=").append(it) }
-                        rate?.let { append("&maxBitRate=").append(it) }
-                    }
-                }
-            }
-        } else {
-            Downloads.setUrlResolver { _, _, _ -> "" }
-        }
-    }
     val coverOf = remember(client) { { id: String -> client.coverUrl(id) } }
     val scope = rememberCoroutineScope()
 
@@ -685,12 +643,8 @@ private fun App() {
         // 先停播并清空队列，避免旧账号的曲目/进度串到新账号
         app.lumen.player.playback.PlaybackEngine.get(ctx).stopAndClear()
         albums = emptyList()
-        starred = emptyList()
-        starredIds = emptySet()
         albumTracksCache.clear()
         homeCache.artists = emptyList()
-        homeCache.newest = emptyList()
-        homeCache.recentTracks = emptyList()
         openAlbum = null
         selectedArtist = null
         navStack.clear()
@@ -698,12 +652,6 @@ private fun App() {
         homeTab = 0
         scope.launch {
             loadAlbums(c, useCache = false)
-            runCatching {
-                val fresh = app.lumen.player.data.SubsonicClient(c)
-                val list = withContext(Dispatchers.IO) { fresh.starredTracks() }
-                starred = list
-                starredIds = list.map { it.id }.toSet()
-            }
         }
     }
 
@@ -744,14 +692,19 @@ private fun App() {
 
     fun clearLocalData() {
         scope.launch {
-            // 统一入口：新增落盘 store 只需在 LocalData 登记一次
-            runCatching { app.lumen.player.local.LocalData.wipe(ctx) }
-                .onFailure {
-                    error = L10n.tf(
-                        "清除数据失败：" + (it.message ?: ""),
-                        "Failed to wipe data: " + (it.message ?: ""),
-                    )
-                }
+            val wiped = runCatching { app.lumen.player.local.LocalData.wipe(ctx) }
+            wiped.onFailure {
+                error = L10n.tf(
+                    "清除数据失败：" + (it.message ?: ""),
+                    "Failed to wipe data: " + (it.message ?: ""),
+                )
+            }
+            // 排序方式和首页滚动位置一样属于「本机数据」：清盘成功后在内存里也回到默认，
+            // 否则重新登录后菜单仍高亮旧排序，而磁盘上已经没有了
+            if (wiped.isSuccess) {
+                albumSort = HomeSort.DEFAULT
+                artistSort = HomeSort.DEFAULT
+            }
             cfg = ServerConfig("", "", "")
             loggedIn = false
             loading = false
@@ -761,11 +714,8 @@ private fun App() {
             navStack.clear()
             screen = 0
             openAlbum = null
-            starred = emptyList()
-            starredIds = emptySet()
             lyrics = null
             lyricsTrackId = null
-            rating = 0f
             nowPlayingId = null
             scrobbledId = null
         }
@@ -791,20 +741,6 @@ private fun App() {
         performBack()
     }
 
-    fun toggleStar(track: Track) {
-        scope.launch {
-            val on = starredIds.contains(track.id)
-            runCatching {
-                withContext(Dispatchers.IO) {
-                    if (on) client.unstar(track.id) else client.star(track.id)
-                }
-            }.onSuccess {
-                starredIds = if (on) starredIds - track.id else starredIds + track.id
-                starred = if (on) starred.filterNot { it.id == track.id }
-                else starred + track.copy(starred = true)
-            }
-        }
-    }
     // 全进程唯一播放器：Activity 与前台服务（通知/锁屏）共用
     val playback = remember(client) {
         PlaybackEngine.get(ctx).also { p ->
@@ -812,7 +748,8 @@ private fun App() {
             p.transcodeUrl = { t -> client.streamUrl(t.id) + "&format=mp3&maxBitRate=320" }
         }
     }
-    LaunchedEffect(fadeMs) {
+    // 纯同步赋值：不需要协程，也不需要 effect 节点
+    androidx.compose.runtime.SideEffect(fadeMs) {
         playback.fadeMs = fadeMs
     }
     // 冷启动恢复上次队列与进度（保持暂停，不自动播放）
@@ -826,28 +763,20 @@ private fun App() {
             }
         }
     }
-    // 登录后就常驻媒体会话服务：这样它能在L10n.t("开始播放")这一刻收到事件并挂出通知/前台服务
+    // 登录后就常驻媒体会话服务：这样它能在开始播放这一刻收到事件并挂出通知/前台服务
     LaunchedEffect(loggedIn) {
         if (loggedIn) {
             runCatching { ctx.startService(android.content.Intent(ctx, PlaybackService::class.java)) }
-            runCatching {
-                val list = withContext(Dispatchers.IO) { client.starredTracks() }
-                starred = list
-                starredIds = list.map { it.id }.toSet()
-            }
         }
     }
 
     // 换歌自动加载歌词（播放页下方常驻显示）
     LaunchedEffect(playback.current?.id) {
         val tr = playback.current
-        if (tr != null) app.lumen.player.data.PlayHistory.record(ctx, tr)
-        libraryVersion += 1
         if (lyricsTrackId != tr?.id) {
             lyrics = null
             lyricsTrackId = tr?.id
             if (tr != null) {
-                rating = withContext(Dispatchers.IO) { Ratings.get(ctx, tr.id) }
                 scrobbledId = null
                 // 两级缓存：内存 LRU（40 条）→ 磁盘 LyricsCache（离线可用）
                 val inMemory = lyricsCache[tr.id]
@@ -901,25 +830,23 @@ private fun App() {
             }
         }
     }
-    LaunchedEffect(playback.positionMs, playback.playing, playback.current?.id) {
+    // positionMs 每 250ms 变一次：把它当 LaunchedEffect 的 key，等于每秒重建 4 次协程 job。
+    // 改成 key 只看「哪首歌 / 是否在播」，进度用 snapshotFlow 观察，只在跨过阈值时触发一次。
+    LaunchedEffect(playback.playing, playback.current?.id) {
         val tr = playback.current ?: return@LaunchedEffect
         if (!playback.playing || scrobbledId == tr.id) return@LaunchedEffect
         val duration = playback.durationMs.takeIf { it > 0 } ?: (tr.seconds * 1000L)
         val threshold = if (duration > 0) minOf(duration / 2, 240_000L) else 120_000L
-        if (playback.positionMs >= threshold) {
-            scrobbledId = tr.id
-            withContext(Dispatchers.IO) {
-                val r = runCatching { client.scrobble(tr.id, submission = true) }
-                app.lumen.player.util.Logx.i("LumenScrobble", "submit ${tr.id} ok=${r.isSuccess} err=${r.exceptionOrNull()?.message}")
-            }
+        snapshotFlow { playback.positionMs }.firstOrNull { it >= threshold } ?: return@LaunchedEffect
+        scrobbledId = tr.id
+        withContext(Dispatchers.IO) {
+            val r = runCatching { client.scrobble(tr.id, submission = true) }
+            app.lumen.player.util.Logx.i("LumenScrobble", "submit ${tr.id} ok=${r.isSuccess} err=${r.exceptionOrNull()?.message}")
         }
     }
     val current = playback.current
 
-    // 下载状态由 Downloads 内部订阅 DownloadManager 并维护进程级快照，这里不再轮询
-
     // 封面分档预热：切歌时把播放页要用的 600px 版本放进 Coil 缓存，
-    // 列表用的是 200px，两层互不覆盖，进播放页时 0 等待
     LaunchedEffect(current?.albumId) {
         val t = current ?: return@LaunchedEffect
         runCatching {
@@ -959,7 +886,6 @@ private fun App() {
         materialYouOn,
         pinnedAlbumId,
     ) {
-        // ① Material You（Android 12+）
         if (materialYouOn && android.os.Build.VERSION.SDK_INT >= 31) {
             val you = runCatching {
                 if (isDarkTheme) androidx.compose.material3.dynamicDarkColorScheme(ctx)
@@ -971,14 +897,13 @@ private fun App() {
                 return@LaunchedEffect
             }
         }
-        // ② 按专辑锁色
         val pinned = app.lumen.player.data.Appearance.pinnedSeeds(ctx)
         if (pinnedAlbumId != null && pinned != null) {
             scheme = app.lumen.player.ui.buildScheme(pinned, themeOpts)
             paletteStatus = "已锁定专辑配色"
             return@LaunchedEffect
         }
-        // ③ 封面取色
+        // 0) 本地网络权限（Android 17）：被拒时表现为"无法连接"，必须优先判定
         val t = current
         if (t == null) {
             scheme = app.lumen.player.ui.fallbackScheme(isDarkTheme, amoledOn)
@@ -1035,8 +960,20 @@ private fun App() {
     }
     val onOpenSettings: () -> Unit = remember { { navigate(NavKey(3, null)) } }
     val onOpenSearch: () -> Unit = remember { { navigate(NavKey(6, null)) } }
-    val onOpenArtist: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null, a.id)) } }
-    val onOpenArtistFromSearch: (Artist) -> Unit = remember { { a -> selectedArtist = a; navigate(NavKey(5, null)) } }
+    val onOpenArtist: (Artist) -> Unit = remember {
+        { a ->
+            selectedArtist = a
+            artistEntryNonce.intValue += 1
+            navigate(NavKey(5, null, a.id))
+        }
+    }
+    val onOpenArtistFromSearch: (Artist) -> Unit = remember {
+        { a ->
+            selectedArtist = a
+            artistEntryNonce.intValue += 1
+            navigate(NavKey(5, null))
+        }
+    }
 
     val screenContent: @Composable (NavKey) -> Unit = { key ->
                 saveableStates.SaveableStateProvider(stateKeyOf(key)) {
@@ -1057,29 +994,19 @@ private fun App() {
                         },
                     )
                     key.screen == 5 -> selectedArtist?.let { a ->
-                        ArtistScreen(
-                            client = client,
-                            artist = a,
-                            coverUrl = { client.coverUrl(it) },
-                            onBack = { goBack() },
-                            onOpenAlbum = { al -> navigate(NavKey(1, al)) },
-                        )
+                        // nonce 变化时重建整页，确保"每次前向进入"都从首屏动画开始；
+                        // 返回专辑页/播放页时 nonce 不变，保存的入场状态会恢复。
+                        key(a.id, artistEntryNonce.intValue) {
+                            ArtistScreen(
+                                client = client,
+                                artist = a,
+                                entryNonce = artistEntryNonce.intValue,
+                                coverUrl = { client.coverUrl(it) },
+                                onBack = { goBack() },
+                                onOpenAlbum = { al -> navigate(NavKey(1, al)) },
+                            )
+                        }
                     }
-                    key.screen == 4 -> DownloadsScreen(
-                        summaries = downloads,
-                        waitingForNetwork = waitingForNetworkDownload,
-                        tracksOf = { key -> Downloads.tracksOf(ctx, key) },
-                        onBack = { goBack() },
-                        onDelete = { id -> Downloads.delete(ctx, id) },
-                        onDeleteTrack = { requestId -> Downloads.deleteTrack(ctx, requestId) },
-                        onRetry = { id -> Downloads.retry(ctx, id) },
-                        onRetryTrack = { requestId -> Downloads.retryTrack(ctx, requestId) },
-                        onPauseGroup = { key -> Downloads.pauseGroup(ctx, key) },
-                        onResumeGroup = { key -> Downloads.resumeGroup(ctx, key) },
-                        onPauseAll = { Downloads.pauseAll(ctx) },
-                        onResumeAll = { Downloads.resumeAll(ctx) },
-                        onClearAll = { Downloads.deleteAll(ctx) },
-                    )
                     key.screen == 13 -> app.lumen.player.ui.TermsScreen(
                         onBack = { goBack() },
                     )
@@ -1091,14 +1018,6 @@ private fun App() {
                     )
                     key.screen == 3 -> SettingsScreen(
                         cfg = cfg,
-                        downloadCount = downloads.sumOf { it.total },
-                        downloadBytes = downloads.sumOf { it.bytes },
-                        wifiOnlyDownloads = wifiOnlyDownloads,
-                        onWifiOnlyDownloads = { enabled ->
-                            wifiOnlyDownloads = enabled
-                            Downloads.setWifiOnly(ctx, enabled)
-                        },
-                        onManageDownloads = { navigate(NavKey(4, null)) },
                         accounts = accounts,
                         activeAccountId = activeAccountId,
                         onSwitchAccount = { switchAccount(it) },
@@ -1135,11 +1054,6 @@ private fun App() {
                         onMaterialYou = {
                             materialYouOn = it
                             app.lumen.player.data.Appearance.setMaterialYou(ctx, it)
-                        },
-                        perPageColor = perPageColorOn,
-                        onPerPageColor = {
-                            perPageColorOn = it
-                            app.lumen.player.data.Appearance.setPerPageColor(ctx, it)
                         },
                         pinned = pinnedAlbumId != null,
                         paletteStatus = paletteStatus,
@@ -1178,7 +1092,7 @@ private fun App() {
                         onOpenPrivacy = { navigate(NavKey(12, null)) },
                         onOpenTerms = { navigate(NavKey(13, null)) },
                         onClearSongCache = {
-                            withContext(Dispatchers.IO) { MediaCache.clearStreamCache(ctx) }
+                            withContext(Dispatchers.IO) { MediaCache.clearAllCache(ctx) }
                         },
                         onClearImageCache = { withContext(Dispatchers.IO) { MediaCache.clearImageCache(ctx) } },
                         onClearLyricsCache = { withContext(Dispatchers.IO) { app.lumen.player.data.LyricsCache.clear(ctx) } },
@@ -1202,10 +1116,8 @@ private fun App() {
                         },
                     )
                     key.screen == 2 -> PlayingScreen(
-                        coverModifier = Modifier,
+                        coverKey = playerCoverKey,
                         albumName = current?.album?.takeIf { it.isNotBlank() } ?: (key.album?.name ?: ""),
-                        starred = current?.let { starredIds.contains(it.id) } ?: false,
-                        trackDownloaded = current?.let { downloadedTrackIds.contains(it.id) } ?: false,
                         lyrics = lyrics,
                         lyricsLoading = lyricsLoading,
                         showLyrics = showLyrics,
@@ -1215,31 +1127,14 @@ private fun App() {
                         coverDirection = playback.coverDirection,
                         onSeekPlay = { ms ->
                             playback.seekTo(ms)
-                            if (!playback.playing) playback.toggle()
-                        },
-                        rating = rating,
-                        onRating = { v ->
-                            rating = v
-                            current?.let { Ratings.set(ctx, it.id, v) }
-                        },
-                        onToggleStar = { current?.let { toggleStar(it) } },
-                        onDownloadTrack = {
-                            current?.let { tr ->
-                                val queued = Downloads.enqueueTrack(ctx, tr) { tt -> streamUrl(client, tt) }
-                                if (!queued) {
-                                    android.widget.Toast.makeText(
-                                        ctx,
-                                        L10n.t("存储空间不足，已取消本次下载"),
-                                        android.widget.Toast.LENGTH_LONG,
-                                    ).show()
-                                }
-                            }
+                            // 缓冲中拖动进度条不要重复 play()；只有确实没在播时才启动
+                            if (!playback.playIntent) playback.toggle()
                         },
                         track = current,
                         coverUrl = current?.let { client.coverUrl(it.albumId, 600) } ?: "",
-                        positionMs = playback.positionMs,
+                        positionMsProvider = { playback.positionMs },
                         durationMs = playback.durationMs.takeIf { it > 0 } ?: ((current?.seconds ?: 0) * 1000L),
-                        playing = playback.playing,
+                        playing = playback.playIntent,
                         onBack = { goBack() },
                         onToggle = { playback.toggle() },
                         onPrev = { playback.prev() },
@@ -1247,14 +1142,9 @@ private fun App() {
                         onSeek = { playback.seekTo(it) },
                     )
                     else -> if (key.album == null) {
-                        MaterialTheme(
-                            colorScheme = app.lumen.player.ui.mutedForHome(animatedScheme, isDarkTheme),
-                            typography = lumenTypography(),
-                        ) {
                         HomeScreen(
                             client = client,
                             albums = albums,
-                            downloadedIds = downloadedTrackIds,
                             loading = loading,
                             error = error,
                             coverUrl = coverOf,
@@ -1263,46 +1153,41 @@ private fun App() {
                             onRetry = { scope.launch { loadAlbums(cfg) } },
                             onSearch = onOpenSearch,
                             onOpenArtist = onOpenArtist,
-                            starred = starred,
-                            current = current,
-                            playing = playback.playing,
-                            positionMs = playback.positionMs,
-                            durationMs = playback.durationMs.takeIf { it > 0 } ?: ((current?.seconds ?: 0) * 1000L),
-                            onToggle = { if (current != null) playback.toggle() },
+                            // 只传「哪张专辑在播」+ 一个进度 lambda：
+                            // 位置每 250ms 推进一次，但读取发生在进度条的绘制阶段，首页不再跟着整页重组。
+                            playingAlbumId = current?.albumId,
+                            progressProvider = {
+                                val total = playback.durationMs.takeIf { d -> d > 0 }
+                                    ?: ((current?.seconds ?: 0) * 1000L)
+                                if (total > 0) playback.positionMs.toFloat() / total else null
+                            },
                             onOpenStats = { navigate(NavKey(7, null)) },
                             tab = homeTab,
                             onTabChange = { homeTab = it },
-                            ratingOf = { id -> Ratings.get(ctx, id) },
-                            downloads = downloads,
-                            libraryVersion = libraryVersion,
-                            cache = homeCache,
-                            onPlayTrack = { tr ->
-                                playback.play(listOf(tr), 0, tr.album)
-                                playback.tick()
-                            },
-                            onPlayStarred = { index ->
-                                if (starred.isNotEmpty()) {
-                                    playback.play(starred, index, "starred")
-                                    playback.tick()
-                                    homeTab = 3
+                            albumSort = albumSort,
+                            artistSort = artistSort,
+                            onSortChange = { whichTab, mode ->
+                                // 先落盘再更新状态：写盘返回的是校验过的值（非法值会回退默认），
+                                // 避免菜单高亮和列表排序不一致
+                                if (whichTab == HomeSort.TAB_ARTISTS) {
+                                    artistSort = HomeSortStore.setSort(ctx, HomeSort.TAB_ARTISTS, mode)
+                                } else {
+                                    albumSort = HomeSortStore.setSort(ctx, HomeSort.TAB_ALBUMS, mode)
                                 }
                             },
-
+                            cache = homeCache,
                         )
-                        }
                     } else {
                         val album = key.album
                         val albumTracks = albumTracksCache[album.id]
                         if (albumTracks == null) {
                             LaunchedEffect(album.id) {
-                                // ① 先用磁盘缓存秒开（可能略旧），避免白屏等待
                                 val cached = withContext(Dispatchers.IO) {
                                     app.lumen.player.data.AlbumTracksCache.load(ctx, album.id)
                                 }
                                 if (cached != null && albumTracksCache[album.id] == null) {
                                     albumTracksCache[album.id] = cached
                                 }
-                                // ② 后台刷新，成功则覆写内存与磁盘
                                 val fetched = try {
                                     withContext(Dispatchers.IO) { client.tracks(album.id) }.also {
                                         app.lumen.player.util.Logx.i(
@@ -1326,27 +1211,15 @@ private fun App() {
                         }
                         AlbumScreen(
                             album = album,
-                            coverModifier = Modifier,
                             tracks = albumTracksCache[album.id].orEmpty(),
                             coverUrl = client.coverUrl(album.coverId),
                             currentTrackId = current?.id,
+                            // 按钮状态完全由播放器推导：playing 来自 ExoPlayer 回调，
+                            // 专辑归属用当前曲目的 albumId（搜索队列里播本专辑曲目也算）
+                            isPlaying = playback.playIntent,
+                            isCurrentAlbum = current?.albumId == album.id,
                             onBack = { goBack() },
-                            download = downloads.firstOrNull { it.key == "album:${album.id}" },
-                            downloadedIds = downloadedTrackIds,
-                            themeOpts = themeOpts,
-                            selfColor = perPageColorOn,
-                            onDownload = {
-                                val list = albumTracksCache[album.id].orEmpty()
-                                val queued = list.isNotEmpty() &&
-                                    Downloads.enqueue(ctx, album, list) { tr -> streamUrl(client, tr) }
-                                if (!queued && list.isNotEmpty()) {
-                                    android.widget.Toast.makeText(
-                                        ctx,
-                                        L10n.t("存储空间不足，已取消本次下载"),
-                                        android.widget.Toast.LENGTH_LONG,
-                                    ).show()
-                                }
-                            },
+                            onToggle = { playback.toggle() },
                             onShuffle = {
                                 val list = albumTracksCache[album.id].orEmpty()
                                 if (list.isNotEmpty()) {
@@ -1367,23 +1240,17 @@ private fun App() {
                 }
     }
 
-    MaterialTheme(colorScheme = animatedScheme, typography = lumenTypography()) {
+    app.lumen.player.ui.LumenTheme(colorScheme = animatedScheme) {
         Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
             // 只在需要时读一次按压位置的老实现已删除：入场方向现在由 NavOriginStore + 共享元素决定
             Box(Modifier.fillMaxSize()) {
-                // 暂停 / 省电时不再推进相位：背景停在当前这帧，省掉整屏每帧重绘
+                // 全应用唯一背景：页面自己不再画底，转场时背景不会被"重新淡入"
                 val sharedMotion = app.lumen.player.ui.rememberBackdropMotion(
                     active = playback.playing && !powerSave.value,
                 )
                 app.lumen.player.ui.ExpressiveBackdrop(
                     Modifier.matchParentSize(),
                     motion = sharedMotion,
-                )
-                // 返回不再跟手：压暗层只做极轻微的过渡底色，避免转场时露出直射背景
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.06f)),
                 )
                 // 共享元素宿主：页面切换与常驻迷你条必须在同一个 SharedTransitionLayout 里，
                 // 否则迷你条封面无法与播放页封面互相 morph（浮层不在页面作用域内）。
@@ -1392,8 +1259,15 @@ private fun App() {
                         // 页面切换：AnimatedContent 只负责页面，共享作用域由外层 SharedElementHost 提供
                         val fadeSpecForPage =
                             androidx.compose.material3.MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+                        val fastEffectsSpec =
+                            androidx.compose.material3.MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+                        val slowSpatialForPage =
+                            androidx.compose.material3.MaterialTheme.motionScheme.slowSpatialSpec<Float>()
                         val spatialSpecForPage =
                             androidx.compose.material3.MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+                        val spatialSpecForOffset =
+                            androidx.compose.material3.MaterialTheme.motionScheme
+                                .defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
                         val navDensity = androidx.compose.ui.platform.LocalDensity.current
                         val navConfig = androidx.compose.ui.platform.LocalConfiguration.current
                         val screenWidthPx = with(navDensity) { navConfig.screenWidthDp.dp.toPx() }
@@ -1408,13 +1282,16 @@ private fun App() {
                                     // 专辑详情：封面用共享元素飞行，页面不再整体缩放
                                     5 -> k.artistId
                                     3 -> "settings"
-                                    4 -> "downloads"
                                     6 -> "search"
                                     7 -> "stats"
                                     else -> null
                                 }
+                                // 艺人页统一为水平推入/推出：从艺人列表(0)或搜索结果(6)进入时，
+                                // 艺人页从左侧飞入、来源页向右让位；返回时艺人页向左飞出、来源页从右侧回来。
+                                // 只覆盖 0/6 与 5 之间，5 ↔ 专辑详情(1) 仍走共享封面转场。
+                                val artistEnter = to.screen == 5 && (from.screen == 0 || from.screen == 6)
+                                val artistExit = from.screen == 5 && (to.screen == 0 || to.screen == 6)
                                 // 方向由导航动作决定：navigate() 是进入，performBack() 是返回。
-                                // 不能用"目标是不是首页"判断——从播放页返回专辑页同样是返回，
                                 // 否则专辑页会错误地从首页入口的位置再"长"出来一次。
                                 val returning = navBack
                                 val key = if (returning) originKeyOf(from) else originKeyOf(to)
@@ -1422,7 +1299,22 @@ private fun App() {
                                     .transformOrigin(key, screenWidthPx, screenHeightPx)
                                 val startScale = app.lumen.player.ui.NavOriginStore
                                     .initialScale(key, screenWidthPx)
-                                if (origin != null) {
+                                if (artistEnter) {
+                                    // 进入：艺人页从左侧 -全宽 推到 0，艺人列表/搜索页从 0 推到 +全宽。
+                                    // 两页同一条 spatial token，接缝在同一进度重合，不会露出第三层。
+                                    (
+                                        androidx.compose.animation.slideInHorizontally(spatialSpecForOffset) { -it }
+                                            togetherWith
+                                            androidx.compose.animation.slideOutHorizontally(spatialSpecForOffset) { it }
+                                        ).using(null)
+                                } else if (artistExit) {
+                                    // 返回：艺人页从 0 推到 -全宽，来源页从 +全宽 回到 0（T-024 逆向）。
+                                    (
+                                        androidx.compose.animation.slideInHorizontally(spatialSpecForOffset) { it }
+                                            togetherWith
+                                            androidx.compose.animation.slideOutHorizontally(spatialSpecForOffset) { -it }
+                                        ).using(null)
+                                } else if (origin != null) {
                                     if (returning) {
                                         androidx.compose.animation.fadeIn(fadeSpecForPage).togetherWith(
                                             androidx.compose.animation.fadeOut(fadeSpecForPage) +
@@ -1445,17 +1337,33 @@ private fun App() {
                                         ).using(null)
                                     }
                                 } else {
-                                    androidx.compose.animation.fadeIn(fadeSpecForPage)
-                                        .togetherWith(androidx.compose.animation.fadeOut(fadeSpecForPage))
-                                        .using(null)
+                                    // 封面共享元素正在飞：页面淡入淡出必须和封面的空间动效同长。
+                                    // 否则页面先淡完、共享元素被提前收掉，看起来就是"封面飞到一半消失"。
+                                    val coverFlow = from.screen in 0..2 && to.screen in 0..2
+                                    if (coverFlow) {
+                                        // 封面飞行主导转场：
+                                        // - 进入页用 slow spatial 淡入（和封面 bounds 同一套弹簧），
+                                        //   页面内容跟着封面落位一起出现，不再"页面已经实心、封面还从
+                                        //   下面飞过播放按钮/列表"（视觉切割）；
+                                        // - 退出页 fast effects 快速淡出（无双影），再用一个不可见的
+                                        //   2% scale 弹簧把旧页保留到封面落位，飞行的最后一段不会拆
+                                        //   掉共享元素对端。
+                                        androidx.compose.animation.fadeIn(slowSpatialForPage).togetherWith(
+                                            androidx.compose.animation.fadeOut(fastEffectsSpec) +
+                                                androidx.compose.animation.scaleOut(
+                                                    targetScale = 0.98f,
+                                                    animationSpec = slowSpatialForPage,
+                                                ),
+                                        ).using(null)
+                                    } else {
+                                        androidx.compose.animation.fadeIn(fadeSpecForPage)
+                                            .togetherWith(androidx.compose.animation.fadeOut(fadeSpecForPage))
+                                            .using(null)
+                                    }
                                 }
                             },
                         ) { pageKey ->
                             Box(Modifier.fillMaxSize()) {
-                                app.lumen.player.ui.ExpressiveBackdrop(
-                                    Modifier.matchParentSize(),
-                                    motion = sharedMotion,
-                                )
                                 screenContent(pageKey as NavKey)
                             }
                         }
@@ -1464,32 +1372,47 @@ private fun App() {
                         androidx.compose.animation.AnimatedVisibility(
                             // 播放页有自己的控制区，不再叠加迷你条
                             visible = screen != 2,
-                            enter = androidx.compose.animation.fadeIn(
-                                androidx.compose.animation.core.tween(180),
-                            ) + androidx.compose.animation.slideInVertically(
-                                androidx.compose.animation.core.tween(220),
-                            ) { it / 2 },
-                            exit = androidx.compose.animation.fadeOut(
-                                androidx.compose.animation.core.tween(140),
-                            ) + androidx.compose.animation.slideOutVertically(
-                                androidx.compose.animation.core.tween(180),
-                            ) { it / 2 },
+                            // 迷你条进/退必须与封面的空间动效同长：退得太快会把共享元素的对端提前拆掉；
+                            // 透明度走 effects（快），位移走 spatial（慢），两者取最长，封面对端不会先消失。
+                            enter = androidx.compose.animation.fadeIn(fadeSpecForPage) +
+                                androidx.compose.animation.slideInVertically(spatialSpecForOffset) { it / 2 },
+                            exit = androidx.compose.animation.fadeOut(fastEffectsSpec) +
+                                androidx.compose.animation.slideOutVertically(spatialSpecForOffset) { it / 2 },
                             modifier = Modifier.align(Alignment.BottomCenter),
                         ) {
                             // 迷你条不属于任何页面：显式传它自己的 AnimatedVisibilityScope，
                             // 封面才能与播放页封面成为同一个共享元素
                             val barScope: androidx.compose.animation.AnimatedVisibilityScope = this
                             YoinBar(
-                                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 6.dp),
+                                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = app.lumen.player.ui.LumenSizes.miniBarBottomGap),
                                 title = current?.title ?: "",
                                 artist = current?.artist ?: "",
                                 coverUrl = current?.let { client.coverUrl(it.albumId, 200) } ?: "",
                                 coverModifier = current?.let { track ->
-                                    Modifier.coverSharedElement("np-" + track.albumId, barScope)
+                                    Modifier.coverSharedElement(app.lumen.player.ui.miniBarCoverKey(track.albumId), barScope)
                                 } ?: Modifier,
-                                playing = playback.playing,
+                                // 只在「有歌 + 时长已知」时显示进度条（这两个都是低频状态），
+                                // 进度本身用 lambda 交给 LinearProgressIndicator 在绘制阶段读。
+                                showProgress = current != null &&
+                                    (playback.durationMs > 0L || (current?.seconds ?: 0) > 0),
+                                progressProvider = {
+                                    val total = playback.durationMs.takeIf { d -> d > 0 }
+                                        ?: ((current?.seconds ?: 0) * 1000L)
+                                    if (total > 0) playback.positionMs.toFloat() / total else null
+                                },
+                                playing = playback.playIntent,
                                 enabled = current != null,
-                                onOpenPlayer = { navigate(NavKey(2, openAlbum)) },
+                                onOpenPlayer = {
+                                    // 封面连续性的来源判断：
+                                    // 从专辑页进入 → 用专辑 hero 的 key（同一个封面继续飞）；
+                                    // 其他页面进入 → 用迷你条 key（从迷你条长出来）。
+                                    playerCoverKey = when {
+                                        screen == 1 && openAlbum != null && current?.albumId == openAlbum?.id ->
+                                            app.lumen.player.ui.albumCoverKey(openAlbum!!.id)
+                                        else -> current?.albumId?.let { app.lumen.player.ui.miniBarCoverKey(it) }
+                                    }
+                                    navigate(NavKey(2, openAlbum))
+                                },
                                 onToggle = { current?.let { playback.toggle() } },
                             )
                         }

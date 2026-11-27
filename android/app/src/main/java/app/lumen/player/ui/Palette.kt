@@ -38,7 +38,7 @@ val FallbackScheme: ColorScheme = darkColorScheme(
     outlineVariant = Color(0xFF3A3B40),
 )
 
-/** 取色不再自己下载：直接向 Coil 要 200px 位图，命中列表已加载的缓存，零额外流量。 */
+/** 取色不再自己请求：直接向 Coil 要 200px 位图，命中列表已加载的缓存，零额外流量。 */
 private suspend fun coverBitmap(ctx: Context, url: String): Bitmap? = withContext(Dispatchers.IO) {
     runCatching {
         val req = coil3.request.ImageRequest.Builder(ctx)
@@ -66,7 +66,7 @@ private fun seedsOf(source: Bitmap, albumId: String): List<Int>? {
     val small = if (bitmap.width > 96 || bitmap.height > 96) {
         Bitmap.createScaledBitmap(bitmap, 96, 96, true)
     } else bitmap
-    // 同一次解码顺带采样四条边的代表色（不额外下载）
+    // 同一次解码顺带采样四条边的代表色（不额外请求）
     runCatching { app.lumen.player.data.CoverEdgeStore.put(albumId, app.lumen.player.data.CoverEdgeStore.sample(small)) }
     val pixels = IntArray(small.width * small.height)
     small.getPixels(pixels, 0, small.width, 0, 0, small.width, small.height)
@@ -76,14 +76,14 @@ private fun seedsOf(source: Bitmap, albumId: String): List<Int>? {
     return scored.take(3).map { constrainSeed(it) }
 }
 
-/** 下载并解析封面种子；网络失败返回 null（由调用方显式降级）。 */
+/** 请求并解析封面种子；网络失败返回 null（由调用方显式降级）。 */
 private suspend fun fetchSeeds(ctx: Context, url: String, albumId: String): List<Int>? {
     val bmp = coverBitmap(ctx, url) ?: return null
     return runCatching { seedsOf(bmp, albumId) }.getOrNull()
 }
 
 /**
- * 取色主入口：先查持久化种子（P2-2），没有再下载；结果进 64 条 LRU。
+ * 取色主入口：先查持久化种子（P2-2），没有再请求；结果进 64 条 LRU。
  * [albumId] 作为缓存主键（URL 里的 token 不进 key，P0-2）。
  */
 suspend fun schemeFromCover(
@@ -102,16 +102,4 @@ suspend fun schemeFromCover(
     val scheme = buildScheme(seeds, opts)
     schemeCache.put(key, scheme)
     scheme
-}
-
-/** 同步命中内存缓存（页面首帧直接用，避免"先错色再改色"的闪烁）。 */
-fun schemeFromCache(albumId: String, opts: ThemeOptions): ColorScheme? {
-    val key = "$albumId|${opts.contrast}|${opts.style.key}|${opts.isDark}|${opts.amoled}|${opts.gradient}"
-    return schemeCache.get(key)
-}
-
-/** 清空取色缓存（设置里「重新取色」用）。 */
-fun clearPaletteCache(ctx: Context) {
-    schemeCache.evictAll()
-    PaletteStore.clear(ctx)
 }

@@ -65,12 +65,20 @@ fun TermsScreen(onBack: () -> Unit, onReachedBottom: () -> Unit = {}) {
             }
         }
     }
-    // 文案来自 assets/legal/terms.json（中英双语，按当前语言选取）
-    val blocks = androidx.compose.runtime.remember(L10n.lang) {
-        app.lumen.player.data.LegalDocs.load(ctx, "terms").map {
-            TermBlock(it.title, it.paragraphs + it.bullets)
+    // 文案来自 assets/legal/terms.json（中英双语，按当前语言选取）。
+    // 读 assets + 解析 JSON 是阻塞 I/O：放到 IO 线程，避免首次进入时在组合期卡主线程。
+    // null = 加载中；空列表 = 真失败（两者必须区分，否则加载中会误报"协议缺失"）。
+    val blocksState by androidx.compose.runtime.produceState<List<TermBlock>?>(
+        initialValue = null,
+        L10n.lang,
+    ) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            app.lumen.player.data.LegalDocs.load(ctx, "terms").map {
+                TermBlock(it.title, it.paragraphs + it.bullets)
+            }
         }
     }
+    val blocks = blocksState
 
     BackHandler { onBack() }
 
@@ -124,7 +132,7 @@ fun TermsScreen(onBack: () -> Unit, onReachedBottom: () -> Unit = {}) {
             )
         }
 
-        if (blocks.isEmpty()) {
+        if (blocks != null && blocks.isEmpty()) {
             // 条款资源缺失/损坏：必须显式告知，否则用户会卡在「读到底部才能同意」的死角
             item {
                 Text(
@@ -140,7 +148,7 @@ fun TermsScreen(onBack: () -> Unit, onReachedBottom: () -> Unit = {}) {
             }
         }
 
-        blocks.forEachIndexed { index, block ->
+        blocks?.forEachIndexed { index, block ->
             item {
                 Column(Modifier.fillMaxWidth().padding(top = 22.dp)) {
                     Row(Modifier.padding(start = 4.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -50,7 +50,7 @@ object Appearance {
     /** 从旧文件迁移过来的外观键（与写入端保持一致）。 */
     private val APPEARANCE_KEYS = setOf(
         KEY_CONTRAST, "theme_mode", "palette_style", "gradient_theme",
-        "per_page_color", "material_you", "amoled", "pinned_album", "pinned_seeds",
+        "material_you", "amoled", "pinned_album", "pinned_seeds",
         "fade_ms",
     )
 
@@ -110,13 +110,6 @@ object Appearance {
 
     fun setGradientTheme(ctx: Context, v: Boolean) {
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("gradient_theme", v).apply()
-    }
-
-    fun perPageColor(ctx: Context): Boolean =
-        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean("per_page_color", false)
-
-    fun setPerPageColor(ctx: Context, v: Boolean) {
-        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean("per_page_color", v).apply()
     }
 
     fun materialYou(ctx: Context): Boolean =

@@ -40,7 +40,6 @@ object PlaybackStateStore {
                     put("track", t.track)
                     put("seconds", t.seconds)
                     put("suffix", t.suffix)
-                    put("starred", t.starred)
                 },
             )
         }
@@ -88,7 +87,6 @@ object PlaybackStateStore {
                     track = o.optInt("track", 0),
                     seconds = o.optInt("seconds", 0),
                     suffix = o.optString("suffix", ""),
-                    starred = o.optBoolean("starred", false),
                 ),
             )
         }

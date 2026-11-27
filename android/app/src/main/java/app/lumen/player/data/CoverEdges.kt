@@ -7,7 +7,7 @@ import android.util.LruCache
 data class CoverEdges(val top: Int, val bottom: Int, val left: Int, val right: Int)
 
 /**
- * 封面边色采样缓存：与取色共用同一张位图，不额外下载。
+ * 封面边色采样缓存：与取色共用同一张位图，不额外请求。
  * 供首页 / 播放页的 Lumoo 融合使用——边色随封面变化，背景色随主题变化。
  */
 object CoverEdgeStore {

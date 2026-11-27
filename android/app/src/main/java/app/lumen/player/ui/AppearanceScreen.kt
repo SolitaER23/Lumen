@@ -48,7 +48,6 @@ data class AppearanceUiState(
     val paletteStyle: String,
     val contrast: Float,
     val gradientTheme: Boolean,
-    val perPageColor: Boolean,
     val materialYou: Boolean,
     val amoled: Boolean,
     val pinned: Boolean,
@@ -64,7 +63,6 @@ fun AppearanceScreen(
     onPaletteStyle: (String) -> Unit,
     onContrast: (Float) -> Unit,
     onGradientTheme: (Boolean) -> Unit,
-    onPerPageColor: (Boolean) -> Unit,
     onMaterialYou: (Boolean) -> Unit,
     onAmoled: (Boolean) -> Unit,
     onPinColor: () -> Unit,
@@ -85,30 +83,25 @@ fun AppearanceScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
     ) {
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                onClick = onBack,
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.width(40.dp).padding(0.dp),
-            ) {
-                Box(Modifier.padding(10.dp), contentAlignment = Alignment.Center) {
-                    Text("←", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                }
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.IconButton(onClick = onBack) {
+                androidx.compose.material3.Icon(
+                    com.gpo.yoin.symbols.YoinSymbols.Back,
+                    contentDescription = L10n.t("返回"),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
             }
-            Spacer(Modifier.width(12.dp))
             Text(
                 L10n.t("外观"),
-                fontSize = 26.sp,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleLargeEmphasized,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
         Text(
             L10n.t("主题、配色与封面取色"),
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp, start = 52.dp, bottom = 8.dp),
+            modifier = Modifier.padding(top = 2.dp, start = 4.dp, bottom = 8.dp),
         )
 
         AppearanceSection("01", L10n.t("主题")) {
@@ -145,14 +138,6 @@ fun AppearanceScreen(
                 state.gradientTheme,
                 coverSwitchEnabled,
                 onChange = onGradientTheme,
-                disabledReason = disableReason,
-            )
-            ToggleRow(
-                L10n.t("每页独立取色"),
-                L10n.t("进入专辑等页面时改用该页封面配色"),
-                state.perPageColor,
-                coverSwitchEnabled,
-                onChange = onPerPageColor,
                 disabledReason = disableReason,
             )
             ToggleRow(
@@ -201,7 +186,7 @@ fun AppearanceScreen(
             Text(
                 when {
                     state.youTakeover -> L10n.t("Material You 生效中：封面相关开关与专辑锁色已禁用。")
-                    state.colorLocked -> L10n.t("已锁定专辑配色：渐变/每页取色暂不可用，解锁后恢复。")
+                    state.colorLocked -> L10n.t("已锁定专辑配色：渐变暂不可用，解锁后恢复。")
                     else -> L10n.t("以上开关按需组合；互相冲突时会自动禁用。")
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
@@ -296,9 +281,11 @@ private fun FloatSegmentedRow(
             Text(hint, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
         }
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 取最接近的一档：存档里可能是任意浮点（旧版本滑杆留下的 0.62 之类），
+            // 精确相等会让三档全部显示为未选中，看起来像"设置丢了"。
+            val nearestIndex = values.indices.minByOrNull { kotlin.math.abs(selected - values[it]) } ?: -1
             labels.forEachIndexed { i, label ->
-                val active = kotlin.math.abs(selected - values[i]) < 0.01f
-                PillButton(label, active, Modifier.weight(1f)) { onSelect(values[i]) }
+                PillButton(label, nearestIndex == i, Modifier.weight(1f)) { onSelect(values[i]) }
             }
         }
     }

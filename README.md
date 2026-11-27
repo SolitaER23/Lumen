@@ -15,13 +15,13 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 ## 功能
 
-- **首页**：专辑 / 艺人 / 最近 / 收藏四个分区；专辑多碟分页
-- **播放页**：歌词（逐行滚动、可点按跳转）、0–10 评分、下载、收藏、播放模式（列表 / 单曲 / 随机）
-- **最近**：最近播放按单曲展示（本地历史），最近添加按专辑，已下载单独一栏
+- **首页**：专辑 / 艺人两个分区；专辑多碟分页
+- **播放页**：歌词（逐行滚动、可点按跳转）、播放模式（列表 / 单曲 / 随机）
 - **多账号**：设置里保存多个 Navidrome 账号并切换，密码与令牌使用 Android Keystore 加密
 - **Navidrome Stat**：可选接入，展示播放统计
-- **交互**：返回与进入走同一条共享元素转场（对称、无闪跳）、首页二次返回确认、从点击位置展开的进入动画、封面交叉溶解、切歌音量淡入淡出
-- **离线**：边下边播缓存、整张专辑/单曲下载、独立的缓存清理
+- **交互**：封面是贯穿首页卡片 → 专辑页 hero → 播放页的同一个共享元素，返回时原路飞回（对称、无闪跳）；
+  全应用只有一层背景，页面不再各自绘制底色；从入口展开、切歌淡入淡出、首页二次返回确认
+- **缓存**：在线播放的流缓存、封面缓存与歌词缓存，可在设置里分别清理
 
 ## 已移除的端侧模型功能
 
@@ -32,7 +32,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 | 层 | 选型 |
 | --- | --- |
-| UI | Jetpack Compose（BOM 2026.11.01）+ Material 3（Expressive 风格） |
+| UI | Jetpack Compose（BOM 2026.11.01）+ Material 3 Expressive（`MaterialExpressiveTheme` + `MotionScheme.expressive()`） |
 | 图标 | `io.github.p2o51:yoin-symbols` 0.2.0 |
 | 音频 | Media3 ExoPlayer 1.11.1（磁盘缓存 + 解码失败自动转码兜底） |
 | 网络 | OkHttp 5.5.1 + Retrofit 3.0.0 + Gson 2.15.0（Subsonic token + salt 认证） |
@@ -54,7 +54,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - 支持 Android 8.0+、**arm64-v8a**；32 位设备无法安装；
 - 从 [GitHub Releases](https://github.com/SolitaER23/Lumen/releases) 下载 APK，需允许“安装未知应用”；
 - 新版本必须使用同一签名证书覆盖安装；正式证书与早期 debug 测试版不能互相覆盖；
-- 卸载会删除本机账号、历史、评分与下载（应用不启用云备份）；
+- 卸载会删除本机账号、播放历史、统计与缓存（应用不启用云备份）；
 - 详细步骤、校验方式与故障排查见 [docs/user-guide.md](docs/user-guide.md) 与 [docs/distribution.md](docs/distribution.md)。
 
 ## 隐私与支持
@@ -67,7 +67,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 
 ## 关键附件
 
-当前正式直发版本：**0.92.1 / versionCode 229**
+当前正式直发版本：**0.92.2 / versionCode 232**
 
 - [分发包与校验说明](docs/distribution.md)
 - [用户指南](docs/user-guide.md)
@@ -76,7 +76,7 @@ Android 上的自托管音乐播放器：**Kotlin + Jetpack Compose**，通过 S
 - [兼容性说明](docs/compatibility.md)
 - [Release CI](.github/workflows/release.yml)
 - 官方更新渠道：[GitHub Releases](https://github.com/SolitaER23/Lumen/releases)（应用内「设置 → 关于 → 检查更新」直达）
-- 分发包：`dist/Lumen-0.92.1.apk`、`dist/SHA256SUMS.txt`
+- 分发包：`dist/Lumen-0.92.2.apk`、`dist/SHA256SUMS.txt`
 - 发布后同步元数据：`python scripts/update-release-metadata.py`
 
 ## 构建
@@ -110,8 +110,8 @@ cd android
 ```
 android/app/src/main/java/app/lumen/player/
   MainActivity.kt        应用壳、导航与页面装配
-  data/                  配置/账号、Subsonic、缓存、统计、历史
-  playback/              ExoPlayer、下载服务与播放状态
+  data/                  配置/账号、Subsonic、缓存、统计
+  playback/              ExoPlayer、在线播放缓存与播放状态
   ui/                    各页面与主题/背景组件
 android/app/src/main/assets/
   licenses/              第三方许可全文

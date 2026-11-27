@@ -4,10 +4,10 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 版本 | `0.92.1` / `versionCode 229` |
-| APK | `Lumen-0.92.1.apk` |
-| 文件大小 | `3,365,994` 字节（约 3.2 MiB） |
-| SHA-256 | `D9DAF64162EBE77327CE3EB68EAEFCF3F6380BDAC132D5057F52493B7890B43B` |
+| 版本 | `0.92.2` / `versionCode 232` |
+| APK | `Lumen-0.92.2.apk` |
+| 文件大小 | `3,269,902` 字节（约 3.1 MiB） |
+| SHA-256 | `30E1845422C33A287513E9E0039665DB0E8C4CF84285CF44E4BBDB1A79D8286B` |
 | 签名证书 DN | `CN=Lumen, OU=Release, O=Lumen, L=Shanghai, ST=Shanghai, C=CN` |
 | 证书 SHA-256 | `c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37` |
 | 最低系统 | Android 8.0（API 26） |
@@ -47,12 +47,12 @@
 校验示例：
 
 ```bash
-sha256sum Lumen-0.92.1.apk
-# 应输出 D9DAF64162EBE77327CE3EB68EAEFCF3F6380BDAC132D5057F52493B7890B43B
+sha256sum Lumen-0.92.2.apk
+# 应输出 30E1845422C33A287513E9E0039665DB0E8C4CF84285CF44E4BBDB1A79D8286B
 ```
 
 ```bash
-apksigner verify --print-certs Lumen-0.92.1.apk
+apksigner verify --print-certs Lumen-0.92.2.apk
 # 证书 SHA-256 应为 c1b188500af0f966cfebec1c58de8908c8cccc4b3b6a65250fab02d43bd60a37
 ```
 
@@ -64,14 +64,14 @@ apksigner verify --print-certs Lumen-0.92.1.apk
 - 仅从上述官方渠道下载新 APK，并核对本文件与 `dist/SHA256SUMS.txt` 中的 SHA-256；
 - 不要使用来源不明的转存或二次打包版本；
 - 必须使用**同一签名证书**的新 APK 覆盖安装；
-- **0.50.0 起更换为正式证书**：早期 debug 签名测试版不能覆盖升级，需要卸载重装；卸载会清除本机账号、历史、评分与下载；
+- **0.50.0 起更换为正式证书**：早期 debug 签名测试版不能覆盖升级，需要卸载重装；卸载会清除本机账号、播放历史、统计与缓存；
 - 更新前建议记录服务器地址与账号。
 
 ## 卸载
 
 - 卸载会删除本机数据（应用不启用云备份）；
 - 如需保留使用记录，请先自行记录服务器与账号信息；
-- 设置 → 账号 →「清除本机数据」可在不卸载时清除账号、历史、评分、统计配置、下载与缓存。
+- 设置 → 账号 →「清除本机数据」可在不卸载时清除账号、播放历史、统计配置与缓存。
 
 ## 支持渠道
 
@@ -163,8 +163,8 @@ CI 手动 release 使用以下 secrets：
 - [x] `versionName` / `versionCode` / `targetSdk` 与 build.gradle.kts 一致
 - [ ] 16 KB page 校验：`llvm-readelf -l` 的 LOAD Align 为 `0x4000`
 - [x] SHA-256 与分发包一致（`sha256sum -c`）
-- [ ] 在 Pixel 10a 完成冒烟：登录、播放、后台播放、下载、通知、搜索
-- [ ] 同一签名覆盖安装上一版，账号/历史/评分数据保留
+- [ ] 在 Pixel 10a 完成冒烟：登录、播放、后台播放、通知、搜索、缓存清理
+- [ ] 同一签名覆盖安装上一版，账号/历史数据保留
 - [ ] 首次启动同意流程可拒绝并退出；同意后不再重复
 - [ ] HTTP 登录提示、通知权限、诊断复制可用
 - [ ] 保留 `mapping.txt` 与 keystore 离线备份
