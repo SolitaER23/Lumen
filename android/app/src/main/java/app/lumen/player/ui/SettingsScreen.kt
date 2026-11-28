@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
@@ -83,7 +84,7 @@ fun SettingsScreen(
     onClearSongCache: suspend () -> Unit = {},
     onClearImageCache: suspend () -> Unit = {},
     onClearLyricsCache: suspend () -> Unit = {},
-    contrast: Float = 0.45f,
+    contrast: Float = 0f,
     onContrast: (Float) -> Unit = {},
     themeMode: String = "system",
     onThemeMode: (String) -> Unit = {},
@@ -233,7 +234,7 @@ fun SettingsScreen(
             val appearanceScheme = MaterialTheme.colorScheme
             Surface(
                 onClick = { showAppearance = true },
-                shape = RoundedCornerShape(22.dp),
+                shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -244,8 +245,8 @@ fun SettingsScreen(
                     // 配色预览：直接取当前主题的 primary → tertiary，与"封面取色"的调性一致
                     Box(
                         Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(13.dp))
+                            .size(40.dp)
+                            .clip(MaterialTheme.shapes.small)
                             .background(
                                 Brush.linearGradient(
                                     listOf(appearanceScheme.primary, appearanceScheme.tertiary),
@@ -256,21 +257,24 @@ fun SettingsScreen(
                     Column(Modifier.weight(1f)) {
                         Text(
                             L10n.t("外观与主题"),
+                            style = MaterialTheme.typography.titleSmallEmphasized,
                             color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
                         )
                         Text(
                             appearanceSummary(themeMode, paletteStyle, contrast),
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
                     Spacer(Modifier.width(10.dp))
-                    Text("\u203A", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 18.sp)
+                    Text(
+                        "\u203A",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
             if (showAppearance) {
@@ -281,7 +285,7 @@ fun SettingsScreen(
                         decorFitsSystemWindows = false,
                     ),
                 ) {
-                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
                         AppearanceScreen(
                             state = AppearanceUiState(
                                 themeMode = themeMode,
@@ -293,6 +297,12 @@ fun SettingsScreen(
                                 pinned = pinned,
                                 youTakeover = materialYou,
                                 colorLocked = pinned,
+                                paletteStatus = paletteStatus,
+                                darkActive = when (themeMode) {
+                                    "dark" -> true
+                                    "light" -> false
+                                    else -> isSystemInDarkTheme()
+                                },
                             ),
                             onBack = { showAppearance = false },
                             onThemeMode = onThemeMode,
@@ -454,12 +464,12 @@ private fun ExpressiveSection(index: String, title: String, content: @Composable
                 Modifier
                     .size(26.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+                    .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     index,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     style = MaterialTheme.typography.labelSmallEmphasized,
                 )
             }
@@ -497,21 +507,16 @@ private fun ExpressiveSection(index: String, title: String, content: @Composable
 
 /** 「外观」模块的状态摘要：深浅 · 配色风格 · 对比度（全部取自已有设置状态，不新增交互）。 */
 private fun appearanceSummary(themeMode: String, paletteStyle: String, contrast: Float): String {
-    val mode = when (themeMode) {
-        "dark" -> L10n.tf("深色", "Dark")
-        "light" -> L10n.tf("浅色", "Light")
-        else -> L10n.tf("跟随系统", "System")
+    val mode = when (ThemeMode.of(themeMode)) {
+        ThemeMode.DARK -> L10n.tf("深色", "Dark")
+        ThemeMode.LIGHT -> L10n.tf("浅色", "Light")
+        ThemeMode.SYSTEM -> L10n.tf("跟随系统", "System")
     }
-    val style = when (PaletteStyle.of(paletteStyle)) {
-        PaletteStyle.TONAL -> L10n.tf("色相", "Tonal")
-        PaletteStyle.VIBRANT -> L10n.tf("活力", "Vibrant")
-        PaletteStyle.EXPRESSIVE -> L10n.tf("表现", "Expressive")
-        PaletteStyle.NEUTRAL -> L10n.tf("中性", "Neutral")
-    }
-    val tone = when {
-        contrast >= 0.7f -> L10n.tf("最高对比", "Max contrast")
-        contrast >= 0.3f -> L10n.tf("增强对比", "High contrast")
-        else -> L10n.tf("标准对比", "Standard contrast")
+    val style = PaletteStyle.of(paletteStyle).let { if (L10n.lang == "en") it.labelEn else it.label }
+    val tone = when (ContrastLevel.nearest(contrast)) {
+        ContrastLevel.STANDARD -> L10n.tf("标准对比", "Standard contrast")
+        ContrastLevel.MEDIUM -> L10n.tf("中等对比", "Medium contrast")
+        ContrastLevel.HIGH -> L10n.tf("最高对比", "Max contrast")
     }
     return "$mode · $style · $tone"
 }

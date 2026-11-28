@@ -5,23 +5,29 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.toArgb
+import dynamiccolor.ColorSpec.SpecVersion
+import dynamiccolor.DynamicColor
+import dynamiccolor.DynamicScheme
+import dynamiccolor.DynamicScheme.Platform
 import dynamiccolor.MaterialDynamicColors
 import hct.Hct
+import org.json.JSONArray
 import scheme.SchemeExpressive
 import scheme.SchemeNeutral
 import scheme.SchemeTonalSpot
 import scheme.SchemeVibrant
-import org.json.JSONArray
 
-/** 主题风格档：决定用 MCU 的哪套 Scheme。 */
-enum class PaletteStyle(val key: String, val label: String) {
-    TONAL("tonal", "色相"),
-    VIBRANT("vibrant", "活力"),
-    EXPRESSIVE("expressive", "表现"),
-    NEUTRAL("neutral", "中性"),
+/**
+ * 配色风格档：与 Material Color Utilities 的官方 Variant 一一对应。
+ *
+ * 只暴露产品真正会用到的四档；其余 Variant（fidelity / content / monochrome /
+ * fruit_salad / rainbow）没有入口，避免设置页出现"看起来差不多"的选项。
+ */
+enum class PaletteStyle(val key: String, val label: String, val labelEn: String) {
+    TONAL("tonal", "色调", "Tonal"),
+    VIBRANT("vibrant", "活力", "Vibrant"),
+    EXPRESSIVE("expressive", "表现", "Expressive"),
+    NEUTRAL("neutral", "中性", "Neutral"),
     ;
 
     companion object {
@@ -41,14 +47,43 @@ enum class ThemeMode(val key: String) {
     }
 }
 
+/**
+ * 对比度档位：沿用 Google 的 MCU 对比度刻度（0 = 设计标准，1 = 最高）。
+ *
+ * 平台侧（Android 12+ 的「对比度」设置、Material Theme Builder）暴露的也就是这三档，
+ * 这里保持同一组数字，避免出现 0.45 / 0.7 这种既不是标准档、也无法和系统对齐的取值。
+ */
+enum class ContrastLevel(val level: Float, val label: String, val labelEn: String) {
+    STANDARD(0f, "标准", "Standard"),
+    MEDIUM(0.5f, "中等", "Medium"),
+    HIGH(1f, "最高", "High"),
+    ;
+
+    companion object {
+        /** 旧版本存过任意浮点（0.45、0.62…）：按最近档位归一，避免出现"三档全不选中"。 */
+        fun nearest(value: Float): ContrastLevel =
+            entries.minByOrNull { kotlin.math.abs(it.level - value) } ?: STANDARD
+    }
+}
+
 /** 一次配色构建需要的全部开关。 */
 data class ThemeOptions(
-    val contrast: Float = 0.45f,
+    val contrast: Float = 0f,
     val isDark: Boolean = true,
     val style: PaletteStyle = PaletteStyle.TONAL,
     val amoled: Boolean = false,
     val gradient: Boolean = false,
 )
+
+/**
+ * 生成配色使用的规范版本。
+ *
+ * material3 1.5（M3 Expressive）以及本仓库内置的 MaterialDynamicColors 都按 2025 规范的
+ * 角色/色调映射取值，因此调色板也必须用同一版规范生成；混用 2021 调色板会得到
+ * "色调来自 2025、色度来自 2021"的半套配色。
+ */
+private val SPEC = SpecVersion.SPEC_2025
+private val PLATFORM = Platform.PHONE
 
 private const val SEED_MIN_CHROMA = 18.0
 private const val SEED_MAX_CHROMA = 92.0
@@ -66,69 +101,98 @@ fun constrainSeed(argb: Int): Int {
     return Hct.from(hct.hue, chroma, tone).toInt()
 }
 
-private fun schemeOf(
-    style: PaletteStyle,
-    seedHct: Hct,
-    isDark: Boolean,
-    contrast: Double,
-): dynamiccolor.DynamicScheme = when (style) {
-    PaletteStyle.TONAL -> SchemeTonalSpot(seedHct, isDark, contrast)
-    PaletteStyle.VIBRANT -> SchemeVibrant(seedHct, isDark, contrast)
-    PaletteStyle.EXPRESSIVE -> SchemeExpressive(seedHct, isDark, contrast)
-    PaletteStyle.NEUTRAL -> SchemeNeutral(seedHct, isDark, contrast)
-}
+private fun schemeOf(style: PaletteStyle, seedHct: Hct, isDark: Boolean, contrast: Double): DynamicScheme =
+    when (style) {
+        PaletteStyle.TONAL -> SchemeTonalSpot(seedHct, isDark, contrast, SPEC, PLATFORM)
+        PaletteStyle.VIBRANT -> SchemeVibrant(seedHct, isDark, contrast, SPEC, PLATFORM)
+        PaletteStyle.EXPRESSIVE -> SchemeExpressive(seedHct, isDark, contrast, SPEC, PLATFORM)
+        PaletteStyle.NEUTRAL -> SchemeNeutral(seedHct, isDark, contrast, SPEC, PLATFORM)
+    }
 
-private fun mdcScheme(style: PaletteStyle, seed: Int, opts: ThemeOptions): ColorScheme {
-    val scheme = schemeOf(style, Hct.fromInt(constrainSeed(seed)), opts.isDark, opts.contrast.toDouble())
+/**
+ * 把 MCU 的 49 个色彩角色**一个不落地**映射到 Compose 的 ColorScheme。
+ *
+ * 早先只映射了二十多个角色，其余（品牌固定色、scrim、surfaceTint、surfaceContainerLow
+ * 之类）回退到 `darkColorScheme()/lightColorScheme()` 的默认值——那不是"没设"，而是
+ * 一套紫色的基线配色，任何用到它们的组件都会突然冒出和封面无关的紫色。
+ */
+internal fun colorSchemeFrom(scheme: DynamicScheme): ColorScheme {
     val mdc = MaterialDynamicColors()
-    fun c(role: dynamiccolor.DynamicColor): Color = Color(role.getArgb(scheme))
-    val builder = if (opts.isDark) darkColorScheme() else lightColorScheme()
-    val cs = builder.copy(
+    fun c(role: DynamicColor): Color = Color(role.getArgb(scheme))
+    val base = if (scheme.isDark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        // 主色
         primary = c(mdc.primary()),
         onPrimary = c(mdc.onPrimary()),
         primaryContainer = c(mdc.primaryContainer()),
         onPrimaryContainer = c(mdc.onPrimaryContainer()),
         inversePrimary = c(mdc.inversePrimary()),
+        primaryFixed = c(mdc.primaryFixed()),
+        primaryFixedDim = c(mdc.primaryFixedDim()),
+        onPrimaryFixed = c(mdc.onPrimaryFixed()),
+        onPrimaryFixedVariant = c(mdc.onPrimaryFixedVariant()),
+        // 辅助色
         secondary = c(mdc.secondary()),
         onSecondary = c(mdc.onSecondary()),
         secondaryContainer = c(mdc.secondaryContainer()),
         onSecondaryContainer = c(mdc.onSecondaryContainer()),
+        secondaryFixed = c(mdc.secondaryFixed()),
+        secondaryFixedDim = c(mdc.secondaryFixedDim()),
+        onSecondaryFixed = c(mdc.onSecondaryFixed()),
+        onSecondaryFixedVariant = c(mdc.onSecondaryFixedVariant()),
+        // 第三色
         tertiary = c(mdc.tertiary()),
         onTertiary = c(mdc.onTertiary()),
         tertiaryContainer = c(mdc.tertiaryContainer()),
         onTertiaryContainer = c(mdc.onTertiaryContainer()),
+        tertiaryFixed = c(mdc.tertiaryFixed()),
+        tertiaryFixedDim = c(mdc.tertiaryFixedDim()),
+        onTertiaryFixed = c(mdc.onTertiaryFixed()),
+        onTertiaryFixedVariant = c(mdc.onTertiaryFixedVariant()),
+        // 错误
         error = c(mdc.error()),
         onError = c(mdc.onError()),
         errorContainer = c(mdc.errorContainer()),
         onErrorContainer = c(mdc.onErrorContainer()),
-        background = c(mdc.surfaceContainer()),
-        surface = c(mdc.surfaceContainer()),
+        // 表面：surface 是画布，surfaceContainer* 是叠在画布上的层级（越大越"高"）
+        background = c(mdc.surface()),
         onBackground = c(mdc.onSurface()),
+        surface = c(mdc.surface()),
         onSurface = c(mdc.onSurface()),
-        surfaceVariant = c(mdc.surfaceVariant()),
-        onSurfaceVariant = c(mdc.onSurfaceVariant()),
-        surfaceContainerLowest = c(mdc.surface()),
+        surfaceDim = c(mdc.surfaceDim()),
+        surfaceBright = c(mdc.surfaceBright()),
+        surfaceContainerLowest = c(mdc.surfaceContainerLowest()),
         surfaceContainerLow = c(mdc.surfaceContainerLow()),
         surfaceContainer = c(mdc.surfaceContainer()),
         surfaceContainerHigh = c(mdc.surfaceContainerHigh()),
         surfaceContainerHighest = c(mdc.surfaceContainerHighest()),
-        outline = c(mdc.outline()),
-        outlineVariant = c(mdc.outlineVariant()),
+        // surfaceVariant 是 M2 遗留语义（M3 里只做次级表面），保留以兼容存量组件
+        surfaceVariant = c(mdc.surfaceVariant()),
+        onSurfaceVariant = c(mdc.onSurfaceVariant()),
+        surfaceTint = c(mdc.surfaceTint()),
         inverseSurface = c(mdc.inverseSurface()),
         inverseOnSurface = c(mdc.inverseOnSurface()),
-        surfaceBright = c(mdc.surfaceBright()),
-        surfaceDim = c(mdc.surfaceDim()),
+        outline = c(mdc.outline()),
+        outlineVariant = c(mdc.outlineVariant()),
+        scrim = c(mdc.scrim()),
     )
+}
+
+private fun mdcScheme(style: PaletteStyle, seed: Int, opts: ThemeOptions): ColorScheme {
+    val scheme = schemeOf(style, Hct.fromInt(constrainSeed(seed)), opts.isDark, opts.contrast.toDouble())
+    val cs = colorSchemeFrom(scheme)
     // AMOLED 只在深色模式生效：浅色模式下即使开关仍为开，也不能把底色压黑
     return if (opts.amoled && opts.isDark) amoledOf(cs) else cs
 }
 
 /**
- * 封面渐变主题：主色取种子 1，副色/第三色取评分第 2、3 名，容器与前景仍来自各自方案，
- * 得到一个多色但不打架的配色。
+ * 封面渐变主题：主色取种子 1，副色/第三色取评分第 2、3 名。
+ *
+ * 在**完整**的基底配色上只替换 secondary / tertiary 两族角色（含它们的固定色），
+ * 其余角色仍来自同一次 MCU 计算，不引入第二套基线值。
  */
 private fun gradientScheme(seeds: List<Int>, opts: ThemeOptions): ColorScheme {
-    val base = mdcScheme(opts.style, seeds.firstOrNull() ?: 0xFF4F6BFF.toInt(), opts)
+    val base = mdcScheme(opts.style, seeds.firstOrNull() ?: BRAND_SEEDS[0], opts)
     if (seeds.size < 2) return base
     val s2 = mdcScheme(opts.style, seeds[1], opts)
     val s3 = if (seeds.size > 2) mdcScheme(opts.style, seeds[2], opts) else s2
@@ -137,117 +201,64 @@ private fun gradientScheme(seeds: List<Int>, opts: ThemeOptions): ColorScheme {
         onSecondary = s2.onPrimary,
         secondaryContainer = s2.primaryContainer,
         onSecondaryContainer = s2.onPrimaryContainer,
+        secondaryFixed = s2.primaryFixed,
+        secondaryFixedDim = s2.primaryFixedDim,
+        onSecondaryFixed = s2.onPrimaryFixed,
+        onSecondaryFixedVariant = s2.onPrimaryFixedVariant,
         tertiary = s3.primary,
         onTertiary = s3.onPrimary,
         tertiaryContainer = s3.primaryContainer,
         onTertiaryContainer = s3.onPrimaryContainer,
+        tertiaryFixed = s3.primaryFixed,
+        tertiaryFixedDim = s3.primaryFixedDim,
+        onTertiaryFixed = s3.onPrimaryFixed,
+        onTertiaryFixedVariant = s3.onPrimaryFixedVariant,
     )
 }
 
 /** 构建一套配色（种子可 1~3 个）。 */
 fun buildScheme(seeds: List<Int>, opts: ThemeOptions): ColorScheme {
-    if (seeds.isEmpty()) return fallbackScheme(opts.isDark, opts.amoled)
+    if (seeds.isEmpty()) return fallbackScheme(opts.isDark, opts.amoled, opts.contrast)
     return if (opts.gradient && seeds.size > 1) gradientScheme(seeds, opts) else mdcScheme(opts.style, seeds.first(), opts)
 }
 
-/** AMOLED：把底色压到纯黑，容器压到近黑，保留前景对比。 */
+/**
+ * AMOLED：只把**画布**压到纯黑（surface / background / surfaceDim / lowest），
+ * 卡片等容器保持规范里的色调层级。
+ *
+ * 早先把所有容器一起压成同一个近黑色，等于把"用色调表达层级"这件事抹平了——
+ * 打开 AMOLED 后卡片和背景分不开，层级只能靠描边硬撑。
+ */
 fun amoledOf(src: ColorScheme): ColorScheme {
     val black = Color(0xFF000000)
-    val near = Color(0xFF070708)
     return src.copy(
         background = black,
         surface = black,
         surfaceDim = black,
         surfaceContainerLowest = black,
-        surfaceContainerLow = near,
-        surfaceContainer = near,
-        surfaceContainerHigh = near,
-        surfaceContainerHighest = near,
-        surfaceBright = near,
     )
 }
 
-/** 首页低频变体（P1-1）：淡化主色并让容器向封面色轻微靠拢，保留封面的"存在感"。 */
-fun mutedForHome(src: ColorScheme, isDark: Boolean): ColorScheme {
-    fun desat(c: Color, k: Float): Color {
-        val h = Hct.fromInt(c.toArgb())
-        return Color(Hct.from(h.hue, h.chroma * k, h.tone).toInt())
-    }
-    if (!isDark) {
-        val bg = lerp(Color(0xFFFAF9FC), src.surfaceContainer, 0.25f)
-        val card = lerp(Color(0xFFF0EEF3), src.surfaceContainerHigh, 0.30f)
-        return lightColorScheme(
-            primary = desat(src.primary, 0.60f),
-            onPrimary = Color.White,
-            primaryContainer = lerp(Color(0xFFE6E1EA), src.primaryContainer, 0.45f),
-            onPrimaryContainer = Color(0xFF1B1B1F),
-            secondary = desat(src.secondary, 0.55f),
-            onSecondary = Color.White,
-            tertiary = desat(src.tertiary, 0.55f),
-            background = bg,
-            onBackground = Color(0xFF1B1B1F),
-            surface = bg,
-            onSurface = Color(0xFF1B1B1F),
-            surfaceVariant = card,
-            onSurfaceVariant = Color(0xFF47464F),
-            surfaceContainer = card,
-            surfaceContainerHigh = card,
-            surfaceContainerHighest = card,
-            surfaceContainerLow = card,
-            outline = Color(0xFF74737B),
-            outlineVariant = Color(0xFFC9C7CF),
-        )
-    }
-    val bg = lerp(HomeBg, src.surfaceContainer, 0.22f)
-    val card = lerp(HomeCard, src.surfaceContainerHigh, 0.28f)
-    return darkColorScheme(
-        primary = desat(src.primary, 0.55f),
-        onPrimary = src.onPrimary,
-        primaryContainer = lerp(HomeCard, src.primaryContainer, 0.35f),
-        onPrimaryContainer = HomeText,
-        secondary = desat(src.secondary, 0.5f),
-        onSecondary = src.onBackground,
-        tertiary = desat(src.tertiary, 0.5f),
-        background = bg,
-        onBackground = HomeText,
-        surface = bg,
-        onSurface = HomeText,
-        surfaceVariant = card,
-        onSurfaceVariant = HomeSub,
-        surfaceContainer = card,
-        surfaceContainerHigh = lerp(card, src.surfaceContainerHigh, 0.4f),
-        surfaceContainerHighest = lerp(card, src.surfaceContainerHighest, 0.5f),
-        surfaceContainerLow = card,
-        outline = HomeSub,
-        outlineVariant = Color(0xFF2A2A30),
-    )
-}
+/**
+ * 品牌兜底配色：没有封面、取色失败、登录页与引导页都用它。
+ *
+ * 由 MCU 从三枚品牌色生成（红 + 青 + 金），角色齐全、配对与对比度由算法保证；
+ * 早先这里是手写的十几个色值，剩下的角色回落到 M3 基线紫。
+ */
+private val BRAND_SEEDS = listOf(0xFFE04A5F.toInt(), 0xFF6FD3C7.toInt(), 0xFFF2C36B.toInt())
 
-/** 无封面/取色失败时的兜底（P1-3），浅色模式单独一套。 */
-fun fallbackScheme(isDark: Boolean, amoled: Boolean = false): ColorScheme =
-    if (isDark) (if (amoled) amoledOf(FallbackScheme) else FallbackScheme) else FallbackLight
+fun brandScheme(isDark: Boolean, amoled: Boolean = false, contrast: Float = 0f): ColorScheme =
+    gradientScheme(
+        BRAND_SEEDS,
+        ThemeOptions(contrast = contrast, isDark = isDark, amoled = false, gradient = true),
+    ).let { if (amoled && isDark) amoledOf(it) else it }
 
-val FallbackLight: ColorScheme = lightColorScheme(
-    primary = Color(0xFFB3253A),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFFFD9DD),
-    onPrimaryContainer = Color(0xFF40000D),
-    secondary = Color(0xFF00695F),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFB9F2EA),
-    onSecondaryContainer = Color(0xFF00201C),
-    tertiary = Color(0xFF7A5900),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFFFE7B8),
-    onTertiaryContainer = Color(0xFF261A00),
-    background = Color(0xFFFAF9FC),
-    surface = Color(0xFFFAF9FC),
-    onSurface = Color(0xFF1B1B1F),
-    onSurfaceVariant = Color(0xFF47464F),
-    surfaceContainer = Color(0xFFEFEDF2),
-    surfaceContainerHigh = Color(0xFFE9E7EC),
-    outlineVariant = Color(0xFFC9C7CF),
-)
+/** 无封面/取色失败时的兜底（P1-3），浅色与深色各一套。 */
+fun fallbackScheme(isDark: Boolean, amoled: Boolean = false, contrast: Float = 0f): ColorScheme =
+    brandScheme(isDark, amoled, contrast)
+
+val FallbackScheme: ColorScheme by lazy { brandScheme(isDark = true) }
+val FallbackLight: ColorScheme by lazy { brandScheme(isDark = false) }
 
 /**
  * 封面种子持久化（P2-2）：albumId → 1~3 个种子 ARGB。
@@ -279,14 +290,4 @@ object PaletteStore {
     fun clear(ctx: Context) {
         runCatching { ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().clear().apply() }
     }
-}
-
-/** 事件光斑对比度校验（P2-4）：与底色亮度差不足时提亮。 */
-fun ensureLuminous(color: Color, base: Color, minDelta: Float = 0.22f): Color {
-    val lc = color.luminance()
-    val lb = base.luminance()
-    if (kotlin.math.abs(lc - lb) >= minDelta) return color
-    val target = if (lb > 0.5f) (lb - minDelta).coerceAtLeast(0f) else (lb + minDelta).coerceAtMost(1f)
-    val h = Hct.fromInt(color.toArgb())
-    return Color(Hct.from(h.hue, h.chroma, (target * 100f).coerceIn(0f, 100f).toDouble()).toInt())
 }

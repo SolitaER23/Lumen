@@ -130,10 +130,6 @@ import app.lumen.player.ui.SearchScreen
 import androidx.compose.ui.graphics.toArgb
 import app.lumen.player.ui.FallbackScheme
 import app.lumen.player.ui.LicensesScreen
-import app.lumen.player.ui.HomeCard
-import app.lumen.player.ui.HomeText
-import app.lumen.player.ui.HomeSub
-import app.lumen.player.ui.HomeAccent
 import app.lumen.player.ui.YoinBar
 import app.lumen.player.ui.HomeScreen
 import app.lumen.player.ui.albumSharedElement
@@ -306,6 +302,21 @@ private fun App() {
                 isAppearanceLightStatusBars = !isDarkTheme
                 isAppearanceLightNavigationBars = !isDarkTheme
             }
+        }
+    }
+    // Android 14 及更早：系统栏是实色，颜色必须跟着应用自己的主题走，
+    // 否则「系统浅色 + 应用强制深色」时顶部/底部会留一条白边。
+    // Android 15+ 强制 edge-to-edge，这两个属性被系统忽略，无需分支。
+    @Suppress("DEPRECATION")
+    androidx.compose.runtime.LaunchedEffect(animatedScheme.surface) {
+        val act = generateSequence(rootView.context) { (it as? android.content.ContextWrapper)?.baseContext }
+            .filterIsInstance<android.app.Activity>()
+            .firstOrNull()
+        if (act != null && Build.VERSION.SDK_INT < 35) {
+            val barColor = animatedScheme.surface.toArgb()
+            act.window.statusBarColor = barColor
+            act.window.navigationBarColor = barColor
+            if (Build.VERSION.SDK_INT >= 29) act.window.isNavigationBarContrastEnforced = false
         }
     }
     val themeOpts = app.lumen.player.ui.ThemeOptions(
@@ -893,21 +904,21 @@ private fun App() {
             }.getOrNull()
             if (you != null) {
                 scheme = if (amoledOn && isDarkTheme) app.lumen.player.ui.amoledOf(you) else you
-                paletteStatus = "系统配色（Material You）"
+                paletteStatus = L10n.tf("系统配色（Material You）", "System color (Material You)")
                 return@LaunchedEffect
             }
         }
         val pinned = app.lumen.player.data.Appearance.pinnedSeeds(ctx)
         if (pinnedAlbumId != null && pinned != null) {
             scheme = app.lumen.player.ui.buildScheme(pinned, themeOpts)
-            paletteStatus = "已锁定专辑配色"
+            paletteStatus = L10n.tf("已锁定专辑配色", "Album palette locked")
             return@LaunchedEffect
         }
         // 0) 本地网络权限（Android 17）：被拒时表现为"无法连接"，必须优先判定
         val t = current
         if (t == null) {
-            scheme = app.lumen.player.ui.fallbackScheme(isDarkTheme, amoledOn)
-            paletteStatus = "默认配色"
+            scheme = app.lumen.player.ui.fallbackScheme(isDarkTheme, amoledOn, contrast)
+            paletteStatus = L10n.tf("默认配色", "Default palette")
             return@LaunchedEffect
         }
         val s = schemeFromCover(
@@ -918,11 +929,11 @@ private fun App() {
         )
         if (s != null) {
             scheme = s
-            paletteStatus = "封面取色"
+            paletteStatus = L10n.tf("封面取色", "Tinted from cover")
         } else {
             // P1-3：取色失败显式降级，不再沿用上一张封面
-            scheme = app.lumen.player.ui.fallbackScheme(isDarkTheme, amoledOn)
-            paletteStatus = "已降级：本张封面取色失败"
+            scheme = app.lumen.player.ui.fallbackScheme(isDarkTheme, amoledOn, contrast)
+            paletteStatus = L10n.tf("已降级：本张封面取色失败", "Fallback: cover tint failed")
         }
     }
 

@@ -36,7 +36,7 @@ data class ServerConfig(
 }
 
 /**
- * 外观偏好：MCU 对比度（0=标准，0.5=中，1=高）。
+ * 外观偏好：MCU 对比度（0 = 标准，0.5 = 中等，1 = 最高）。
  *
  * 与登录凭据分开存放（历史版本共用 lumen_settings，导致「退出登录」会连带把
  * 主题/对比度/淡入淡出一起清空）。旧文件保留不删，便于回滚。
@@ -73,20 +73,28 @@ object Appearance {
         editor.putBoolean(KEY_MIGRATED, true).commit()
     }
 
-    /** 对比度：0 = 标准 / 0.45 = 增强 / 0.7 = 最高（旧值 1.0 收敛到 0.7）。 */
+    /**
+     * 对比度：Google 的三档刻度（0 / 0.5 / 1）。
+     *
+     * 历史版本存过 0.45、0.7 这类自造档位，甚至滑杆留下的任意浮点：
+     * 读取时按最近档位归一（>0.6 视为最高，>0.2 视为中等），并把归一后的值写回，
+     * 保证设置页永远有一个档位是选中状态。
+     */
     fun contrast(ctx: Context): Float {
         val p = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
-        val v = p.getFloat(KEY_CONTRAST, 0.45f)
-        if (v > 0.7f) {
-            p.edit().putFloat(KEY_CONTRAST, 0.7f).apply()
-            return 0.7f
+        val raw = p.getFloat(KEY_CONTRAST, 0f)
+        val level = when {
+            raw <= 0.2f -> 0f
+            raw < 0.6f -> 0.5f
+            else -> 1f
         }
-        return v
+        if (level != raw) p.edit().putFloat(KEY_CONTRAST, level).apply()
+        return level
     }
 
     fun setContrast(ctx: Context, value: Float) {
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
-            .putFloat(KEY_CONTRAST, value.coerceIn(0f, 0.7f)).apply()
+            .putFloat(KEY_CONTRAST, value.coerceIn(0f, 1f)).apply()
     }
 
     // ---------- 主题 / 配色偏好 ----------

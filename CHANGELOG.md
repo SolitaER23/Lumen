@@ -19,6 +19,23 @@
 
 ---
 
+## [0.93.0] - 2026-11-28
+
+### 外观与主题按 Material 3 官方规范校准
+
+- 配色改用 **2025 规范口径**（与 material3 1.5 / M3 Expressive 对齐）：此前调色板按 2021 规范生成、角色按 2025 规范取色，得到"色调来自新规范、色度来自旧规则"的半套配色；
+- **49 个色彩角色全部由 MCU 生成**：补齐 primary / secondary / tertiary 的 Fixed 系列、`surfaceTint`、`scrim` 等此前回落到 M3 基线（紫色）的角色，任何组件都不会再冒出与封面无关的紫色；
+- **修正表面层级**：`surface` 是画布，`surfaceContainerLowest → Highest` 严格单调（深色越叠越亮、浅色越叠越暗）；此前 `surface` 直接取 `surfaceContainer`、`surfaceContainerLowest` 取 `surface`，层级顺序被打乱；
+- **AMOLED 只压画布**：`surface` 压到纯黑，卡片保留色调层级；此前把所有容器压成同一个近黑色，卡片和背景分不开、只能靠描边撑；
+- 无封面 / 取色失败时的品牌兜底配色改由 MCU 从「红 + 青 + 金」三枚种子生成，不再手写十几个色值、把其余角色留给紫色基线；
+- **对比度改为 Google 的三档**（标准 0 / 中等 0.5 / 最高 1）：此前是 0 / 0.45 / 0.7 的自造刻度，既不是标准档也无法和系统「对比度」对齐；旧值读取时按最近档位归一并写回；
+- 外观页改回官方 M3 结构：`Scaffold` + `TopAppBar` + `ListItem` + `Switch` + `SegmentedButton`，字阶 / 形状 / 容器色全部取 token（不再写 10sp、13sp 与 30dp 圆角）；开关整行可点，触控目标 ≥48dp；
+- 外观页新增「当前配色」色板：把 primary / secondary / tertiary 与三个容器色直接摊开，改档位时能立刻看到结果；
+- Material You 在 Android 12 以下显示为不可用并给出原因；AMOLED 只在深色模式下可开；被动态取色或锁色接管时，相关开关的说明文字直接变成原因；
+- 切歌配色过渡补齐整层表面与容器色插值，卡片不会在过渡中"陷进"背景；
+- 系统栏颜色跟随应用自己的深浅色（Android 14 及更早），修正「系统浅色 + 应用强制深色」时顶部/底部残留的白边；
+- 新增 `ThemeConformanceTest`：角色完整性、WCAG 对比度、表面层级单调、AMOLED、对比度档位、品牌兜底、风格色度共 7 项回归。
+
 ## [0.92.2] - 2026-11-28
 
 ### Material 3 Expressive 界面重做

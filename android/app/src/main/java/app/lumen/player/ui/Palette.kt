@@ -2,41 +2,11 @@ package app.lumen.player.ui
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.ui.graphics.Color
-import blend.Blend
-import hct.Hct
 import quantize.QuantizerCelebi
 import score.Score
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-
-/** 默认主题（没有封面取色时）。 */
-val FallbackScheme: ColorScheme = darkColorScheme(
-    primary = Color(0xFFE04A5F),
-    onPrimary = Color(0xFF1C0A0D),
-    primaryContainer = Color(0xFF5A1E27),
-    onPrimaryContainer = Color(0xFFFFD9DD),
-    secondary = Color(0xFF6FD3C7),
-    onSecondary = Color(0xFF06302C),
-    secondaryContainer = Color(0xFF16413C),
-    onSecondaryContainer = Color(0xFFB9F2EA),
-    tertiary = Color(0xFFF2C36B),
-    onTertiary = Color(0xFF3A2A05),
-    tertiaryContainer = Color(0xFF4A3712),
-    onTertiaryContainer = Color(0xFFFFE7B8),
-    inversePrimary = Color(0xFF8FB6FF),
-    surface = Color(0xFF202126),
-    surfaceContainer = Color(0xFF26272D),
-    surfaceContainerHigh = Color(0xFF2E2F36),
-    onSurface = Color(0xFFE8E9ED),
-    onSurfaceVariant = Color(0xFFA9ABB3),
-    outlineVariant = Color(0xFF3A3B40),
-)
 
 /** 取色不再自己请求：直接向 Coil 要 200px 位图，命中列表已加载的缓存，零额外流量。 */
 private suspend fun coverBitmap(ctx: Context, url: String): Bitmap? = withContext(Dispatchers.IO) {

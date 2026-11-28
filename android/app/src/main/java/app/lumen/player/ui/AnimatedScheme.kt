@@ -41,7 +41,12 @@ fun rememberAnimatedColorScheme(target: ColorScheme): ColorScheme {
     return interpolate(from.value, target, step)
 }
 
-/** 只对 6 个关键角色做插值，其余取目标值。 */
+/**
+ * 只插值「会随封面大幅变化」的角色，其余取目标值。
+ *
+ * 表面层级要**整层**一起插值：只动 surface、不动 surfaceContainerLow/High 的话，
+ * 卡片会在过渡中短暂"陷进"背景里，看起来像闪了一下。
+ */
 private fun interpolate(a: ColorScheme, b: ColorScheme, step: Int): ColorScheme {
     val key = a.hashCode().toString() + "|" + b.hashCode() + "|" + step
     lerpCache.get(key)?.let { return it }
@@ -49,11 +54,24 @@ private fun interpolate(a: ColorScheme, b: ColorScheme, step: Int): ColorScheme 
     fun m(x: Color, y: Color): Color = if (t >= 1f) y else lerp(x, y, t)
     val cs = b.copy(
         primary = m(a.primary, b.primary),
+        primaryContainer = m(a.primaryContainer, b.primaryContainer),
+        onPrimary = m(a.onPrimary, b.onPrimary),
+        onPrimaryContainer = m(a.onPrimaryContainer, b.onPrimaryContainer),
         secondary = m(a.secondary, b.secondary),
+        secondaryContainer = m(a.secondaryContainer, b.secondaryContainer),
         tertiary = m(a.tertiary, b.tertiary),
+        tertiaryContainer = m(a.tertiaryContainer, b.tertiaryContainer),
         surface = m(a.surface, b.surface),
+        surfaceDim = m(a.surfaceDim, b.surfaceDim),
+        surfaceBright = m(a.surfaceBright, b.surfaceBright),
+        surfaceContainerLowest = m(a.surfaceContainerLowest, b.surfaceContainerLowest),
+        surfaceContainerLow = m(a.surfaceContainerLow, b.surfaceContainerLow),
         surfaceContainer = m(a.surfaceContainer, b.surfaceContainer),
+        surfaceContainerHigh = m(a.surfaceContainerHigh, b.surfaceContainerHigh),
+        surfaceContainerHighest = m(a.surfaceContainerHighest, b.surfaceContainerHighest),
         onSurface = m(a.onSurface, b.onSurface),
+        onSurfaceVariant = m(a.onSurfaceVariant, b.onSurfaceVariant),
+        outline = m(a.outline, b.outline),
     )
     lerpCache.put(key, cs)
     return cs
