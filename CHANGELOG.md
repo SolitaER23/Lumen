@@ -19,6 +19,21 @@
 
 ---
 
+## [0.94.0] - 2026-11-28
+
+### 全应用触感反馈
+
+- 新增统一触感入口 `LumenHaptics`：按 **Android / Material 的触感语义**分档（`VirtualKey` 轻点、
+  `ContextClick` 进入详情、`Confirm` 提交、`Reject` 失败、`ToggleOn/Off` 开关、`SegmentTick` 分段切换、
+  `LongPress` 长按、`GestureThresholdActivate` 跨过阈值、`GestureEnd` 手势结束），
+  不同机型给出对应强度与纹理，而不是"每个交互同一个长震"；
+- 覆盖面：播放 / 暂停（Confirm）、上一首 / 下一首（轻点）、进度条拖动（阈值 + 松手）、歌词行点按定位、
+  分段按钮 / 标签页 / 筛选芯片（SegmentTick）、开关与歌词开关（ToggleOn/Off）、专辑卡与列表进入详情（ContextClick）、
+  长按版本号看更新日志（LongPress）、登录失败（Reject）、错误态重试、对话框确认 / 取消、各页返回按钮；
+- 尊重系统「触摸时振动」开关（由平台 `HapticFeedbackConstants` 处理，应用不再重复判断）；
+  另加应用内总开关「外观 → 触感与动效 → 触感反馈」，关闭后所有调用点立即静音、无需重启；
+- 外观页把「氛围动效」与新的「触感反馈」合并为「触感与动效」分组。
+
 ## [0.93.0] - 2026-11-28
 
 ### 外观与主题按 Material 3 官方规范校准

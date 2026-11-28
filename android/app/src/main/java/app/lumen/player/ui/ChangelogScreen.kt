@@ -37,6 +37,7 @@ fun ChangelogScreen(onBack: () -> Unit) {
     // 页面内返回按钮 / 系统返回统一走同一入口
     androidx.activity.compose.BackHandler { onBack() }
     val ctx = LocalContext.current
+    val haptics = rememberLumenHaptics()
     val text by produceState("", Unit) {
         value = withContext(Dispatchers.IO) {
             runCatching {
@@ -58,7 +59,12 @@ fun ChangelogScreen(onBack: () -> Unit) {
     ) {
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
+                IconButton(
+                    onClick = {
+                        haptics.tap()
+                        onBack()
+                    },
+                ) {
                     Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Column {

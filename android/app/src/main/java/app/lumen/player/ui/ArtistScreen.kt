@@ -259,8 +259,12 @@ private fun ArtistAlbumCard(
     onOpen: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val haptics = rememberLumenHaptics()
     Surface(
-        onClick = onOpen,
+        onClick = {
+            haptics.navigate()
+            onOpen()
+        },
         shape = MaterialTheme.shapes.large,
         color = Color.Transparent,
         modifier = Modifier.fillMaxWidth(),

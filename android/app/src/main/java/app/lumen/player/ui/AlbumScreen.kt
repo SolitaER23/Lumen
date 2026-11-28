@@ -77,6 +77,7 @@ fun AlbumScreen(
 ) {
     androidx.activity.compose.BackHandler { onBack() }
     val scheme = MaterialTheme.colorScheme
+    val haptics = rememberLumenHaptics()
 
     var showList by rememberSaveable(album.id) { mutableStateOf(false) }
     LaunchedEffect(album.id) {
@@ -156,6 +157,7 @@ fun AlbumScreen(
                 ) {
                     Button(
                         onClick = {
+                            haptics.confirm()
                             when (playAction) {
                                 AlbumPlayAction.START_ALBUM -> onPlay(startIndex)
                                 // 暂停与继续都走同一个 toggle：不重建队列，
@@ -183,7 +185,10 @@ fun AlbumScreen(
                         )
                     }
                     FilledTonalButton(
-                        onClick = onShuffle,
+                        onClick = {
+                            haptics.confirm()
+                            onShuffle()
+                        },
                         modifier = Modifier.height(56.dp),
                         shape = ButtonDefaults.shape,
                     ) {
@@ -205,7 +210,10 @@ fun AlbumScreen(
                         discKeys.forEachIndexed { i, d ->
                             FilterChip(
                                 selected = i == discIndex,
-                                onClick = { discIndex = i },
+                                onClick = {
+                                    if (i != discIndex) haptics.segment()
+                                    discIndex = i
+                                },
                                 label = { Text("DISC $d") },
                             )
                         }
@@ -229,7 +237,10 @@ fun AlbumScreen(
                     Surface(
                         // 点当前这首等价于按播放/暂停：播放中暂停、暂停中继续，
                         // 不重建队列也就不会从头重播；点其他曲目才切歌
-                        onClick = { if (active) onToggle() else onPlay(startIndex + i) },
+                        onClick = {
+                            haptics.confirm()
+                            if (active) onToggle() else onPlay(startIndex + i)
+                        },
                         shape = MaterialTheme.shapes.large,
                         color = if (active) scheme.primaryContainer else Color.Transparent,
                         contentColor = if (active) scheme.onPrimaryContainer else scheme.onSurface,

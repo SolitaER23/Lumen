@@ -103,7 +103,13 @@ fun LumenTopBar(
         modifier = modifier,
         navigationIcon = {
             if (onBack != null) {
-                IconButton(onClick = onBack) {
+                val haptics = rememberLumenHaptics()
+                IconButton(
+                    onClick = {
+                        haptics.tap()
+                        onBack()
+                    },
+                ) {
                     Icon(
                         YoinSymbols.Back,
                         contentDescription = L10n.t("返回"),
@@ -131,11 +137,16 @@ fun LumenSegmentedTabs(
     /** 需要与页面主色统一时传入（默认沿用 M3 的 secondaryContainer 选中色） */
     colors: SegmentedButtonColors = SegmentedButtonDefaults.colors(),
 ) {
+    val haptics = rememberLumenHaptics()
     SingleChoiceSegmentedButtonRow(modifier = if (fillWidth) modifier.fillMaxWidth() else modifier) {
         labels.forEachIndexed { i, label ->
             SegmentedButton(
                 selected = i == selected,
-                onClick = { onSelect(i) },
+                onClick = {
+                    // 分段切换统一走 SegmentTick：全应用所有"标签页/分段"手感一致
+                    if (i != selected) haptics.segment()
+                    onSelect(i)
+                },
                 shape = SegmentedButtonDefaults.itemShape(index = i, count = labels.size),
                 colors = colors,
                 icon = {},
@@ -233,6 +244,7 @@ fun LumenErrorState(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptics = rememberLumenHaptics()
     Column(
         modifier.fillMaxWidth().padding(LumenSizes.l),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -250,7 +262,10 @@ fun LumenErrorState(
             )
         }
         Button(
-            onClick = onRetry,
+            onClick = {
+                haptics.tap()
+                onRetry()
+            },
             shape = CircleShape,
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,

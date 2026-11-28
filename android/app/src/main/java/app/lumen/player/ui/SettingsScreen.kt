@@ -116,8 +116,11 @@ fun SettingsScreen(
     onOpenChangelog: () -> Unit = {},
     onOpenPrivacy: () -> Unit = {},
     onOpenTerms: () -> Unit = {},
+    hapticsOn: Boolean = true,
+    onHaptics: (Boolean) -> Unit = {},
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val haptics = rememberLumenHaptics()
     var freed by remember { mutableStateOf(false) }
     var showAccounts by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
@@ -197,7 +200,10 @@ fun SettingsScreen(
                                     .padding(top = 6.dp)
                                     .clip(RoundedCornerShape(16.dp))
                                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                                    .clickable { showAdd = true }
+                                    .clickable {
+                                        haptics.tap()
+                                        showAdd = true
+                                    }
                                     .padding(horizontal = 14.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -210,12 +216,18 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         OutlinedButton(
-                            onClick = onLogout,
+                            onClick = {
+                                haptics.tap()
+                                onLogout()
+                            },
                             modifier = Modifier.weight(1f).height(46.dp),
                             shape = RoundedCornerShape(23.dp),
                         ) { Text(L10n.t("退出登录"), fontSize = 12.sp) }
                         OutlinedButton(
-                            onClick = { confirmWipe = true },
+                            onClick = {
+                                haptics.tap()
+                                confirmWipe = true
+                            },
                             modifier = Modifier.weight(1f).height(46.dp),
                             shape = RoundedCornerShape(23.dp),
                         ) {
@@ -233,7 +245,10 @@ fun SettingsScreen(
             // 右侧标题 + 当前主题摘要，整行占满卡片宽度（旧版是"窄条浮在大卡片里"，上下留白失衡）。
             val appearanceScheme = MaterialTheme.colorScheme
             Surface(
-                onClick = { showAppearance = true },
+                onClick = {
+                    haptics.navigate()
+                    showAppearance = true
+                },
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.fillMaxWidth(),
@@ -303,6 +318,7 @@ fun SettingsScreen(
                                     "light" -> false
                                     else -> isSystemInDarkTheme()
                                 },
+                                hapticsOn = hapticsOn,
                             ),
                             onBack = { showAppearance = false },
                             onThemeMode = onThemeMode,
@@ -313,6 +329,7 @@ fun SettingsScreen(
                             onAmoled = onAmoled,
                             onPinColor = onPinColor,
                             onUnpinColor = onUnpinColor,
+                            onHaptics = onHaptics,
                         )
                     }
                 }
@@ -340,19 +357,19 @@ fun SettingsScreen(
                         title = L10n.t("歌曲缓存"),
                         size = cacheSongs,
                         hint = L10n.t("在线播放的流缓存，清理后下次播放重新缓冲"),
-                        onClear = { scope.launch { onClearSongCache(); freed = !freed } },
+                        onClear = { haptics.tap(); scope.launch { onClearSongCache(); freed = !freed } },
                     )
                     CacheRow(
                         title = L10n.t("封面缓存"),
                         size = cacheImages,
                         hint = L10n.t("清理后封面需重新获取"),
-                        onClear = { scope.launch { onClearImageCache(); freed = !freed } },
+                        onClear = { haptics.tap(); scope.launch { onClearImageCache(); freed = !freed } },
                     )
                     CacheRow(
                         title = L10n.t("歌词缓存"),
                         size = cacheLyrics,
                         hint = L10n.t("已保存的歌词文本，清理后需重新获取"),
-                        onClear = { scope.launch { onClearLyricsCache(); freed = !freed } },
+                        onClear = { haptics.tap(); scope.launch { onClearLyricsCache(); freed = !freed } },
                     )
                 }
             }
@@ -418,11 +435,17 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
+                    haptics.confirm()
                     confirmWipe = false
                     onClearLocalData()
                 }) { Text(L10n.t("清除"), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { confirmWipe = false }) { Text(L10n.t("取消")) } },
+            dismissButton = {
+                TextButton(onClick = {
+                    haptics.tap()
+                    confirmWipe = false
+                }) { Text(L10n.t("取消")) }
+            },
         )
     }
 
@@ -441,6 +464,7 @@ fun SettingsScreen(
 private fun ExpressiveSection(index: String, title: String, content: @Composable ColumnScope.() -> Unit) {
     var expanded by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(true) }
     // 全部绑定 M3 动效规格：箭头/展开/收起共用同一套 spring 与 effects，不再写私有 damping/stiffness
+    val haptics = rememberLumenHaptics()
     val spatialFloat = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
     val spatialSize = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntSize>()
     val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
@@ -456,7 +480,10 @@ private fun ExpressiveSection(index: String, title: String, content: @Composable
         Row(
             Modifier.padding(start = 4.dp, bottom = 10.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .clickable { expanded = !expanded }
+                .clickable {
+                    haptics.tap()
+                    expanded = !expanded
+                }
                 .padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -595,13 +622,17 @@ private fun AccountHero(cfg: ServerConfig) {
 
 @Composable
 private fun ExpandRow(label: String, hint: String, expanded: Boolean, onClick: () -> Unit) {
+    val haptics = rememberLumenHaptics()
     Row(
         Modifier
             .fillMaxWidth()
             .padding(top = 10.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f))
-            .clickable(onClick = onClick)
+            .clickable {
+                haptics.tap()
+                onClick()
+            }
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -624,12 +655,16 @@ private fun AccountRow(
     onSwitch: () -> Unit,
     onRemove: () -> Unit,
 ) {
+    val haptics = rememberLumenHaptics()
     Row(
         Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
             .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onSwitch)
+            .clickable {
+                haptics.navigate()
+                onSwitch()
+            }
             .padding(horizontal = 10.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -656,7 +691,13 @@ private fun AccountRow(
             )
         }
         if (removable && !active) {
-            IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+            IconButton(
+                onClick = {
+                    haptics.tap()
+                    onRemove()
+                },
+                modifier = Modifier.size(32.dp),
+            ) {
                 Icon(
                     YoinSymbols.Delete,
                     contentDescription = L10n.t("移除账号"),
@@ -731,6 +772,7 @@ private fun AboutRow(
     chevron: Boolean = false,
     onLongClick: (() -> Unit)? = null,
 ) {
+    val haptics = rememberLumenHaptics()
     Row(
         Modifier
             .fillMaxWidth()
@@ -738,12 +780,26 @@ private fun AboutRow(
             .then(
                 when {
                     onClick != null && onLongClick != null -> Modifier.combinedClickable(
-                        onClick = onClick,
-                        onLongClick = onLongClick,
+                        onClick = {
+                            haptics.tap()
+                            onClick()
+                        },
+                        onLongClick = {
+                            haptics.longPress()
+                            onLongClick()
+                        },
                     )
-                    onClick != null -> Modifier.clickable(onClick = onClick)
+                    onClick != null -> Modifier.clickable {
+                        haptics.tap()
+                        onClick()
+                    }
                     onLongClick != null -> Modifier.pointerInput(onLongClick) {
-                        detectTapGestures(onLongPress = { onLongClick() })
+                        detectTapGestures(
+                            onLongPress = {
+                                haptics.longPress()
+                                onLongClick()
+                            },
+                        )
                     }
                     else -> Modifier
                 },
@@ -768,6 +824,7 @@ private fun AboutRow(
 @Composable
 private fun FeedbackBlock() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val haptics = rememberLumenHaptics()
     Column(
         Modifier
             .fillMaxWidth()
@@ -789,7 +846,10 @@ private fun FeedbackBlock() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 6.dp)
-                .clickable { ExternalLinks.open(ctx, ExternalLinks.BILIBILI_URL) }
+                .clickable {
+                    haptics.navigate()
+                    ExternalLinks.open(ctx, ExternalLinks.BILIBILI_URL)
+                }
                 .padding(vertical = 4.dp),
         )
         Text(
@@ -799,6 +859,7 @@ private fun FeedbackBlock() {
         )
         TextButton(
             onClick = {
+                haptics.tap()
                 val clipboard = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                 clipboard.setPrimaryClip(
                     android.content.ClipData.newPlainText(
@@ -847,6 +908,7 @@ private fun AiCodedBadge(modifier: Modifier = Modifier) {
 
 @Composable
 private fun AddAccountDialog(onDismiss: () -> Unit, onConfirm: (String, String, String) -> Unit) {
+    val haptics = rememberLumenHaptics()
     var base by remember { mutableStateOf("http://") }
     var user by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
@@ -883,9 +945,19 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onConfirm: (String, String, 
         confirmButton = {
             TextButton(
                 enabled = base.startsWith("http") && user.isNotBlank() && pass.isNotBlank(),
-                onClick = { onConfirm(base, user, pass) },
+                onClick = {
+                    haptics.confirm()
+                    onConfirm(base, user, pass)
+                },
             ) { Text(L10n.t("添加并切换")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(L10n.t("取消")) } },
+        dismissButton = {
+            TextButton(
+                onClick = {
+                    haptics.tap()
+                    onDismiss()
+                },
+            ) { Text(L10n.t("取消")) }
+        },
     )
 }

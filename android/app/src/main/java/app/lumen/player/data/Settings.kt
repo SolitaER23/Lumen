@@ -162,6 +162,20 @@ object Appearance {
             .apply()
     }
 
+    /**
+     * 触感反馈总开关：默认开启。
+     *
+     * 存这里而不是新建一份偏好文件——它和主题同属「手感」，
+     * 备份/清除本机数据时应该跟主题一起走。
+     */
+    fun haptics(ctx: Context): Boolean =
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean("haptics_enabled", true)
+
+    fun setHaptics(ctx: Context, value: Boolean) {
+        ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .putBoolean("haptics_enabled", value).apply()
+    }
+
     /** 切歌音量渐变时长（毫秒，0 = 关闭）。 */
     fun fadeMs(ctx: Context): Long =
         ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE).getLong("fade_ms", 260L)

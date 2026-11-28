@@ -123,6 +123,7 @@ fun SearchScreen(
         }
     }
 
+    val haptics = rememberLumenHaptics()
     Scaffold(
         containerColor = Color.Transparent,
         topBar = { LumenTopBar(title = L10n.t("搜索"), onBack = onBack) },
@@ -135,7 +136,12 @@ fun SearchScreen(
                 leadingIcon = { Icon(YoinSymbols.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
-                        androidx.compose.material3.IconButton(onClick = { query = "" }) {
+                        androidx.compose.material3.IconButton(
+                            onClick = {
+                                haptics.tap()
+                                query = ""
+                            },
+                        ) {
                             Icon(YoinSymbols.Close, contentDescription = L10n.t("清空"))
                         }
                     }
@@ -178,7 +184,13 @@ fun SearchScreen(
                                 verticalArrangement = Arrangement.spacedBy(LumenSizes.xxs),
                             ) {
                                 history.forEach { h ->
-                                    SuggestionChip(onClick = { query = h }, label = { Text(h) })
+                                    SuggestionChip(
+                                        onClick = {
+                                            haptics.segment()
+                                            query = h
+                                        },
+                                        label = { Text(h) },
+                                    )
                                 }
                             }
                         }
@@ -234,7 +246,10 @@ fun SearchScreen(
                                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                     modifier = Modifier
                                         .padding(horizontal = LumenSizes.xs)
-                                        .clickable { onOpenArtist(artist) },
+                                        .clickable {
+                                            haptics.navigate()
+                                            onOpenArtist(artist)
+                                        },
                                 )
                             }
                         }
@@ -276,7 +291,10 @@ fun SearchScreen(
                                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                     modifier = Modifier
                                         .padding(horizontal = LumenSizes.xs)
-                                        .clickable { onPlayTrack(songs, idx) },
+                                        .clickable {
+                                            haptics.confirm()
+                                            onPlayTrack(songs, idx)
+                                        },
                                 )
                             }
                         }
@@ -312,7 +330,10 @@ fun SearchScreen(
                                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                     modifier = Modifier
                                         .padding(horizontal = LumenSizes.xs)
-                                        .clickable { onOpenAlbum(album) },
+                                        .clickable {
+                                            haptics.navigate()
+                                            onOpenAlbum(album)
+                                        },
                                 )
                             }
                         }

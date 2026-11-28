@@ -109,13 +109,19 @@ private val LICENSE_DOCS = listOf(
 fun LicensesScreen(onBack: () -> Unit) {
     // 页面内返回按钮 / 系统返回统一走同一入口
     androidx.activity.compose.BackHandler { onBack() }
+    val haptics = rememberLumenHaptics()
     LazyColumn(
         modifier = Modifier.fillMaxSize().statusBarsPadding(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
     ) {
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
+                IconButton(
+                    onClick = {
+                        haptics.tap()
+                        onBack()
+                    },
+                ) {
                     Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Text(L10n.t("关于"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -254,6 +260,7 @@ private fun LicenseNote(title: String, body: String) {
 
 @Composable
 private fun LicenseDocCard(doc: LicenseDoc) {
+    val haptics = rememberLumenHaptics()
     val ctx = LocalContext.current
     var open by remember { mutableStateOf(false) }
     val text by produceState("", doc.file) {
@@ -273,7 +280,10 @@ private fun LicenseDocCard(doc: LicenseDoc) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clickable { open = !open }
+                        .clickable {
+                            haptics.segment()
+                            open = !open
+                        }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

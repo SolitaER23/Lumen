@@ -44,6 +44,7 @@ fun ConsentScreen(
     onAccept: () -> Unit,
     onDecline: () -> Unit,
 ) {
+    val haptics = rememberLumenHaptics()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(
             Modifier
@@ -137,7 +138,10 @@ fun ConsentScreen(
 
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = { if (termsRead && privacyRead) onAccept() },
+                onClick = {
+                    haptics.confirm()
+                    if (termsRead && privacyRead) onAccept()
+                },
                 enabled = termsRead && privacyRead,
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 shape = CircleShape,
@@ -149,7 +153,10 @@ fun ConsentScreen(
                 )
             }
             TextButton(
-                onClick = onDecline,
+                onClick = {
+                    haptics.tap()
+                    onDecline()
+                },
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             ) {
                 Text(
@@ -175,11 +182,15 @@ private fun ConsentStep(
     read: Boolean,
     onClick: () -> Unit,
 ) {
+    val haptics = rememberLumenHaptics()
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
+            .clickable {
+                haptics.navigate()
+                onClick()
+            }
             .padding(horizontal = 10.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

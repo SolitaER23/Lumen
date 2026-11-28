@@ -81,6 +81,7 @@ fun TermsScreen(onBack: () -> Unit, onReachedBottom: () -> Unit = {}) {
     val blocks = blocksState
 
     BackHandler { onBack() }
+    val haptics = rememberLumenHaptics()
 
     LazyColumn(
         state = listState,
@@ -89,7 +90,12 @@ fun TermsScreen(onBack: () -> Unit, onReachedBottom: () -> Unit = {}) {
     ) {
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
+                IconButton(
+                    onClick = {
+                        haptics.tap()
+                        onBack()
+                    },
+                ) {
                     Icon(YoinSymbols.Back, contentDescription = L10n.t("返回"), tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Column {
@@ -196,6 +202,7 @@ fun TermsScreen(onBack: () -> Unit, onReachedBottom: () -> Unit = {}) {
                                     shape = CircleShape,
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
                                     modifier = Modifier.clickable {
+                                        haptics.navigate()
                                         ExternalLinks.open(ctx, ExternalLinks.BILIBILI_URL)
                                     },
                                 ) {

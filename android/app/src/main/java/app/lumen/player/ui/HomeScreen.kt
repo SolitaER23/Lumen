@@ -158,6 +158,7 @@ fun HomeScreen(
     val sortedArtists = remember(artists, artistSort) { HomeSort.artists(artists, artistSort) }
 
     val scheme = MaterialTheme.colorScheme
+    val haptics = rememberLumenHaptics()
     val sortLabel = sortOptions.getOrElse(sortIndex) { L10n.t("字母顺序") }
     val sectionTitle = if (tab == 1) L10n.t("全部艺人") else L10n.t("全部专辑")
     val sectionTrailing = if (tab == 1) {
@@ -277,6 +278,7 @@ fun HomeScreen(
                     modifier = Modifier
                         .padding(horizontal = LumenSizes.xs)
                         .clickable {
+                            haptics.segment()
                             onSortChange(tab, i)
                             showSort = false
                         },
@@ -350,11 +352,15 @@ private fun HomeTopBar(
 @Composable
 private fun HomeBarText(label: String, selected: Boolean, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
+    val haptics = rememberLumenHaptics()
     Box(
         Modifier
             .size(44.dp)
             .clip(CircleShape)
-            .clickable(onClick = onClick),
+            .clickable {
+                haptics.segment()
+                onClick()
+            },
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -374,8 +380,12 @@ private fun HomeBarIcon(
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    val haptics = rememberLumenHaptics()
     IconButton(
-        onClick = onClick,
+        onClick = {
+            haptics.navigate()
+            onClick()
+        },
         modifier = Modifier
             .size(44.dp)
             .then(
@@ -500,8 +510,12 @@ private fun AlbumCard(
     onClick: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val haptics = rememberLumenHaptics()
     Surface(
-        onClick = onClick,
+        onClick = {
+            haptics.navigate()
+            onClick()
+        },
         shape = MaterialTheme.shapes.large,
         color = Color.Transparent,
         modifier = Modifier.fillMaxWidth(),
@@ -610,8 +624,10 @@ private fun ArtistList(
             )
         }
         items(artists, key = { it.id }, contentType = { "artist" }) { artist ->
+            val haptics = rememberLumenHaptics()
             Surface(
                 onClick = {
+                    haptics.navigate()
                     originOf(artist)?.let { NavOriginStore.put(artist.id, it) }
                     onOpen(artist)
                 },

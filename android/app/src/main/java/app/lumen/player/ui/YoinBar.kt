@@ -66,8 +66,12 @@ fun YoinBar(
     onToggle: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val haptics = rememberLumenHaptics()
     Surface(
-        onClick = onOpenPlayer,
+        onClick = {
+            haptics.navigate()
+            onOpenPlayer()
+        },
         enabled = enabled,
         shape = MaterialTheme.shapes.extraLarge,
         color = scheme.surfaceContainerHigh,
@@ -119,7 +123,14 @@ fun YoinBar(
                             )
                         }
                     }
-                    FilledIconButton(onClick = onToggle, modifier = Modifier.size(44.dp)) {
+                    FilledIconButton(
+                        onClick = {
+                            // 播放/暂停是主操作：给出 Confirm 级别的确认感
+                            haptics.confirm()
+                            onToggle()
+                        },
+                        modifier = Modifier.size(44.dp),
+                    ) {
                         Icon(
                             if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
                             contentDescription = if (playing) L10n.t("暂停") else L10n.t("播放"),

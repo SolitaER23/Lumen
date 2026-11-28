@@ -266,6 +266,8 @@ private fun App() {
     var gradientOn by remember { mutableStateOf(app.lumen.player.data.Appearance.gradientTheme(ctx)) }
     var materialYouOn by remember { mutableStateOf(app.lumen.player.data.Appearance.materialYou(ctx)) }
     var pinnedAlbumId by remember { mutableStateOf(app.lumen.player.data.Appearance.pinnedAlbum(ctx)) }
+    // 触感反馈总开关：默认开；关掉后所有调用点立刻静音（不需要重启）
+    var hapticsOn by remember { mutableStateOf(app.lumen.player.data.Appearance.haptics(ctx)) }
     var paletteStatus by remember { mutableStateOf("") }
     // 省电模式：用系统广播取代「每 5 秒轮询」。轮询会永久占一个协程，且在系统最省电的时候
     // 仍然定时唤醒主线程；广播只在真的切换时回调。
@@ -503,7 +505,7 @@ private fun App() {
     }
 
     if (!legalAccepted) {
-        app.lumen.player.ui.LumenTheme(colorScheme = FallbackScheme) {
+        app.lumen.player.ui.LumenTheme(colorScheme = FallbackScheme, hapticsEnabled = hapticsOn) {
             when (legalDoc) {
                 "terms" -> app.lumen.player.ui.TermsScreen(
                     onBack = { legalDoc = null },
@@ -532,7 +534,7 @@ private fun App() {
     }
 
     if (showOnboarding) {
-        app.lumen.player.ui.LumenTheme(colorScheme = FallbackScheme) {
+        app.lumen.player.ui.LumenTheme(colorScheme = FallbackScheme, hapticsEnabled = hapticsOn) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
                 app.lumen.player.ui.OnboardingScreen(
                     onDone = {
@@ -589,7 +591,7 @@ private fun App() {
 
     if (!loggedIn) {
         // 登录页也要套主题，否则用的是 M3 默认浅色 → 深色字压在黑底上看不清
-        app.lumen.player.ui.LumenTheme(colorScheme = FallbackScheme) {
+        app.lumen.player.ui.LumenTheme(colorScheme = FallbackScheme, hapticsEnabled = hapticsOn) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
                 LoginScreen(
                     initial = cfg,
@@ -1051,6 +1053,11 @@ private fun App() {
                             paletteStyle = it
                             app.lumen.player.data.Appearance.setPaletteStyle(ctx, it)
                         },
+                        hapticsOn = hapticsOn,
+                        onHaptics = {
+                            hapticsOn = it
+                            app.lumen.player.data.Appearance.setHaptics(ctx, it)
+                        },
                         amoled = amoledOn,
                         onAmoled = {
                             amoledOn = it
@@ -1251,7 +1258,7 @@ private fun App() {
                 }
     }
 
-    app.lumen.player.ui.LumenTheme(colorScheme = animatedScheme) {
+    app.lumen.player.ui.LumenTheme(colorScheme = animatedScheme, hapticsEnabled = hapticsOn) {
         Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
             // 只在需要时读一次按压位置的老实现已删除：入场方向现在由 NavOriginStore + 共享元素决定
             Box(Modifier.fillMaxSize()) {

@@ -73,6 +73,8 @@ data class AppearanceUiState(
     val paletteStatus: String = "",
     /** 当前是否处于深色（含跟随系统解析结果），用于禁用只对深色生效的开关。 */
     val darkActive: Boolean = false,
+    /** 应用级触感总开关。 */
+    val hapticsOn: Boolean = true,
 )
 
 @Composable
@@ -87,6 +89,7 @@ fun AppearanceScreen(
     onAmoled: (Boolean) -> Unit,
     onPinColor: () -> Unit,
     onUnpinColor: () -> Unit,
+    onHaptics: (Boolean) -> Unit = {},
 ) {
     // 本页承载在全屏 Dialog 里，而 Dialog 是**独立窗口**：状态栏/导航栏图标的明暗
     // 必须给这个窗口单独设置，否则浅色外观页上会出现"白底白字"的系统栏。
@@ -205,8 +208,22 @@ fun AppearanceScreen(
                         enabled = amoledEnabled,
                         onChange = onAmoled,
                     )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+            }
 
+            // 04 触感与动效
+            item {
+                AppearanceGroup(index = "04", title = L10n.tf("触感与动效", "Haptics & motion")) {
+                    ToggleSetting(
+                        title = L10n.tf("触感反馈", "Haptic feedback"),
+                        hint = L10n.tf(
+                            "按下、切换、确认与拖动时给出对应强度的震动；系统「触摸时振动」关闭时不生效",
+                            "Vibration matched to taps, toggles, confirmations and drags; follows the system touch-vibration switch",
+                        ),
+                        checked = state.hapticsOn,
+                        onChange = onHaptics,
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     var fxOn by remember { mutableStateOf(AmbientFx.enabled) }
                     val fxContext = LocalContext.current
                     ToggleSetting(
@@ -221,9 +238,9 @@ fun AppearanceScreen(
                 }
             }
 
-            // 04 专辑锁色
+            // 05 专辑锁色
             item {
-                AppearanceGroup(index = "04", title = L10n.tf("专辑锁色", "Album palette lock")) {
+                AppearanceGroup(index = "05", title = L10n.tf("专辑锁色", "Album palette lock")) {
                     Text(
                         L10n.tf("固定当前配色，不随切歌变化", "Keep the current palette when tracks change"),
                         style = MaterialTheme.typography.bodySmall,
@@ -429,13 +446,18 @@ private fun ToggleSetting(
     enabled: Boolean = true,
     onChange: (Boolean) -> Unit,
 ) {
+    val haptics = rememberLumenHaptics()
     val rowModifier = Modifier
         .fillMaxWidth()
         .toggleable(
             value = checked,
             enabled = enabled,
             role = Role.Switch,
-            onValueChange = onChange,
+            onValueChange = { next ->
+                // 开关是"状态切换"，用 ToggleOn / ToggleOff 的纹理，而不是普通点击
+                haptics.toggle(next)
+                onChange(next)
+            },
         )
     ListItem(
         content = {

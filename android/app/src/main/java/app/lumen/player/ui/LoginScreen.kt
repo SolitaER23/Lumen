@@ -52,6 +52,11 @@ fun LoginScreen(
     val verdict = remember(base, allowPublicCleartext) {
         NetworkPolicy.evaluate(base, allowPublicCleartext)
     }
+    val haptics = rememberLumenHaptics()
+    // 连接失败时给一次"被拒绝"的反馈，比只弹一行红字更容易被注意到
+    androidx.compose.runtime.LaunchedEffect(error) {
+        if (!error.isNullOrBlank()) haptics.reject()
+    }
 
     Column(
         Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp, vertical = 16.dp),
@@ -86,7 +91,13 @@ fun LoginScreen(
                     Modifier.fillMaxWidth().padding(top = 4.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 ) {
-                    Switch(checked = allowPublicCleartext, onCheckedChange = onAllowPublicCleartextChange)
+                    Switch(
+                        checked = allowPublicCleartext,
+                        onCheckedChange = {
+                            haptics.toggle(it)
+                            onAllowPublicCleartextChange(it)
+                        },
+                    )
                     Spacer(Modifier.size(8.dp))
                     Text(
                         L10n.tf("我了解风险，仍允许明文 HTTP", "I understand the risk; allow plain HTTP"),
@@ -150,7 +161,10 @@ fun LoginScreen(
                 lineHeight = 16.sp,
             )
             Button(
-                onClick = onRequestLocalNetwork,
+                onClick = {
+                    haptics.tap()
+                    onRequestLocalNetwork()
+                },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -161,7 +175,10 @@ fun LoginScreen(
             }
         }
         Button(
-            onClick = { onSubmit(ServerConfig(base.trim(), user.trim(), pass)) },
+            onClick = {
+                haptics.confirm()
+                onSubmit(ServerConfig(base.trim(), user.trim(), pass))
+            },
             enabled = !loading && verdict == CleartextVerdict.OK &&
                 user.isNotBlank() && pass.isNotBlank(),
             shape = RoundedCornerShape(percent = 50),

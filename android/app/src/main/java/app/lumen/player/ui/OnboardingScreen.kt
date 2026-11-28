@@ -111,6 +111,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
 
     val pager = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
+    val haptics = rememberLumenHaptics()
     val page = pager.currentPage
 
     fun goPrevious() {
@@ -144,7 +145,13 @@ fun OnboardingScreen(onDone: () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onDone, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                TextButton(
+                    onClick = {
+                        haptics.tap()
+                        onDone()
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                ) {
                     Text(
                         L10n.tf("跳过", "Skip"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -186,7 +193,12 @@ fun OnboardingScreen(onDone: () -> Unit) {
                 Spacer(Modifier.height(20.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     if (page > 0) {
-                        TextButton(onClick = { goPrevious() }) {
+                        TextButton(
+                            onClick = {
+                                haptics.segment()
+                                goPrevious()
+                            },
+                        ) {
                             Text(
                                 L10n.tf("上一步", "Back"),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -203,7 +215,11 @@ fun OnboardingScreen(onDone: () -> Unit) {
                     )
                     Spacer(Modifier.width(20.dp))
                     Button(
-                        onClick = { goNext() },
+                        onClick = {
+                            // 每一步前进都是"提交"：用 Confirm，最后一步同样
+                            haptics.confirm()
+                            goNext()
+                        },
                         shape = ButtonDefaults.shape,
                         contentPadding = PaddingValues(horizontal = 26.dp, vertical = 14.dp),
                     ) {

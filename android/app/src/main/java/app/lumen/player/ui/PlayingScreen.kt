@@ -96,6 +96,7 @@ fun PlayingScreen(
     coverKey: String? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val haptics = rememberLumenHaptics()
     val known = durationMs > 0L
 
     val modeIcon = when (playMode) {
@@ -182,7 +183,10 @@ fun PlayingScreen(
             ) {
                 IconToggleButton(
                     checked = showLyrics,
-                    onCheckedChange = { onToggleLyrics() },
+                    onCheckedChange = {
+                        haptics.toggle(it)
+                        onToggleLyrics()
+                    },
                     modifier = Modifier.size(48.dp),
                 ) {
                     Icon(
@@ -191,7 +195,13 @@ fun PlayingScreen(
                         modifier = Modifier.size(24.dp),
                     )
                 }
-                IconButton(onClick = onPrev, modifier = Modifier.size(56.dp)) {
+                IconButton(
+                    onClick = {
+                        haptics.tap()
+                        onPrev()
+                    },
+                    modifier = Modifier.size(56.dp),
+                ) {
                     Icon(
                         YoinSymbols.SkipPrevious,
                         contentDescription = L10n.t("上一首"),
@@ -199,14 +209,26 @@ fun PlayingScreen(
                         modifier = Modifier.size(32.dp),
                     )
                 }
-                FilledIconButton(onClick = onToggle, modifier = Modifier.size(78.dp)) {
+                FilledIconButton(
+                    onClick = {
+                        haptics.confirm()
+                        onToggle()
+                    },
+                    modifier = Modifier.size(78.dp),
+                ) {
                     Icon(
                         if (playing) YoinSymbols.PauseFilled else YoinSymbols.PlayFilled,
                         contentDescription = if (playing) L10n.t("暂停") else L10n.t("播放"),
                         modifier = Modifier.size(34.dp),
                     )
                 }
-                IconButton(onClick = onNext, modifier = Modifier.size(56.dp)) {
+                IconButton(
+                    onClick = {
+                        haptics.tap()
+                        onNext()
+                    },
+                    modifier = Modifier.size(56.dp),
+                ) {
                     Icon(
                         YoinSymbols.SkipNext,
                         contentDescription = L10n.t("下一首"),
@@ -214,7 +236,13 @@ fun PlayingScreen(
                         modifier = Modifier.size(32.dp),
                     )
                 }
-                IconButton(onClick = onCyclePlayMode, modifier = Modifier.size(48.dp)) {
+                IconButton(
+                    onClick = {
+                        haptics.segment()
+                        onCyclePlayMode()
+                    },
+                    modifier = Modifier.size(48.dp),
+                ) {
                     Icon(
                         modeIcon,
                         contentDescription = modeLabel,
@@ -330,6 +358,7 @@ private fun LyricsArea(
                     contentPadding = PaddingValues(top = vPad, bottom = vPad, start = LumenSizes.l, end = LumenSizes.l),
                 ) {
                     itemsIndexed(lyricLines, contentType = { _, _ -> "lyric" }) { i, line ->
+                        val haptics = rememberLumenHaptics()
                         val d = kotlin.math.abs(i - highlight).toFloat()
                         val smooth = kotlin.math.exp(-d / 2.0f)
                         val alpha = 0.16f + 0.84f * smooth
@@ -345,7 +374,10 @@ private fun LyricsArea(
                                 .fillMaxWidth()
                                 .graphicsLayer { this.alpha = alpha }
                                 .padding(vertical = LumenSizes.xs)
-                                .clickable { onSeekPlay(line.startMs) },
+                                .clickable {
+                                    haptics.tap()
+                                    onSeekPlay(line.startMs)
+                                },
                         )
                     }
                 }
@@ -368,18 +400,32 @@ private fun SeekSection(
     onSeek: (Long) -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val haptics = rememberLumenHaptics()
     val positionMs = positionProvider()
     val progress = if (known) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
     var scrubbing by remember { mutableStateOf<Float?>(null) }
+    // 拖动开始时给一次"跨过阈值"的反馈，松手时给一次"手势结束"：
+    // 简单版 Slider 没有 onValueChangeStarted，用首次 onValueChange 作为起点。
+    var dragTicked by remember { mutableStateOf(false) }
     val shown = scrubbing ?: progress
     Column(Modifier.fillMaxWidth()) {
         Slider(
             value = shown,
-            onValueChange = { scrubbing = it },
+            onValueChange = {
+                if (!dragTicked) {
+                    dragTicked = true
+                    haptics.threshold()
+                }
+                scrubbing = it
+            },
             onValueChangeFinished = {
                 val f = scrubbing
                 if (f != null && known) onSeek((f * durationMs).toLong())
                 scrubbing = null
+                if (dragTicked) {
+                    dragTicked = false
+                    haptics.gestureEnd()
+                }
             },
             enabled = known,
             modifier = Modifier.fillMaxWidth().padding(horizontal = LumenSizes.l),

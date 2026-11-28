@@ -267,8 +267,12 @@ private fun StatsTopAction(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
+    val haptics = rememberLumenHaptics()
     IconButton(
-        onClick = onClick,
+        onClick = {
+            haptics.tap()
+            onClick()
+        },
         enabled = enabled,
         shapes = IconButtonDefaults.shapes(),
         colors = IconButtonDefaults.iconButtonColors(
@@ -977,6 +981,7 @@ private fun ConfigEditor(
     onCancel: () -> Unit,
     onSave: (StatsConfig) -> Unit,
 ) {
+    val haptics = rememberLumenHaptics()
     var base by remember { mutableStateOf(initial.base.ifBlank { "http://" }) }
     var token by remember { mutableStateOf(initial.token) }
     Column(
@@ -1016,7 +1021,10 @@ private fun ConfigEditor(
             modifier = Modifier.fillMaxWidth(),
         )
         Button(
-            onClick = { onSave(StatsConfig(base.trim(), token.trim())) },
+            onClick = {
+                haptics.confirm()
+                onSave(StatsConfig(base.trim(), token.trim()))
+            },
             enabled = base.trim().startsWith("http") && token.isNotBlank(),
             shape = ButtonDefaults.shape,
             modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -1029,7 +1037,10 @@ private fun ConfigEditor(
         if (initial.complete) {
             // 取消是次级动作：用描边按钮，避免和主色/次色两个大色块抢注意力
             OutlinedButton(
-                onClick = onCancel,
+                onClick = {
+                    haptics.tap()
+                    onCancel()
+                },
                 shape = ButtonDefaults.shape,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
             ) {

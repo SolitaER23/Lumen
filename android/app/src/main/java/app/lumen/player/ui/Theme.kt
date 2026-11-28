@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -77,12 +78,16 @@ internal fun lumenTypography(): Typography {
 @Composable
 fun LumenTheme(
     colorScheme: ColorScheme,
+    /** 应用级触感总开关：在这里下发 CompositionLocal，所有页面共用同一份状态。 */
+    hapticsEnabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    MaterialExpressiveTheme(
-        colorScheme = colorScheme,
-        motionScheme = MotionScheme.expressive(),
-        typography = lumenTypography(),
-        content = content,
-    )
+    CompositionLocalProvider(LocalHapticsEnabled provides hapticsEnabled) {
+        MaterialExpressiveTheme(
+            colorScheme = colorScheme,
+            motionScheme = MotionScheme.expressive(),
+            typography = lumenTypography(),
+            content = content,
+        )
+    }
 }
